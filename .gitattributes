@@ -1,0 +1,7 @@
+# Normalize line endings: text files use LF in the repo, checked out as native on each platform
+* text=auto eol=lf
+
+# Binary files — no line ending conversion
+*.dll binary
+*.png binary
+*.zip binary

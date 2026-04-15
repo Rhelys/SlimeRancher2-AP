@@ -1,0 +1,39 @@
+name: Release
+
+# Trigger: push a tag like v0.1.0, v1.2.3, etc.
+# To release: git tag v0.1.0 && git push origin v0.1.0
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Needed so the workflow can create a GitHub Release
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 6
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '6.0.x'
+
+      - name: Restore NuGet packages
+        run: dotnet restore
+
+      - name: Build (Release)
+        run: dotnet build -c Release --no-restore
+
+      # The PostBuildZip MSBuild target produces bin/SlimeRancher2-AP.zip
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: bin/SlimeRancher2-AP.zip
+          # Auto-generates release notes from commits since the last tag
+          generate_release_notes: true

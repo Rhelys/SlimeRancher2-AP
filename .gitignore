@@ -1,0 +1,22 @@
+# Claude Code session data
+.claude/
+
+# Build outputs
+bin/
+obj/
+
+# Decompiled game APIs (generated locally by ilspycmd — see CLAUDE.md for instructions)
+apis/
+
+# Local game path override — contains your personal SR2 install path, not for sharing
+Directory.Build.props
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+
+# OS
+.DS_Store
+Thumbs.db
