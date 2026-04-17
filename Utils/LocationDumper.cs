@@ -112,10 +112,10 @@ public static class LocationDumper
         foreach (var rancher in rancherDefs)
         {
             var rancherName = rancher.name;
-            var providers = rancher.conversationProviders;
+            var providers = rancher._conversationProviders;
             if (providers == null)
             {
-                log.LogInfo($"[AP-Dump] Rancher '{rancherName}' — conversationProviders NULL");
+                log.LogInfo($"[AP-Dump] Rancher '{rancherName}' — _conversationProviders NULL");
                 continue;
             }
 
@@ -205,7 +205,7 @@ public static class LocationDumper
         var coveredNames = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
         foreach (var rancher2 in rancherDefs)
         {
-            var providers2 = rancher2.conversationProviders;
+            var providers2 = rancher2._conversationProviders;
             if (providers2 == null) continue;
             for (int p = 0; p < providers2.Count; p++)
             {

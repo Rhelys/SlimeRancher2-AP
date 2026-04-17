@@ -68,6 +68,12 @@ public class SlotData
     public ConversationCheckMode ConversationChecks { get; init; } = ConversationCheckMode.Off;
 
     /// <summary>
+    /// When true, Tarr bites always kill the player instantly regardless of health or multiplier.
+    /// Slot data key: <c>"tarr_instakill"</c>.
+    /// </summary>
+    public bool TarrInstakill { get; init; } = false;
+
+    /// <summary>
     /// Multiplier applied to all incoming player damage. 1 = normal (default). Range: 1–5.
     /// Slot data key: <c>"incoming_damage_multiplier"</c>.
     /// </summary>
@@ -90,6 +96,7 @@ public class SlotData
             RandomizeGhostlyDrones   = GetBool(raw, "randomize_ghostly_drones",  defaultVal: false),
             ZoneTeleporterMode          = GetString(raw, "zone_teleporter_mode", "item"),
             ConversationChecks          = GetConversationCheckMode(raw, "conversation_checks"),
+            TarrInstakill               = GetBool(raw, "tarr_instakill", defaultVal: false),
             IncomingDamageMultiplier    = (int)GetLong(raw, "incoming_damage_multiplier", 1),
         };
     }

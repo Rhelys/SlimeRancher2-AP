@@ -22,7 +22,7 @@ namespace SlimeRancher2AP.Patches.UiPatches;
 //   - OptionsUIRoot.BindCategories(OptionsConfiguration, OptionsAboutCategory)
 //     is called once from LateStart; it maps every IOptionsCategory to a
 //     CategoryViewModel and drives the tab bar via categoryAdapter.
-//   - When the player clicks a tab → SwapCategory(int) → BindItemCategory(category)
+//   - When the player clicks a tab → SwapCategory(int, bool) → BindItemCategory(category)
 //     switches the right-panel item list to that category's OptionsItemDefinitions.
 //   - The special "About" tab is handled separately via BindAboutCategory().
 //
@@ -289,10 +289,11 @@ internal static class OptionsMenuTabSelectedPatch
 /// is active before the original runs.  When switching to ours, do nothing here —
 /// BindItemCategory's Prefix handles the show logic.
 /// </summary>
-[HarmonyPatch(typeof(OptionsUIRoot), "SwapCategory")]
+[HarmonyPatch(typeof(OptionsUIRoot), "SwapCategory",
+    new System.Type[] { typeof(int), typeof(bool) })]
 internal static class OptionsMenuSwapCategoryPatch
 {
-    private static bool Prefix(OptionsUIRoot __instance, int __0)
+    private static bool Prefix(OptionsUIRoot __instance, int __0, bool __1)
     {
         if (!Plugin.Instance.ModEnabled) return true;
         if (OptionsMenuInjectionPatch.OurCategoryIndex < 0) return true;

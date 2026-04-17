@@ -16,12 +16,13 @@ namespace SlimeRancher2AP.Patches.PlayerPatches;
 // __instance._model without a guard can cause a native IL2CPP crash if the
 // AccessDoor object is partially initialised at that point.
 // ─────────────────────────────────────────────────────────────────────────────
-[HarmonyPatch(typeof(AccessDoor), nameof(AccessDoor.ForceUpdate))]
+[HarmonyPatch(typeof(AccessDoor), nameof(AccessDoor.ForceUpdate),
+    new System.Type[] { typeof(bool) })]
 internal static class AccessDoorOpenPatch
 {
     private static readonly System.Collections.Generic.HashSet<int> _reportedOpenDoors = new();
 
-    private static void Postfix(AccessDoor __instance)
+    private static void Postfix(AccessDoor __instance, bool immediate)
     {
 #if DEBUG
         SlimeRancher2AP.Utils.DebugTrace.Once("AccessDoorOpenPatch.Postfix — first entry");
