@@ -292,14 +292,21 @@ internal static class OptionsMenuTabSelectedPatch
 [HarmonyPatch(typeof(OptionsUIRoot), "SwapCategory")]
 internal static class OptionsMenuSwapCategoryPatch
 {
-    private static void Prefix(OptionsUIRoot __instance, int __0)
+    private static bool Prefix(OptionsUIRoot __instance, int __0)
     {
-        if (!Plugin.Instance.ModEnabled) return;
-        if (OptionsMenuInjectionPatch.OurCategoryIndex < 0) return;
+        if (!Plugin.Instance.ModEnabled) return true;
+        if (OptionsMenuInjectionPatch.OurCategoryIndex < 0) return true;
 
         try
         {
             bool isOurTab = __0 == OptionsMenuInjectionPatch.OurCategoryIndex;
+
+            // Block SwapCategory when our panel is visible and Q/E tries to leave our tab.
+            // CheckThenSwapCategory is the primary gate but the game update may call
+            // SwapCategory more directly for keyboard/gamepad navigation.
+            if (Plugin.Instance.ConnectionUi?.IsVisible == true && !isOurTab)
+                return false;
+
             if (!isOurTab)
             {
                 Plugin.Instance.ConnectionUi?.Hide();
@@ -310,6 +317,8 @@ internal static class OptionsMenuSwapCategoryPatch
         {
             Plugin.Instance.Log.LogError($"[AP] OptionsMenuSwapCategoryPatch.Prefix: {ex.Message}");
         }
+
+        return true;
     }
 }
 

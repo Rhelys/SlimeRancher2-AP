@@ -15,7 +15,7 @@ namespace SlimeRancher2AP.Patches.LocationPatches;
 ///     <see cref="SlimepediaPatch"/> via the <c>__result</c> guard.
 ///   </item>
 ///   <item>
-///     <c>Unlock(IdentifiableType)</c> — CallerCount(3), returns <c>void</c>. Used for resource
+///     <c>Unlock(IdentifiableType, bool showPopup)</c> — CallerCount(3), returns <c>void</c>. Used for resource
 ///     entries unlocked when the player first picks up or discovers an identifiable object.
 ///     Does NOT call through to the PediaEntry overload at the native level (confirmed by
 ///     slime checks firing but resource checks not firing). Patched below in
@@ -61,7 +61,7 @@ internal static class SlimepediaPatch
 /// <c>GetEntry(identType)</c> and forward to the shared helper.
 /// </summary>
 [HarmonyPatch(typeof(PediaDirector), nameof(PediaDirector.Unlock),
-    new System.Type[] { typeof(IdentifiableType) })]
+    new System.Type[] { typeof(IdentifiableType), typeof(bool) })]
 internal static class SlimepediaIdentTypePatch
 {
     // __state = true  → was already unlocked before this call (no-op, skip)
