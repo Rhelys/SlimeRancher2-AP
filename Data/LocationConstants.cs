@@ -13,8 +13,10 @@ namespace SlimeRancher2AP.Data;
 ///   819400â€“819449  Fabricator â€” Vacpack Upgrade crafts          â€”  50 slots
 ///   819450â€“819479  Research Drones                              â€”  30 slots
 ///   819480â€“819494  Ghostly Drones                               â€”  15 slots
-///   819495â€“819499  Reserved                                     â€”   5 slots
+///   819495â€”819499  Reserved                                     â€”   5 slots
+///   819630â€”819683  Slimepedia Resources                         â€”  54 slots
 ///   819700â€”819714  Conversation Key Gifts (functional items)    â€”  15 slots
+///   819821–819842  Radiant Slimepedia Entries (22 entries, confirmed via DumpRadiantSlimes)
 ///   819715â€”819762  Conversation Decoration Gifts                â€”  48 slots
 ///   819763â€”819816  Conversation Non-Gift (story/lore/deflect)   â€”  54 slots
 ///
@@ -652,4 +654,33 @@ public static class LocationConstants
     public const long SlimepediaRes_BlackIndigoniumCraft = 819681;
     public const long SlimepediaRes_PrismaPlorts         = 819682;
     public const long SlimepediaRes_PrismaResources      = 819683;
+
+    // =========================================================================
+    // RADIANT SLIMEPEDIA ENTRIES: 819821 – 819842  (22 entries)
+    // EntryName = RadiantSlimePediaEntry.name (Unity asset name, stable).
+    // Confirmed via DumpRadiantSlimes() in-game; alphabetical order.
+    // =========================================================================
+    public const long SlimepediaRadiant_Angler   = 819821;
+    public const long SlimepediaRadiant_Batty    = 819822;
+    public const long SlimepediaRadiant_Boom     = 819823;
+    public const long SlimepediaRadiant_Cotton   = 819824;
+    public const long SlimepediaRadiant_Crystal  = 819825;
+    public const long SlimepediaRadiant_Dervish  = 819826;
+    public const long SlimepediaRadiant_Fire     = 819827;
+    public const long SlimepediaRadiant_Flutter  = 819828;
+    public const long SlimepediaRadiant_Honey    = 819829;
+    public const long SlimepediaRadiant_Hunter   = 819830;
+    public const long SlimepediaRadiant_Hyper    = 819831;
+    public const long SlimepediaRadiant_Phosphor = 819832;
+    public const long SlimepediaRadiant_Pink     = 819833;
+    public const long SlimepediaRadiant_Puddle   = 819834;
+    public const long SlimepediaRadiant_Ringtail = 819835;
+    public const long SlimepediaRadiant_Rock     = 819836;
+    public const long SlimepediaRadiant_Saber    = 819837;
+    public const long SlimepediaRadiant_Sloomber = 819838;
+    public const long SlimepediaRadiant_Tabby    = 819839;
+    public const long SlimepediaRadiant_Tangle   = 819840;
+    public const long SlimepediaRadiant_Twin     = 819841;
+    public const long SlimepediaRadiant_Yolky    = 819842;
+    // 819843+ spare
 }

@@ -19,6 +19,14 @@ public enum LocationType
     ShadowPlortDoor,
 
     /// <summary>
+    /// A Radiant Slime Slimepedia entry unlocked when the player first catches a radiant
+    /// variant of that slime type.
+    /// Included when <see cref="SlimeRancher2AP.Archipelago.SlotData.RandomizeSlimepediaRadiant"/> is true.
+    /// Lookup key: <c>RadiantSlimePediaEntry.name</c> (stable Unity asset name).
+    /// </summary>
+    SlimepediaRadiantEntry,
+
+    /// <summary>
     /// Conversation with confirmed zone or chain access conditions (8 total).
     /// Included when <see cref="ConversationCheckMode"/> ≥ <see cref="ConversationCheckMode.Conditional"/>.
     /// Examples: Radiant Projector Blueprint (EV or Strand), Archive Key (EV+Strand),
@@ -723,6 +731,37 @@ public static class LocationTable
         new(LocationConstants.Conv_Gigi_Core_RetryFight,       "Gigi: Retry Fight",                       LocationType.ConversationNonGift, "Gigi", "GigiCore_RetryFight"),
         new(LocationConstants.Conv_Gigi_Core_FightComplete,    "Gigi: Fight Complete",                    LocationType.ConversationNonGift, "Gigi", "GigiCore_FightComplete"),
         new(LocationConstants.Conv_Gigi_Core_PostGame,         "Gigi: Post Game",                         LocationType.ConversationNonGift, "Gigi", "GigiCore_PostGame"),
+
+        // -------------------------------------------------------------------------
+        // RADIANT SLIMEPEDIA ENTRIES (819821–819842)
+        // 22 entries confirmed via DumpRadiantSlimes() — alphabetical order.
+        // Lookup key: RadiantSlimePediaEntry.name (stable Unity asset name).
+        // The existing SlimepediaPatch on PediaDirector.Unlock(PediaEntry, bool) fires
+        // for RadiantSlimePediaEntry because it extends PediaEntry — no extra patch needed.
+        // Enabled when SlotData.RandomizeSlimepediaRadiant is true.
+        // -------------------------------------------------------------------------
+        new(LocationConstants.SlimepediaRadiant_Angler,   "Radiant Slimepedia: Angler",   LocationType.SlimepediaRadiantEntry, "", "", "RadiantAngler"),
+        new(LocationConstants.SlimepediaRadiant_Batty,    "Radiant Slimepedia: Batty",    LocationType.SlimepediaRadiantEntry, "", "", "RadiantBatty"),
+        new(LocationConstants.SlimepediaRadiant_Boom,     "Radiant Slimepedia: Boom",     LocationType.SlimepediaRadiantEntry, "", "", "RadiantBoom"),
+        new(LocationConstants.SlimepediaRadiant_Cotton,   "Radiant Slimepedia: Cotton",   LocationType.SlimepediaRadiantEntry, "", "", "RadiantCotton"),
+        new(LocationConstants.SlimepediaRadiant_Crystal,  "Radiant Slimepedia: Crystal",  LocationType.SlimepediaRadiantEntry, "", "", "RadiantCrystal"),
+        new(LocationConstants.SlimepediaRadiant_Dervish,  "Radiant Slimepedia: Dervish",  LocationType.SlimepediaRadiantEntry, "", "", "RadiantDervish"),
+        new(LocationConstants.SlimepediaRadiant_Fire,     "Radiant Slimepedia: Fire",     LocationType.SlimepediaRadiantEntry, "", "", "RadiantFire"),
+        new(LocationConstants.SlimepediaRadiant_Flutter,  "Radiant Slimepedia: Flutter",  LocationType.SlimepediaRadiantEntry, "", "", "RadiantFlutter"),
+        new(LocationConstants.SlimepediaRadiant_Honey,    "Radiant Slimepedia: Honey",    LocationType.SlimepediaRadiantEntry, "", "", "RadiantHoney"),
+        new(LocationConstants.SlimepediaRadiant_Hunter,   "Radiant Slimepedia: Hunter",   LocationType.SlimepediaRadiantEntry, "", "", "RadiantHunter"),
+        new(LocationConstants.SlimepediaRadiant_Hyper,    "Radiant Slimepedia: Hyper",    LocationType.SlimepediaRadiantEntry, "", "", "RadiantHyper"),
+        new(LocationConstants.SlimepediaRadiant_Phosphor, "Radiant Slimepedia: Phosphor", LocationType.SlimepediaRadiantEntry, "", "", "RadiantPhosphor"),
+        new(LocationConstants.SlimepediaRadiant_Pink,     "Radiant Slimepedia: Pink",     LocationType.SlimepediaRadiantEntry, "", "", "RadiantPink"),
+        new(LocationConstants.SlimepediaRadiant_Puddle,   "Radiant Slimepedia: Puddle",   LocationType.SlimepediaRadiantEntry, "", "", "RadiantPuddle"),
+        new(LocationConstants.SlimepediaRadiant_Ringtail, "Radiant Slimepedia: Ringtail", LocationType.SlimepediaRadiantEntry, "", "", "RadiantRingtail"),
+        new(LocationConstants.SlimepediaRadiant_Rock,     "Radiant Slimepedia: Rock",     LocationType.SlimepediaRadiantEntry, "", "", "RadiantRock"),
+        new(LocationConstants.SlimepediaRadiant_Saber,    "Radiant Slimepedia: Saber",    LocationType.SlimepediaRadiantEntry, "", "", "RadiantSaber"),
+        new(LocationConstants.SlimepediaRadiant_Sloomber, "Radiant Slimepedia: Sloomber", LocationType.SlimepediaRadiantEntry, "", "", "RadiantSloomber"),
+        new(LocationConstants.SlimepediaRadiant_Tabby,    "Radiant Slimepedia: Tabby",    LocationType.SlimepediaRadiantEntry, "", "", "RadiantTabby"),
+        new(LocationConstants.SlimepediaRadiant_Tangle,   "Radiant Slimepedia: Tangle",   LocationType.SlimepediaRadiantEntry, "", "", "RadiantTangle"),
+        new(LocationConstants.SlimepediaRadiant_Twin,     "Radiant Slimepedia: Twin",     LocationType.SlimepediaRadiantEntry, "", "", "RadiantTwin"),
+        new(LocationConstants.SlimepediaRadiant_Yolky,    "Radiant Slimepedia: Yolky",    LocationType.SlimepediaRadiantEntry, "", "", "RadiantYolky"),
     };
 
     // -------------------------------------------------------------------------
@@ -740,6 +779,7 @@ public static class LocationTable
                       && l.Type != LocationType.ResearchDroneArchive
                       && l.Type != LocationType.SlimepediaEntry
                       && l.Type != LocationType.SlimepediaResourceEntry
+                      && l.Type != LocationType.SlimepediaRadiantEntry   // keyed by EntryName, GameObjectName is ""
                       && l.Type != LocationType.FabricatorCraft
                       && l.Type != LocationType.ConversationConditional
                       && l.Type != LocationType.ConversationKeyGift
@@ -768,7 +808,8 @@ public static class LocationTable
         = All.Where(l => (l.Type == LocationType.ResearchDrone
                        || l.Type == LocationType.ResearchDroneArchive
                        || l.Type == LocationType.SlimepediaEntry
-                       || l.Type == LocationType.SlimepediaResourceEntry)
+                       || l.Type == LocationType.SlimepediaResourceEntry
+                       || l.Type == LocationType.SlimepediaRadiantEntry)   // EntryName = RadiantXxx asset name
                       && l.EntryName != null)
              .ToDictionary(l => l.EntryName!);
 

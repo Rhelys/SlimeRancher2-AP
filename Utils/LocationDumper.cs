@@ -8,6 +8,7 @@ using Il2CppMonomiPark.SlimeRancher.Pedia;
 using Il2CppMonomiPark.SlimeRancher.RecipePinning;
 using Il2CppMonomiPark.SlimeRancher.UI.Map;
 using Il2CppMonomiPark.SlimeRancher.World;
+using Il2CppMonomiPark.SlimeRancher.Slime;
 using Il2CppMonomiPark.SlimeRancher.World.ResearchDrone;
 using SlimeRancher2AP.Utils;
 using System;
@@ -751,6 +752,169 @@ public static class LocationDumper
         }
 
         log.LogInfo("[AP-Dump] ========== SCENE GROUPS DUMP END ==========");
+    }
+
+    /// <summary>
+    /// Scans all loaded <c>RadiantSlimePediaEntry</c> assets and logs their Unity asset name
+    /// (the lookup key for <c>LocationTable</c>) and associated <c>SlimeDefinition.name</c>.
+    /// Also dumps the per-slime shuffle-bag sizes from <c>RadiantSlimeConfig</c>.
+    ///
+    /// <para>Run once while a save is loaded. Output is used to populate
+    /// <c>LocationConstants.cs</c> and <c>LocationTable.cs</c> for the
+    /// <see cref="SlimeRancher2AP.Data.LocationType.SlimepediaRadiantEntry"/> category.</para>
+    /// </summary>
+    public static void DumpRadiantSlimes()
+    {
+        var log = Plugin.Instance.Log;
+
+        // ── Pedia entries ──────────────────────────────────────────────────────
+        var entries = Resources.FindObjectsOfTypeAll<Il2CppMonomiPark.SlimeRancher.Pedia.RadiantSlimePediaEntry>()
+            .OrderBy(e => e.name)
+            .ToList();
+
+        log.LogInfo($"[AP-Dump] ===== RADIANT SLIMEPEDIA DUMP ({entries.Count} entries) =====");
+        foreach (var entry in entries)
+        {
+            if (entry == null) continue;
+            string slimeName = "(null)";
+            try { slimeName = entry._slimeDefinition?.name ?? "(null)"; } catch { slimeName = "(err)"; }
+            log.LogInfo($"[AP-Dump]   entry='{entry.name}'  slimeDef='{slimeName}'");
+        }
+
+        // ── Shuffle bag sizes ──────────────────────────────────────────────────
+        var configs = Resources.FindObjectsOfTypeAll<Il2CppMonomiPark.SlimeRancher.Slime.RadiantSlimeConfig>()
+            .ToList();
+
+        log.LogInfo($"[AP-Dump] ===== RADIANT SHUFFLE BAG SIZES ({configs.Count} config(s)) =====");
+        foreach (var config in configs)
+        {
+            if (config == null) continue;
+            log.LogInfo($"[AP-Dump]   config='{config.name}'  sanctuaryScalar={config._sanctuaryUnlockedRadiantBagSizeScalar}");
+            var bags = config._radiantShuffleBagSizes;
+            if (bags == null) { log.LogInfo("[AP-Dump]   (null bag array)"); continue; }
+            for (int i = 0; i < bags.Length; i++)
+            {
+                var bag = bags[i];
+                if (bag == null) continue;
+                string slimeName = "(null)";
+                try { slimeName = bag.Slime?.name ?? "(null)"; } catch { slimeName = "(err)"; }
+                log.LogInfo($"[AP-Dump]   [{i}] slime='{slimeName}'  bagSize={bag.BagSize}");
+            }
+        }
+
+        log.LogInfo("[AP-Dump] ===== RADIANT DUMP END =====");
+    }
+
+    /// <summary>
+    /// Dumps the full condition tree of <c>RadiantSlimeConfig._allowRadiantSlimesToSpawnQuery</c>
+    /// — the master gate that must be satisfied before any radiant slime can spawn.
+    ///
+    /// <para>For each child condition in the query the log shows:</para>
+    /// <list type="bullet">
+    ///   <item>The IL2CPP concrete type (e.g. <c>PediaEntryEventQueryComponent</c>)</item>
+    ///   <item>The <c>DataKey</c> from the associated game event (usually an asset GUID)</item>
+    ///   <item>The <c>Count</c> threshold the event must reach to satisfy the condition</item>
+    /// </list>
+    /// <para>
+    /// Also logs <c>_sanctuaryPediaEntry.name</c> directly from the director so any
+    /// <c>PediaEntryEventQueryComponent</c> DataKeys can be cross-referenced against it,
+    /// and logs <c>_isRadiantSpawnAllowedCached</c> to show the current gate state.
+    /// </para>
+    /// <para>
+    /// Call twice — before and after discovering the Sanctuary — to observe which
+    /// conditions transition and confirm the hypothesis that Sanctuary pedia unlock
+    /// is the gate condition.
+    /// </para>
+    /// Call from the debug panel Misc page while a save is loaded.
+    /// </summary>
+    public static void DumpAllowRadiantQuery()
+    {
+        var log = Plugin.Instance.Log;
+        log.LogInfo("[AP-Dump] ========== ALLOW RADIANT SPAWN QUERY DUMP ==========");
+
+        // ── Find the director ────────────────────────────────────────────────
+        var directors = Resources.FindObjectsOfTypeAll<RadiantSlimeDirector>();
+        if (directors.Count == 0)
+        {
+            log.LogWarning("[AP-Dump] RadiantSlimeDirector not found — load a save first");
+            log.LogInfo("[AP-Dump] =========== ALLOW RADIANT SPAWN QUERY DUMP END ===========");
+            return;
+        }
+
+        var director = directors[0];
+
+        // Log the sanctuary pedia entry asset name.
+        // Its name is the value we expect to see as the DataKey (or resolved name)
+        // in any PediaEntryEventQueryComponent child of the query.
+        var sanctuaryEntry = director._sanctuaryPediaEntry;
+        log.LogInfo($"[AP-Dump] Director._sanctuaryPediaEntry  name='{sanctuaryEntry?.name ?? "(null)"}'");
+        log.LogInfo($"[AP-Dump] Director._isRadiantSpawnAllowedCached={director._isRadiantSpawnAllowedCached}");
+
+        // ── Get the config + query ────────────────────────────────────────────
+        var config = director._radiantSlimeConfig;
+        if (config == null)
+        {
+            log.LogWarning("[AP-Dump] Director._radiantSlimeConfig is null");
+            log.LogInfo("[AP-Dump] =========== ALLOW RADIANT SPAWN QUERY DUMP END ===========");
+            return;
+        }
+        log.LogInfo($"[AP-Dump] RadiantSlimeConfig='{config.name}'");
+
+        Query? query = null;
+        try   { query = config.AllowRadiantSlimesToSpawnQuery; }
+        catch (Exception ex)
+        {
+            log.LogWarning($"[AP-Dump] AllowRadiantSlimesToSpawnQuery threw: {ex.Message}");
+            log.LogInfo("[AP-Dump] =========== ALLOW RADIANT SPAWN QUERY DUMP END ===========");
+            return;
+        }
+
+        if (query == null)
+        {
+            log.LogInfo("[AP-Dump] AllowRadiantSlimesToSpawnQuery is null — no gate configured; radiant spawns always allowed");
+            log.LogInfo("[AP-Dump] =========== ALLOW RADIANT SPAWN QUERY DUMP END ===========");
+            return;
+        }
+
+        // ── Overall query state ───────────────────────────────────────────────
+        bool satisfied     = false;
+        int  childCount    = 0;
+        int  satisfiedCount = 0;
+        try { satisfied      = query.IsSatisfied();   } catch (Exception ex) { log.LogWarning($"[AP-Dump] IsSatisfied() threw: {ex.Message}"); }
+        try { childCount     = query.GetChildCount();  } catch { }
+        try { satisfiedCount = query.CountSatisfied(); } catch { }
+
+        log.LogInfo($"[AP-Dump] Query='{query.name}'  satisfied={satisfied}  topLevelChildren={childCount}  satisfiedChildren={satisfiedCount}");
+
+        // ── Walk condition tree ───────────────────────────────────────────────
+        var root = query._root;
+        if (root == null)
+        {
+            log.LogInfo("[AP-Dump] Query._root is null — query has no conditions (always satisfied)");
+            log.LogInfo("[AP-Dump] =========== ALLOW RADIANT SPAWN QUERY DUMP END ===========");
+            return;
+        }
+
+        string opStr = "(unknown)";
+        try { opStr = root._operation.ToString(); } catch { }
+        var children = root._children;
+        int rootChildCount = children?.Count ?? 0;
+        log.LogInfo($"[AP-Dump] Root: operation={opStr}  children={rootChildCount}");
+
+        if (rootChildCount > 0)
+        {
+            // Reuse the existing tree-walk helper. Pass an empty convGuids dict — the
+            // radiant query doesn't reference FixedConversations, so no GUID resolution
+            // is needed for that type. DataKeys for PediaEntry assets will appear raw;
+            // cross-reference against the sanctuaryPediaEntry name logged above.
+            LogQueryChildren(log, children!, "  ", new Dictionary<string, string>());
+        }
+        else
+        {
+            log.LogInfo("[AP-Dump]   (root has no children — query is always satisfied)");
+        }
+
+        log.LogInfo("[AP-Dump] =========== ALLOW RADIANT SPAWN QUERY DUMP END ===========");
     }
 }
 #endif

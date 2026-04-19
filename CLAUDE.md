@@ -227,9 +227,9 @@ appropriate win condition detector. When the condition is met, the mod calls
 | Goal | Slot Data Value | Mod Detection Method |
 |---|---|---|
 | Open Grey Labyrinth | `"labyrinth_open"` | ✅ **Verified in-game.** `InvisibleSwitchPatch` on `energyBeamReceiver` fires for `zoneStrandLabyrinthGate` and `zoneGorgeGateTransfer`; both must go DOWN. Goal fires correctly after both beams are solved. |
-| Newbucks Milestone | `"newbucks"` | Poll `PlayerState.GetCurrency(newbucksCurrency)` each frame (in `ApUpdateBehaviour.Update`) against a threshold read from slot data (`newbucks_goal_amount`). |
-| Enter Prismacore | `"prismacore_enter"` | Patch on scene/zone transition — detect when the player enters the Prismacore scene group. Likely `SceneGroupChanged` on `PlayerState` or a zone trigger. |
-| Stabilize Prismacore | `"prismacore_stabilize"` | Patch on the main story completion event — class TBD, needs ILSpy research. |
+| Newbucks Milestone | `"newbucks"` | ✅ **Implemented, untested.** Polls `PlayerState.GetCurrency(newbucksCurrency)` each frame (in `ApUpdateBehaviour.Update`) against threshold from slot data (`newbucks_goal_amount`). |
+| Enter Prismacore | `"prismacore_enter"` | ✅ **Implemented, untested.** Detects player entering the Prismacore scene group. |
+| Stabilize Prismacore | `"prismacore_stabilize"` | ⚠️ **Detection class TBD** — needs ILSpy research to identify the story completion event/method. |
 
 Slot data key: `"goal"` — read in `SlotData.cs` and stored as `ApSaveManager.Goal`.
 
@@ -237,7 +237,8 @@ Slot data key: `"goal"` — read in `SlotData.cs` and stored as `ApSaveManager.G
 
 ## Drone Patches (mod side)
 
-### Research Drones (~23, narrative/lore drones)
+### Research Drones (~23, narrative/lore drones) ✅
+- **Patch file**: `ResearchDronePatch.cs` + `ResearchDroneArchivePatch.cs`
 - **What**: Gigi's journal drones; player approaches to trigger a dialogue log
 - **Check sent when**: Player first activates a Research Drone
 - **Patch class**: `ResearchDroneActivator` (`MonomiPark.SlimeRancher.World.ResearchDrone` namespace, in `Assembly-CSharp.dll`)
@@ -248,48 +249,54 @@ Slot data key: `"goal"` — read in `SlotData.cs` and stored as `ApSaveManager.G
 - **Location IDs**: 819450–819479
 - **Using**: `Il2CppMonomiPark.SlimeRancher.World.ResearchDrone`
 
-### Ghostly Drones (10, collectible drones)
-- **What**: Flying mechanical drones (`ComponentAcqDrone` type) that give a Drone Station Module when interacted with
-- **Check sent when**: Player successfully interacts with the drone via `ComponentAcquisitionDroneUIInteractable.OnInteract()`
-- **Patch class**: `ComponentAcquisitionDroneUIInteractable` (`MonomiPark.SlimeRancher.UI` namespace, in `Assembly-CSharp.dll`)
-- **Patch method**: `ComponentAcquisitionDroneUIInteractable.OnInteract()` — Postfix
-- **Get drone identity from**: `__instance._componentAcqDrone.gameObject.name` — match against `LocationTable`
-- **Lookup**: `gameObject.name` → `LocationTable` (Ghostly Drone section)
+### Ghostly Drones (10, collectible drones) ✅
+- **Patch file**: `TreasurePodPatch.cs` (`TreasurePodActivatePatch`)
+- **What**: Flying mechanical drone nodes (`nodeComponentAcqDrone`) that extend `TreasurePod` and call `Activate()` directly — do NOT use `TreasurePodUIInteractable`.
+- **Check sent when**: Player interacts with the drone node, triggering `TreasurePod.Activate()`
+- **Filter**: `gameObject.name.StartsWith("node")` — separates these from regular treasure pods in the same patch
+- **Lookup**: posKey via `WorldUtils.PositionKey()` → `LocationTable` (same as treasure pods)
 - **Location IDs**: 819480–819494
-- **Note**: Drone Station Modules can also be bought at ProntoMart — patching `OnInteract` on the world drone specifically avoids the purchase path
-- **Using**: `Il2CppMonomiPark.SlimeRancher.UI`, `Il2CppMonomiPark.SlimeRancher.Drone`
+- **Note**: The original plan was a separate `ComponentAcquisitionDroneUIInteractable` patch, but in practice these nodes use the `TreasurePod.Activate()` path and are fully covered by the existing pod patch.
 
-### Shadow Plort Doors (25, Grey Labyrinth)
+### Shadow Plort Doors (25, Grey Labyrinth) ✅
+- **Patch file**: `PlortDepositorPatch.cs`
 - **What**: Doors in the Grey Labyrinth opened by depositing Shadow Plorts
 - **Check sent when**: Door fully fills and opens
 - **Patch class**: `PlortDepositor` (root namespace, in `Assembly-CSharp.dll`)
 - **Patch method**: `PlortDepositor.ActivateOnFill()` — Postfix (fires exactly once when fill completes and the door activates)
-- **Alternative**: `PlortDepositor.OnFilledChangedFromModel()` — also fires on fill, but `ActivateOnFill` is more precise (CallerCount = 1, only called on completion)
-- **Get door identity from**: `__instance.gameObject.name` — match against `LocationTable`
-- **Lookup**: `gameObject.name` → `LocationTable` (Shadow Plort Door section)
+- **Get door identity from**: posKey via `WorldUtils.PositionKey()` — all doors share a generic `gameObject.name` so position is used
+- **Lookup**: posKey → `LocationTable` (Shadow Plort Door section)
 - **Location IDs**: 819200–819249
-- **Note**: `PlortDepositor` is also used for non-Labyrinth plort locks (e.g. Gordo reward doors) — filter by checking `__instance._catchIdentifiableType.name == "ShadowPlort"` to only trigger on the correct door type
+- **Filter**: `__instance._catchIdentifiableType.name == "ShadowPlort"` — prevents false triggers on other plort locks (e.g. Gordo reward doors)
 
 ---
 
 ## Stubs / Known Incomplete Work
 
-These are not yet implemented or verified:
+Items still genuinely incomplete. Everything else previously listed here is done.
 
 | Area | Status |
 |---|---|
-| `Data/LocationTable.cs` | All `GameObjectName` values are **placeholder names** — must be verified via in-game logging or ILSpy before location checks will work |
-| `Data/LocationConstants.cs` + `ItemTable.cs` | ✅ ID ranges synced with apworld — see `APWORLD_DESIGN.md` for authoritative table |
-| `Patches/UiPatches/MainMenuPatch.cs` | Stub — `MainMenuUI` class/method TBD; "Archipelago" connect button is currently in `StatusHUD.OnGUI()` instead |
-| Trap effects | ✅ All 4 traps implemented in `TrapHandler` (Slime Rain, Tarr Spawn, Teleport, Weather Change) |
-| apworld (Python) | ✅ Created at `worlds\slime_rancher_2` in the companion Archipelago fork |
-| `GoalHandler.cs` | ✅ `labyrinth_open` verified in-game. `newbucks` implemented (untested). `prismacore_enter` and `prismacore_stabilize` implemented (untested). |
-| Shadow Plort Doors patch | ✅ Class confirmed: `PlortDepositor.ActivateOnFill()` Postfix; filter by `_catchIdentifiableType.name == "ShadowPlort"`; patch not yet written |
-| Research Drone patch | ✅ Class confirmed: `ResearchDroneActivator.OnInteract()` Postfix; identity via `_researchDroneController.ResearchDroneEntry`; patch not yet written |
-| Ghostly Drone patch | ✅ Class confirmed: `ComponentAcquisitionDroneUIInteractable.OnInteract()` Postfix; identity via `_componentAcqDrone.gameObject.name`; patch not yet written |
-| Slimepedia patch | Unlock event class TBD via ILSpy; no patch implemented |
-| Fabricator craft checks | Patch for `PlayerUpgradeFabricatableItem.FabricateAndSpendCost()` not yet implemented |
-| Grey Labyrinth region gate | Not yet in region gate logic; Labyrinth entrances use light-beam puzzles (Radiant Projectors), not the same switch type as other regions |
+| `prismacore_stabilize` goal | Story completion detection class still TBD — needs ILSpy research to identify the event/method to patch. |
+| `newbucks` + `prismacore_enter` goals | ✅ Implemented in `GoalHandler.cs` — **untested in-game**. |
+| Fabricator upgrade names | A handful of `UpgradeDefinition.name` values in `LocationTable.cs` are educated guesses: `AmmoCapacity`, `TankGuard`, `GoldenSureshot`, `ShadowSureshot`, `ArchiveKey`, `EnergyDelay`, `EnergyRegen`. Need verification via `DumpUpgradeComponents` in the debug panel. |
+| `Patches/UiPatches/MainMenuPatch.cs` | Stub — `MainMenuUI` class/method TBD; "Archipelago" connect button is currently in `StatusHUD.OnGUI()` as a workaround. Cosmetic — does not affect functionality. |
+
+### Previously incomplete — now done ✅
+
+| Area | Notes |
+|---|---|
+| `Data/LocationTable.cs` GameObjectName values | All posKeys confirmed via in-game AP-Dump across all zones. |
+| Shadow Plort Doors patch | ✅ `PlortDepositorPatch.cs` — `PlortDepositor.ActivateOnFill()` Postfix, filters on `ShadowPlort`. |
+| Research Drone patch | ✅ `ResearchDronePatch.cs` + `ResearchDroneArchivePatch.cs` — identity via `ResearchDroneEntry` asset name. |
+| Ghostly Drone patch | ✅ Handled in `TreasurePodPatch.cs` (`TreasurePodActivatePatch`) — ghostly drone nodes extend `TreasurePod` and call `Activate()` directly; filtered by `gameObject.name.StartsWith("node")`. |
+| Slimepedia patch | ✅ `SlimepediaPatch.cs` — covers `SlimepediaEntry`, `SlimepediaResourceEntry`, and `SlimepediaRadiantEntry` via two Harmony patches on `PediaDirector.Unlock`. |
+| Fabricator craft checks | ✅ `FabricatorPatch.cs` implemented. |
+| Trap effects | ✅ All 4 traps in `TrapHandler` (Slime Rain, Tarr Spawn, Teleport, Weather Change). |
+| apworld (Python) | ✅ `worlds\slime_rancher_2` in companion Archipelago fork (`Archipelago-SR2`). |
+| `labyrinth_open` goal | ✅ Verified in-game. |
+| Grey Labyrinth region gate | ✅ Labyrinth entrances handled via `InvisibleSwitchPatch` on `energyBeamReceiver` (light-beam puzzles), not `WorldStatePrimarySwitch`. |
+| Radiant Slimepedia locations | ✅ 22 entries (819821–819842) confirmed via `DumpRadiantSlimes()`; spawn rate multiplier patch in `RadiantSlimePatch.cs`. |
 
 ---
 

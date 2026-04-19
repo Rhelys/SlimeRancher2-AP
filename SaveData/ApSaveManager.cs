@@ -107,6 +107,28 @@ public class ApSaveManager
     }
 
     /// <summary>
+    /// Clears the active-session state so <see cref="HasActiveSession"/> returns false.
+    /// Must be called whenever the AP connection is dropped (explicit disconnect or
+    /// before a reconnect attempt) so that <c>ProcessItemQueue</c> does not process
+    /// items against a stale save file from the previous connection.
+    ///
+    /// Does NOT delete or flush any on-disk data — it only resets in-memory pointers.
+    /// Also resets <see cref="LastItemIndex"/> to -1 so that
+    /// <see cref="PreloadLastItemIndex"/> can set it cleanly for the new session.
+    /// </summary>
+    public void ResetSession()
+    {
+        _saveFile         = null;
+        _checkedLocations = null;
+        _lastItemIndex    = null;
+        _unlockedRegions  = null;
+        _newbucksEarned   = null;
+        _lastItemIdx      = -1;
+        // Keep _checkedSet, _regionSet, _scoutData in memory — they'll be re-loaded
+        // from the correct file by the next OnConnected call.
+    }
+
+    /// <summary>
     /// Called after a successful AP login. Opens (or creates) the save file keyed
     /// to this specific seed + slot combination and deserializes stored progress.
     /// Also loads persisted scout data if available.

@@ -28,6 +28,22 @@ public class SlotData
     public bool   RandomizeMapNodes      { get; init; } = true;
     public bool   RandomizeSlimepedia          { get; init; } = false;
     public bool   RandomizeSlimepediaResources { get; init; } = false;
+
+    /// <summary>
+    /// When true, catching a new radiant slime type for the first time unlocks its
+    /// Slimepedia entry as an Archipelago location check.
+    /// Slot data key: <c>"randomize_slimepedia_radiant"</c>.
+    /// </summary>
+    public bool   RandomizeSlimepediaRadiant   { get; init; } = false;
+
+    /// <summary>
+    /// Multiplier applied to radiant slime spawn frequency. 1 = normal (default).
+    /// Higher values increase spawn frequency: 2 = twice as common, 5 = five times as common.
+    /// Implemented by dividing all shuffle-bag sizes by this value in
+    /// <c>RadiantSlimeSpawnRatePatch</c> on scene init.
+    /// Slot data key: <c>"radiant_spawn_rate_multiplier"</c>. Range: 1–10.
+    /// </summary>
+    public int    RadiantSpawnRateMultiplier   { get; init; } = 1;
     public bool   RandomizeResearchDrones  { get; init; } = false;
     public bool   RandomizeGhostlyDrones   { get; init; } = false;
 
@@ -92,6 +108,8 @@ public class SlotData
             RandomizeMapNodes        = GetBool(raw, "randomize_map_nodes",     defaultVal: true),
             RandomizeSlimepedia          = GetBool(raw, "randomize_slimepedia",           defaultVal: false),
             RandomizeSlimepediaResources = GetBool(raw, "randomize_slimepedia_resources", defaultVal: false),
+            RandomizeSlimepediaRadiant   = GetBool(raw, "randomize_slimepedia_radiant",   defaultVal: false),
+            RadiantSpawnRateMultiplier   = (int)GetLong(raw, "radiant_spawn_rate_multiplier", 1),
             RandomizeResearchDrones  = GetBool(raw, "randomize_research_drones", defaultVal: false),
             RandomizeGhostlyDrones   = GetBool(raw, "randomize_ghostly_drones",  defaultVal: false),
             ZoneTeleporterMode          = GetString(raw, "zone_teleporter_mode", "item"),

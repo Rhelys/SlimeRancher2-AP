@@ -116,6 +116,7 @@ file static class SlimepediaPatchHelper
         {
             LocationType.SlimepediaEntry         => slotData.RandomizeSlimepedia,
             LocationType.SlimepediaResourceEntry => slotData.RandomizeSlimepediaResources,
+            LocationType.SlimepediaRadiantEntry  => slotData.RandomizeSlimepediaRadiant,
             _                                    => false,
         };
         if (!enabled) return;

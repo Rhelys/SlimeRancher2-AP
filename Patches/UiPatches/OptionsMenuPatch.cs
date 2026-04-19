@@ -1,5 +1,6 @@
 using HarmonyLib;
 using Il2CppInterop.Runtime;
+using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Il2CppMonomiPark.SlimeRancher.Options;
 using Il2CppMonomiPark.SlimeRancher.UI.Adapter;
 using Il2CppMonomiPark.SlimeRancher.UI.Options;
@@ -196,39 +197,222 @@ internal static class OptionsMenuInjectionPatch
     {
         try
         {
-            var asm    = Assembly.GetExecutingAssembly();
+            var asm = Assembly.GetExecutingAssembly();
             using var stream = asm.GetManifestResourceStream("SlimeRancher2-AP.logo.png");
             if (stream == null)
             {
-                Plugin.Instance.Log.LogWarning("[AP] Logo resource 'SlimeRancher2-AP.logo.png' not found — tab will have no icon. " +
-                    "Convert static/logo.webp to static/logo.png and rebuild.");
+                Plugin.Instance.Log.LogWarning("[AP] Logo resource 'SlimeRancher2-AP.logo.png' not found — tab will have no icon.");
                 return null;
             }
 
             var bytes = new byte[stream.Length];
             _ = stream.Read(bytes, 0, bytes.Length);
 
-            var tex = new Texture2D(2, 2, TextureFormat.RGBA32, mipChain: false);
-            if (!ImageConversion.LoadImage(tex, bytes))
+            // ImageConversion.LoadImage is stripped from this game's IL2CPP build (the game
+            // never calls it, so the IL2CPP linker removes it).  Decode the PNG ourselves
+            // using .NET BCL's DeflateStream, then push the raw RGBA bytes into the texture.
+            var rgba = DecodePngToRgba(bytes, out int w, out int h);
+            if (rgba == null)
             {
-                Plugin.Instance.Log.LogWarning("[AP] Logo PNG failed to decode — check that static/logo.png is a valid PNG file.");
+                Plugin.Instance.Log.LogWarning("[AP] Logo PNG decode failed.");
                 return null;
             }
 
-            var sprite = Sprite.Create(
-                tex,
-                new Rect(0, 0, tex.width, tex.height),
-                new Vector2(0.5f, 0.5f),
-                pixelsPerUnit: 100f);
+            var tex = new Texture2D(w, h, TextureFormat.RGBA32, mipChain: false);
 
-            Plugin.Instance.Log.LogInfo($"[AP] Logo loaded: {tex.width}×{tex.height}");
-            return sprite;
+            // Attempt A: LoadRawTextureData — takes raw RGBA bytes directly.
+            // May be stripped if the game doesn't use it; wrapped in try/catch.
+            var loaded = false;
+            try
+            {
+                var raw = new Il2CppStructArray<byte>(rgba.LongLength);
+                for (int i = 0; i < rgba.Length; i++) raw[i] = rgba[i];
+                tex.LoadRawTextureData(raw);
+                tex.Apply();
+                loaded = true;
+                Plugin.Instance.Log.LogInfo($"[AP] Logo loaded via LoadRawTextureData: {w}×{h}");
+            }
+            catch (Exception rawEx)
+            {
+                Plugin.Instance.Log.LogWarning($"[AP] LoadRawTextureData unavailable ({rawEx.Message}) — trying SetPixels32");
+            }
+
+            // Attempt B: SetPixels32 — the game uses dynamic textures, so this is almost
+            // certainly not stripped.
+            if (!loaded)
+            {
+                try
+                {
+                    var colors = new Il2CppStructArray<Color32>((long)(w * h));
+                    for (int i = 0; i < w * h; i++)
+                        colors[i] = new Color32(rgba[i*4], rgba[i*4+1], rgba[i*4+2], rgba[i*4+3]);
+                    tex.SetPixels32(colors);
+                    tex.Apply();
+                    loaded = true;
+                    Plugin.Instance.Log.LogInfo($"[AP] Logo loaded via SetPixels32: {w}×{h}");
+                }
+                catch (Exception px32Ex)
+                {
+                    Plugin.Instance.Log.LogWarning($"[AP] SetPixels32 failed: {px32Ex.Message}");
+                }
+            }
+
+            if (!loaded)
+            {
+                Plugin.Instance.Log.LogWarning("[AP] All logo-load attempts failed — tab will have no icon.");
+                return null;
+            }
+
+            return Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.5f), 100f);
         }
         catch (Exception ex)
         {
             Plugin.Instance.Log.LogError($"[AP] Logo load failed: {ex}");
             return null;
         }
+    }
+
+    // ── PNG decoder ──────────────────────────────────────────────────────────────
+    // ImageConversion.LoadImage is stripped from this game's IL2CPP build (the game
+    // uses AssetBundles and never calls LoadImage, so the IL2CPP linker removes it).
+    // We decode PNGs ourselves using only .NET BCL APIs (no external dependencies).
+    // Supports 8-bit RGB and RGBA PNGs — the only formats the logo will ever be.
+    // Output: raw RGBA32 bytes, bottom-row-first (Unity texture origin = bottom-left).
+
+    /// <summary>
+    /// Decodes an 8-bit RGB or RGBA PNG file into a raw RGBA32 byte array
+    /// (4 bytes per pixel, rows ordered bottom-to-top for Unity's texture origin).
+    /// Returns null on any parse or decompression error.
+    /// </summary>
+    private static byte[]? DecodePngToRgba(byte[] png, out int width, out int height)
+    {
+        width = height = 0;
+        try
+        {
+            // Verify PNG signature
+            if (png.Length < 8 ||
+                png[0] != 0x89 || png[1] != 0x50 || png[2] != 0x4E || png[3] != 0x47 ||
+                png[4] != 0x0D || png[5] != 0x0A || png[6] != 0x1A || png[7] != 0x0A)
+            {
+                Plugin.Instance.Log.LogWarning("[AP] DecodePng: not a PNG file");
+                return null;
+            }
+
+            int w = 0, h = 0, bitDepth = 0, colorType = 0;
+            var idatBuf = new System.IO.MemoryStream();
+            int pos = 8;
+
+            while (pos + 12 <= png.Length)
+            {
+                int  len  = ReadInt32BE(png, pos);                  pos += 4;
+                var  type = System.Text.Encoding.ASCII.GetString(png, pos, 4); pos += 4;
+
+                if (type == "IHDR")
+                {
+                    w         = ReadInt32BE(png, pos);
+                    h         = ReadInt32BE(png, pos + 4);
+                    bitDepth  = png[pos + 8];
+                    colorType = png[pos + 9];
+                }
+                else if (type == "IDAT")
+                {
+                    idatBuf.Write(png, pos, len);
+                }
+                else if (type == "IEND") break;
+
+                pos += len + 4; // skip chunk data + CRC
+            }
+
+            if (w <= 0 || h <= 0 || bitDepth != 8)
+            {
+                Plugin.Instance.Log.LogWarning($"[AP] DecodePng: unsupported format w={w} h={h} depth={bitDepth}");
+                return null;
+            }
+            int channels = colorType == 6 ? 4 : colorType == 2 ? 3 : 0;
+            if (channels == 0)
+            {
+                Plugin.Instance.Log.LogWarning($"[AP] DecodePng: unsupported color type {colorType} (only RGB=2/RGBA=6 supported)");
+                return null;
+            }
+
+            // Decompress: IDAT stream is zlib-wrapped DEFLATE.
+            // Skip 2-byte zlib header (CMF + FLG) before feeding to DeflateStream.
+            var idatData = idatBuf.ToArray();
+            byte[] filtered;
+            using (var ms  = new System.IO.MemoryStream(idatData, 2, idatData.Length - 2))
+            using (var def = new System.IO.Compression.DeflateStream(
+                                ms, System.IO.Compression.CompressionMode.Decompress))
+            using (var out_ = new System.IO.MemoryStream())
+            {
+                def.CopyTo(out_);
+                filtered = out_.ToArray();
+            }
+
+            // Reconstruct PNG scanline filters and build RGBA output.
+            // Output is written bottom-row-first for Unity's bottom-left texture origin.
+            var rgba    = new byte[w * h * 4];
+            int stride  = w * channels;
+            var prior   = new byte[stride]; // reconstructed previous row (starts as zeros)
+            var current = new byte[stride]; // reconstructed current row
+
+            for (int y = 0; y < h; y++)
+            {
+                int rowBase = y * (stride + 1); // +1 for the filter byte
+                int filter  = filtered[rowBase];
+                int srcBase = rowBase + 1;
+
+                for (int i = 0; i < stride; i++)
+                {
+                    byte raw = filtered[srcBase + i];
+                    byte a   = i >= channels ? current[i - channels] : (byte)0; // left
+                    byte b   = prior[i];                                          // up
+                    byte c   = i >= channels ? prior[i - channels]   : (byte)0; // up-left
+                    current[i] = filter switch
+                    {
+                        1 => (byte)(raw + a),
+                        2 => (byte)(raw + b),
+                        3 => (byte)(raw + ((a + b) >> 1)),
+                        4 => (byte)(raw + PaethPredictor(a, b, c)),
+                        _ => raw,
+                    };
+                }
+                System.Array.Copy(current, prior, stride);
+
+                // Write into output buffer bottom-row-first
+                int dstRow = (h - 1 - y) * w * 4;
+                for (int x = 0; x < w; x++)
+                {
+                    int src = x * channels;
+                    int dst = dstRow + x * 4;
+                    rgba[dst    ] = current[src    ]; // R
+                    rgba[dst + 1] = current[src + 1]; // G
+                    rgba[dst + 2] = current[src + 2]; // B
+                    rgba[dst + 3] = channels == 4 ? current[src + 3] : (byte)255; // A
+                }
+            }
+
+            width  = w;
+            height = h;
+            Plugin.Instance.Log.LogInfo($"[AP] DecodePng: decoded {w}×{h} ({channels}ch) PNG successfully");
+            return rgba;
+        }
+        catch (Exception ex)
+        {
+            Plugin.Instance.Log.LogWarning($"[AP] DecodePng: {ex.Message}");
+            return null;
+        }
+    }
+
+    private static int ReadInt32BE(byte[] b, int pos)
+        => (b[pos] << 24) | (b[pos+1] << 16) | (b[pos+2] << 8) | b[pos+3];
+
+    private static int PaethPredictor(int a, int b, int c)
+    {
+        int p  = a + b - c;
+        int pa = Math.Abs(p - a);
+        int pb = Math.Abs(p - b);
+        int pc = Math.Abs(p - c);
+        return pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
     }
 
 }

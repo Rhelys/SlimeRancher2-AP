@@ -28,6 +28,9 @@ public class ArchipelagoData
             Port     = cfg.Bind(Section, "Port",     38281,            "Archipelago server port").Value,
             SlotName = cfg.Bind(Section, "SlotName", "",               "Your slot/player name").Value,
             Password = cfg.Bind(Section, "Password", "",               "Room password (leave blank if none)").Value,
+            // Seed is persisted so PreloadLastItemIndex can run before login on reconnects.
+            Seed     = cfg.Bind(Section, "LastSeed", "", "Seed from last successful login (auto-set)").Value
+                           is string s && s.Length > 0 ? s : null,
         };
     }
 
@@ -37,6 +40,20 @@ public class ArchipelagoData
         cfg.Bind(Section, "Port",     Port,     "Archipelago server port").Value     = Port;
         cfg.Bind(Section, "SlotName", SlotName, "Your slot/player name").Value       = SlotName;
         cfg.Bind(Section, "Password", Password, "Room password (leave blank if none)").Value = Password;
+        // Do NOT persist Seed here — it is saved separately after a successful login
+        // (see ArchipelagoClient.Connect) so it only reflects a confirmed good seed.
+        cfg.Save();
+    }
+
+    /// <summary>
+    /// Persists the seed that was set after a successful login so that
+    /// <see cref="ApSaveManager.PreloadLastItemIndex"/> can run correctly on the
+    /// next reconnect attempt for the same slot.
+    /// </summary>
+    public void SaveSeedToConfig(ConfigFile cfg)
+    {
+        if (string.IsNullOrEmpty(Seed)) return;
+        cfg.Bind(Section, "LastSeed", "", "Seed from last successful login (auto-set)").Value = Seed!;
         cfg.Save();
     }
 }

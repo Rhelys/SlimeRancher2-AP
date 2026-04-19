@@ -295,6 +295,12 @@ public class DebugPanel : MonoBehaviour
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Scene Groups (teleport trap zone names)"))
             LocationDumper.DumpSceneGroups();
         y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Radiant Slimes (pedia entries + bag sizes)"))
+            LocationDumper.DumpRadiantSlimes();
+        y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Allow Radiant Query (spawn gate conditions)"))
+            LocationDumper.DumpAllowRadiantQuery();
+        y += BtnH + Gap;
 
         GUI.color = Color.white;
     }

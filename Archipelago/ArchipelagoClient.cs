@@ -37,6 +37,11 @@ public class ArchipelagoClient
     // Also readable from ApSaveManager for offline sessions.
     private Dictionary<long, ScoutedItemInfo>? _liveScoutCache;
 
+    // Actions that must run on the Unity main thread after a successful login.
+    // Set on the network thread, consumed by ProcessItemQueue on the main thread.
+    // Volatile so the main thread always sees the latest write without a full lock.
+    private volatile Action? _pendingMainThreadAction;
+
     /// <summary>
     /// Returns scout info for a location.  Checks the live cache first (online),
     /// then falls back to the persisted data from the last successful scout (offline).
@@ -50,11 +55,25 @@ public class ArchipelagoClient
 
     public void Connect(ArchipelagoData data)
     {
+        // Auto-disconnect if a session already exists (e.g. reconnect after socket drop
+        // without the user explicitly clicking Disconnect).  Ensures _receivedCount is
+        // zeroed, the item queue is cleared, and stale state is purged before we re-login.
+        if (Session != null)
+            Disconnect();
+
         Task.Run(() =>
         {
             try
             {
                 Session = ArchipelagoSessionFactory.CreateSession(data.Uri, data.Port);
+
+                // Pre-load the saved item index BEFORE registering the item handler.
+                // On a reconnect the server replays all historical items during login;
+                // having the correct watermark in _lastItemIdx means already-applied
+                // items are filtered out at the enqueue gate rather than queued and
+                // discarded later.  On a fresh connect (data.Seed is null/empty) this
+                // is a no-op — the file won't exist yet.
+                Plugin.Instance.SaveManager.PreloadLastItemIndex(data.Seed ?? "", data.SlotName);
 
                 // Register item handler BEFORE login so historical items replay on reconnect
                 Session.Items.ItemReceived += OnItemReceived;
@@ -80,6 +99,9 @@ public class ArchipelagoClient
                     data.Team = Session.ConnectionInfo.Team;
                     data.Slot = Session.ConnectionInfo.Slot;
 
+                    // Persist the seed so PreloadLastItemIndex works on the next reconnect.
+                    data.SaveSeedToConfig(Plugin.Instance.Config);
+
                     SlotData = SlotData.Parse(success.SlotData);
 
                     if (SlotData.DeathLink)
@@ -88,22 +110,33 @@ public class ArchipelagoClient
                         DeathLink.Enable();
                     }
 
+                    // File I/O — safe on background thread.
                     Plugin.Instance.SaveManager.OnConnected(data.Seed, data.SlotName);
-                    GoalHandler.Initialize();
+
+                    // Flush offline checks and start scout from the background thread
+                    // (both are network operations, not Unity API calls).
+                    FlushPendingChecks();
+                    var capturedSession = Session;
+                    _ = ScoutAllLocationsAsync(capturedSession);
 
                     Plugin.Instance.Log.LogInfo(
                         $"[AP] Connected as '{data.SlotName}' (slot {data.Slot}, seed {data.Seed})");
-                    OnConnected?.Invoke();
 
-                    // Flush any location checks accumulated offline, then scout all locations.
-                    FlushPendingChecks();
-                    _ = ScoutAllLocationsAsync(Session);
+                    // GoalHandler.Initialize() may call Resources.FindObjectsOfTypeAll and
+                    // OnConnected fires ConnectionUI.SetStatus (TMP_Text.text) — both are Unity
+                    // APIs that must run on the main thread.  Queue them for ProcessItemQueue.
+                    _pendingMainThreadAction = () =>
+                    {
+                        GoalHandler.Initialize();
+                        OnConnected?.Invoke();
+                    };
                 }
                 else if (result is LoginFailure failure)
                 {
                     var errors = string.Join(", ", failure.Errors);
                     Plugin.Instance.Log.LogError($"[AP] Login failed: {errors}");
-                    OnConnectionFailed?.Invoke(errors);
+                    // OnConnectionFailed also touches UI — defer to main thread.
+                    _pendingMainThreadAction = () => OnConnectionFailed?.Invoke(errors);
                     Session = null;
                 }
             }
@@ -119,11 +152,17 @@ public class ArchipelagoClient
     public void Disconnect()
     {
         DeathLink?.Disable();
-        DeathLink       = null;
-        _liveScoutCache = null;
-        Session         = null;
-        SlotData        = null;
-        _receivedCount  = 0;
+        DeathLink                = null;
+        _liveScoutCache          = null;
+        Session                  = null;
+        SlotData                 = null;
+        _receivedCount           = 0;
+        _pendingMainThreadAction = null;
+        lock (_queueLock) { _itemQueue.Clear(); }
+        // Reset the save-manager session pointer so HasActiveSession returns false.
+        // Without this, a reconnect would see the previous session's _saveFile as
+        // still valid and process items before the new OnConnected completes.
+        Plugin.Instance.SaveManager.ResetSession();
         Plugin.Instance.Log.LogInfo("[AP] Disconnected.");
     }
 
@@ -220,10 +259,29 @@ public class ArchipelagoClient
 
     /// <summary>
     /// Processes items from the queue on the Unity main thread (called from ApUpdateBehaviour.Update).
+    /// Also drains any deferred post-login actions (GoalHandler init, UI callbacks) that
+    /// were queued from the network thread to avoid calling Unity APIs off the main thread.
     /// </summary>
     public void ProcessItemQueue()
     {
-        if (!IsConnected) return;
+        // Drain the post-login action (if any) before processing items.
+        // Use Interlocked.Exchange so we see the write from the background thread and
+        // atomically clear the field so it only fires once.
+        var action = System.Threading.Interlocked.Exchange(ref _pendingMainThreadAction, null);
+        action?.Invoke();
+
+        // Do not process items until the save file is open.
+        //
+        // SaveManager.OnConnected (which sets _saveFile) runs on the background thread
+        // concurrently with this method.  If we drain the queue before OnConnected
+        // completes, calls like UnlockRegion() silently no-op because _saveFile is null,
+        // causing region unlocks to be lost across scene reloads.
+        //
+        // The background thread always sets _saveFile BEFORE writing _pendingMainThreadAction
+        // (strong happens-before via the volatile write), so by the time the action above
+        // fires, HasActiveSession is guaranteed to be true.  Items are therefore held for at
+        // most one extra Update() frame beyond the frame the action fires — negligible.
+        if (!IsConnected || !Plugin.Instance.SaveManager.HasActiveSession) return;
 #if DEBUG
         SlimeRancher2AP.Utils.DebugTrace.Once("ProcessItemQueue.1 — entered while connected");
 #endif
@@ -237,6 +295,15 @@ public class ArchipelagoClient
 #if DEBUG
                 SlimeRancher2AP.Utils.DebugTrace.Once($"ProcessItemQueue.3 — first dequeued item id={entry.item.ItemId} idx={entry.index}");
 #endif
+                // Secondary dedup: skip items whose index is at or below the saved watermark.
+                //
+                // OnItemReceived uses _lastItemIdx as a gate, but that field starts at -1 and
+                // is only loaded from disk once SaveManager.OnConnected runs.  On a reconnect,
+                // all historical items replay before OnConnected completes, so items with
+                // index <= the saved watermark can sneak into the queue.  Checking again here
+                // (with the now-correct watermark) prevents double-grants.
+                if (entry.index <= Plugin.Instance.SaveManager.LastItemIndex) continue;
+
                 ItemHandler.Apply(entry.item, entry.index);
 #if DEBUG
                 SlimeRancher2AP.Utils.DebugTrace.Once($"ProcessItemQueue.4 — Apply returned for first item idx={entry.index}");
