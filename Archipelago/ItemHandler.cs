@@ -10,6 +10,7 @@ using Il2CppMonomiPark.SlimeRancher.Weather.Activity;
 using Il2CppMonomiPark.SlimeRancher.SceneManagement;
 using Il2CppMonomiPark.SlimeRancher.World.Teleportation;
 using SlimeRancher2AP.Data;
+using SlimeRancher2AP.Utils;
 using UnityEngine;
 using ApItemInfo = Archipelago.MultiClient.Net.Models.ItemInfo;
 
@@ -107,7 +108,7 @@ public static class ItemHandler
             case ItemType.Gadget:       ApplyGadget(item, null, itemIndex);             break;
             case ItemType.Filler:           ApplyFiller(item, null, itemIndex);              break;
             case ItemType.UpgradeComponent: ApplyUpgradeComponent(item, null, itemIndex);    break;
-            case ItemType.Trap:             ApplyTrap(item);                                 break;
+            case ItemType.Trap:             ApplyTrap(item, null, itemIndex);                break; // return ignored — debug path has no requeue
         }
 
         Plugin.Instance.SaveManager.UpdateLastItemIndex(itemIndex);
@@ -136,7 +137,22 @@ public static class ItemHandler
             return;
         }
 
+        // If the server's item name doesn't match the local table's name for this ID, the
+        // server is using a stale or different apworld data package (e.g. item IDs were
+        // reordered between versions).  We apply by ID (authoritative), but log a clear
+        // warning so this isn't mistaken for a mod bug.
+        if (apItem.ItemName != item.Name)
+            Plugin.Instance.Log.LogWarning(
+                $"[AP] DATA PACKAGE MISMATCH — server says id={apItem.ItemId} is '{apItem.ItemName}', " +
+                $"but local table maps that ID to '{item.Name}'. " +
+                $"Regenerate the game on the AP server with the current apworld version to fix.");
+
         Plugin.Instance.Log.LogInfo($"[AP] Applying item: {item.Name} (id={item.Id}, idx={itemIndex})");
+
+        // Traps return false when they requeue for a later retry (scene/player not ready).
+        // In that case we must NOT advance the watermark — the item will be replayed from
+        // the server on the next reconnect (or retried from _itemQueue this session).
+        bool advanceWatermark = true;
 
         switch (item.Type)
         {
@@ -145,10 +161,14 @@ public static class ItemHandler
             case ItemType.Gadget:       ApplyGadget(item, apItem, itemIndex);  break;
             case ItemType.Filler:           ApplyFiller(item, apItem, itemIndex);           break;
             case ItemType.UpgradeComponent: ApplyUpgradeComponent(item, apItem, itemIndex); break;
-            case ItemType.Trap:             ApplyTrap(item);                                break;
+            case ItemType.Trap:
+                if (!ApplyTrap(item, apItem, itemIndex))
+                    advanceWatermark = false;
+                break;
         }
 
-        Plugin.Instance.SaveManager.UpdateLastItemIndex(itemIndex);
+        if (advanceWatermark)
+            Plugin.Instance.SaveManager.UpdateLastItemIndex(itemIndex);
     }
 
     // -------------------------------------------------------------------------
@@ -165,22 +185,109 @@ public static class ItemHandler
 
     private static void ApplyRegionAccess(Data.ItemInfo item)
     {
+        // UnlockRegion FIRST — so RegionGatePatch.Prefix's IsRegionUnlocked check passes
+        // immediately when we call SetStateForAll below.
         Plugin.Instance.SaveManager.UnlockRegion(item.Name);
         Notify($"Received: {item.Name}");
 
-        if (!RegionTable.TryGetSwitch(item.Name, out var switchName)) return;
+        var mode = Plugin.Instance.ApClient.SlotData?.RegionAccessMode ?? "vanilla";
 
+        // Bundled mode: the zone teleporter is bundled with the access item.
+        if (mode == "bundled")
+            GrantRegionTeleporter(item.Name);
+
+        // Open the gate immediately for all modes.
+        //
+        // In locations/bundled modes the player already pressed the gate button once
+        // (which sent the location check and was blocked).  SR2's gate button is a
+        // one-shot interactable — it does not allow a second press after the first
+        // interaction, so we cannot rely on the player pressing it again.  Instead we
+        // call SetStateForAll directly; RegionGatePatch.Prefix will allow it through
+        // because IsRegionUnlocked now returns true (set above).
+        //
+        // If the switch is not loaded (player is far away), the UnlockRegion save flag
+        // ensures the gate opens automatically when world-state is next restored.
+        // ── Powderfall Bluffs: PuzzleSlotLockable (plort door), not WorldStatePrimarySwitch ──
+        // The plorts are already consumed when the door was filled; we can't "re-fill" it.
+        // Call ActivateOnUnlock() directly — PuzzleSlotLockableActivatePatch.Prefix will
+        // allow it through because IsRegionUnlocked now returns true (set by UnlockRegion above).
+        if (item.Name == RegionTable.PBRegionItemName)
+        {
+            // Identify the PB gate by posKey, not object name — multiple doors share the
+            // name "objLabyrinthPlortDoor01Small" across different zones.
+            bool pbFound = false;
+            foreach (var door in Resources.FindObjectsOfTypeAll<PuzzleSlotLockable>())
+            {
+                string posKey;
+                try { posKey = WorldUtils.PositionKey(door.gameObject!); }
+                catch { continue; }
+                if (posKey != RegionTable.PBGatePosKey) continue;
+
+                bool ready = false;
+                try { ready = door.ShouldUnlock(); } catch { /* guard */ }
+                if (!ready)
+                {
+                    Plugin.Instance.Log.LogInfo(
+                        "[AP] PB Slime Door found but ShouldUnlock()=false (not fully filled yet) — " +
+                        "door will open once all plort slots are filled.");
+                    pbFound = true;
+                    break;
+                }
+                try { door.ActivateOnUnlock(); }
+                catch (Exception ex)
+                {
+                    Plugin.Instance.Log.LogWarning($"[AP] PB ActivateOnUnlock threw: {ex.Message}");
+                }
+                Plugin.Instance.Log.LogInfo("[AP] Opened PB Slime Door via ActivateOnUnlock.");
+
+                // Belt-and-suspenders: the Prefix on PuzzleSlotLockable.ActivateOnUnlock already
+                // sends this check, but call it here too in case the Prefix was blocked or the
+                // connection state changed. Idempotent — SendCheck guards with IsChecked().
+                if (mode != "vanilla")
+                    Plugin.Instance.ApClient.SendCheck(LocationConstants.RegionGate_PowderfallBluffs);
+
+                pbFound = true;
+                break;
+            }
+            if (!pbFound)
+                Plugin.Instance.Log.LogWarning(
+                    "[AP] PB Slime Door not found in current scene — will open when player reaches it.");
+            return;
+        }
+
+        // ── EV / SS and any future WorldStatePrimarySwitch gates ──
+        if (!RegionTable.TryGetSwitch(item.Name, out var switchName))
+        {
+            Plugin.Instance.Log.LogInfo($"[AP] Region '{item.Name}' unlocked (no switch mapping).");
+            return;
+        }
+
+        bool found = false;
         foreach (var sw in Resources.FindObjectsOfTypeAll<WorldStatePrimarySwitch>())
         {
-            if (sw.gameObject.name != switchName) continue;
-            sw.SetStateForAll(SwitchHandler.State.DOWN, true);
+            if (sw.gameObject?.name != switchName) continue;
+            try { sw.SetStateForAll(SwitchHandler.State.DOWN, true); }
+            catch (Exception ex)
+            {
+                Plugin.Instance.Log.LogWarning($"[AP] SetStateForAll threw for '{switchName}': {ex.Message}");
+            }
             Plugin.Instance.Log.LogInfo($"[AP] Opened region gate: {switchName}");
+
+            // Belt-and-suspenders: RegionGatePatch.Prefix already sends this check, but call it
+            // here too in case the Prefix was skipped or the connection wasn't ready.
+            // Only for locations/bundled mode — vanilla mode has no gate location checks.
+            // Idempotent — SendCheck guards with IsChecked().
+            if (mode != "vanilla" && RegionTable.TryGetLocationId(switchName, out var locId))
+                Plugin.Instance.ApClient.SendCheck(locId);
+
+            found = true;
             break;
         }
 
-        // Bundled mode: grant the matching zone teleporter alongside the region access item
-        if ((Plugin.Instance.ApClient.SlotData?.ZoneTeleporterMode ?? "item") == "bundled")
-            GrantRegionTeleporter(item.Name);
+        if (!found)
+            Plugin.Instance.Log.LogWarning(
+                $"[AP] Region '{item.Name}' unlocked in save, but switch '{switchName}' is not " +
+                $"loaded in the current scene — gate will open automatically when you approach it.");
     }
 
     /// <summary>
@@ -279,7 +386,31 @@ public static class ItemHandler
             return;
         }
 
-        UpgradeHandler.ApplyUpgrade(upgradeDef, targetLevel);
+        try
+        {
+            UpgradeHandler.ApplyUpgrade(upgradeDef, targetLevel);
+        }
+        catch (Exception ex)
+        {
+            // ApplyUpgrade can throw when the vacpack UI's AdapterView hasn't been
+            // initialized yet (viewHolderPrefab is null — happens when the player hasn't
+            // opened the upgrade screen this session). Check whether the model was updated
+            // before the UI notification threw; if so, the upgrade applied correctly and
+            // we only need to suppress the cosmetic crash.
+            int levelAfter = UpgradeHandler._model?.GetUpgradeLevel(upgradeDef) ?? -1;
+            if (levelAfter < targetLevel)
+            {
+                Plugin.Instance.Log.LogWarning(
+                    $"[AP] ApplyUpgrade threw and model level did not advance " +
+                    $"(wanted {targetLevel}, got {levelAfter}): {ex.Message} — requeuing");
+                if (apItem != null) Plugin.Instance.ApClient.RequeueItem(apItem, itemIndex);
+                return;
+            }
+            Plugin.Instance.Log.LogWarning(
+                $"[AP] ApplyUpgrade threw (UI prefab not ready?) but model DID advance to {levelAfter} — " +
+                $"upgrade applied successfully. UI will refresh when the upgrade screen is opened. {ex.Message}");
+        }
+
         _upgradeLevels[upgradeName] = targetLevel; // update immediately; patch callback may fire late or not at all
         Plugin.Instance.Log.LogInfo($"[AP] Applied upgrade: {upgradeName} → level {targetLevel}/{maxLevel}");
         Notify($"Received: {item.Name}");
@@ -490,9 +621,13 @@ public static class ItemHandler
         Notify($"Received: {cacheName} ({totalAdded} items) → Refinery");
     }
 
-    private static void ApplyTrap(Data.ItemInfo item)
+    /// <returns>
+    /// <c>true</c> if the trap fired (watermark should advance);
+    /// <c>false</c> if it was requeued for later (scene/player not ready — do NOT advance watermark).
+    /// </returns>
+    private static bool ApplyTrap(Data.ItemInfo item, ApItemInfo? apItem, int itemIndex)
     {
-        TrapHandler.Schedule(item.Id);
+        return TrapHandler.Schedule(item.Id, apItem, itemIndex);
     }
 
     private static void Notify(string message) =>
@@ -713,45 +848,99 @@ public static class TrapHandler
         }
     }
 
-    public static void Schedule(long trapItemId)
+    /// <summary>
+    /// Applies a trap by item ID.
+    /// </summary>
+    /// <returns>
+    /// <c>true</c> if the trap fired and the watermark should advance;
+    /// <c>false</c> if it was requeued (scene/player not ready — caller must NOT advance watermark).
+    /// </returns>
+    public static bool Schedule(long trapItemId, ApItemInfo? apItem, int itemIndex)
     {
         switch (trapItemId)
         {
-            case ItemTable.TrapSlimeRing:    ApplySlimeRingTrap();  break;
-            case ItemTable.TrapTarrSpawn:    ApplyTarrSpawnTrap();  break;
-            case ItemTable.TrapTeleport:     ApplyTeleportTrap();   break;
-            case ItemTable.TrapWeatherChange: ApplyWeatherTrap();   break;
-            case ItemTable.TrapTarrRain:    ApplySlimeRainTrap();  break;
+            case ItemTable.TrapSlimeRing:     return ApplySlimeRingTrap(apItem, itemIndex);
+            case ItemTable.TrapTarrSpawn:     return ApplyTarrSpawnTrap(apItem, itemIndex);
+            case ItemTable.TrapTeleport:      return ApplyTeleportTrap(apItem, itemIndex);
+            case ItemTable.TrapWeatherChange: return ApplyWeatherTrap(apItem, itemIndex);
+            case ItemTable.TrapTarrRain:      return ApplySlimeRainTrap(apItem, itemIndex);
             default:
                 Plugin.Instance.Log.LogInfo($"[AP] Trap received: id={trapItemId} (not yet implemented)");
-                break;
+                return true; // unimplemented traps do not retry
         }
+    }
+
+    // Helper: requeue the item so it retries next session (or next Update frame),
+    // then return false to signal the watermark must NOT advance.
+    private static bool Requeue(ApItemInfo? apItem, int itemIndex, string reason)
+    {
+        Plugin.Instance.Log.LogWarning($"[AP] Trap requeued — {reason} (will retry)");
+        if (apItem != null)
+            Plugin.Instance.ApClient.RequeueItem(apItem, itemIndex);
+        return false;
     }
 
     // -------------------------------------------------------------------------
     // Slime Ring trap — spawns a burst of common slimes around the player
     // -------------------------------------------------------------------------
 
-    // Base (non-largo) slime IdentifiableType names confirmed from identifiable_types.txt dump.
-    // Excludes dangerous/situational slimes (Boom = explosive, Saber/Ringtail = rare zones).
-    private static readonly string[] _commonSlimeNames =
+    // Slime pools by region — only slimes native to accessible areas are spawned.
+    // Region assignments match the apworld logic (worlds/slime_rancher_2/locations.py).
+
+    // Always available — native to Rainbow Fields
+    private static readonly string[] _slimesFields =
     {
-        "Pink", "Tabby", "Rock", "Cotton", "Honey", "Phosphor", "Crystal", "Ringtail",
+        "Pink", "Tabby", "Cotton", "Phosphor", "Tangle", "Dervish", "Yolky", "Gold", "Lucky",
     };
 
-    private static void ApplySlimeRingTrap()
+    // Ember Valley (requires "Ember Valley Access")
+    private static readonly string[] _slimesEmberValley =
+    {
+        "Batty", "Crystal", "Angler", "Ringtail", "Puddle", "Rock", "Boom", "Fire",
+    };
+
+    // Starlight Strand (requires "Starlight Strand Access")
+    private static readonly string[] _slimesStarlightStrand =
+    {
+        "Honey", "Puddle", "Flutter", "Ringtail", "Hunter", "Rock",
+    };
+
+    // Powderfall Bluffs (requires "Powderfall Bluffs Access")
+    private static readonly string[] _slimesPowderfallBluffs =
+    {
+        "Saber",
+    };
+
+    // Grey Labyrinth (reachable via either Ember Valley or Starlight Strand entrance)
+    private static readonly string[] _slimesGreyLabyrinth =
+    {
+        "Shadow", "Sloomber", "Twin", "Hyper",
+    };
+
+    private static bool ApplySlimeRingTrap(ApItemInfo? apItem, int itemIndex)
     {
         var playerGo = SceneContext.Instance?.Player;
         if (playerGo == null)
-        {
-            Plugin.Instance.Log.LogWarning("[AP] SlimeRainTrap: no Player in scene — skipped");
-            return;
-        }
+            return Requeue(apItem, itemIndex, "no Player in scene");
 
-        // Resolve IdentifiableType assets once, keeping only those with valid prefabs.
+        // Build candidate pool from accessible regions only.
+        bool hasEV = IsRegionGateOpen("Ember Valley Access");
+        bool hasSS = IsRegionGateOpen("Starlight Strand Access");
+
+        var candidateNames = new System.Collections.Generic.List<string>(_slimesFields);
+        if (hasEV)                        candidateNames.AddRange(_slimesEmberValley);
+        if (hasSS)                        candidateNames.AddRange(_slimesStarlightStrand);
+        if (IsRegionGateOpen("Powderfall Bluffs Access")) candidateNames.AddRange(_slimesPowderfallBluffs);
+        // Grey Labyrinth slimes: only if the player has physically visited the Labyrinth this
+        // session. hasEV/hasSS is necessary but not sufficient — the beam puzzles still need
+        // solving to enter. Using the visited-zone set (same check as TeleportTrap) is correct.
+        if (_visitedSceneGroupRefs.Contains("SceneGroup.Labyrinth"))
+            candidateNames.AddRange(_slimesGreyLabyrinth);
+
+        // Resolve IdentifiableType assets, keeping only those with valid prefabs.
         var allTypes = Resources.FindObjectsOfTypeAll<IdentifiableType>();
         var slimeTypes = new System.Collections.Generic.List<IdentifiableType>();
-        foreach (var name in _commonSlimeNames)
+        foreach (var name in candidateNames)
         {
             for (int i = 0; i < allTypes.Count; i++)
             {
@@ -765,9 +954,14 @@ public static class TrapHandler
 
         if (slimeTypes.Count == 0)
         {
-            Plugin.Instance.Log.LogWarning("[AP] SlimeRainTrap: no valid slime IdentifiableTypes found — skipped");
-            return;
+            Plugin.Instance.Log.LogWarning("[AP] SlimeRingTrap: no valid slime IdentifiableTypes found — skipped");
+            return true; // asset issue; don't retry
         }
+
+#if DEBUG
+        Plugin.Instance.Log.LogInfo(
+            $"[AP] SlimeRingTrap: pool={string.Join(", ", candidateNames)} ({slimeTypes.Count} resolved)");
+#endif
 
 #if DEBUG
         const int count = 4;
@@ -777,9 +971,18 @@ public static class TrapHandler
         var origin = playerGo.transform.position;
         int spawned = 0;
 
+        // Use SpawnActorActivity.Spawn() rather than raw Object.Instantiate.
+        // Object.Instantiate skips the game's actor registry and AI/state-machine
+        // initialization, causing NullReferenceExceptions in IdentifiableActor.RegistryUpdate.
+        // SpawnActorActivity.Spawn() is the same path the weather system (Slime Rain) uses
+        // and produces fully-initialized actors.
+        // Must use CreateInstance (ScriptableObject subclass) — new SpawnActorActivity() logs a warning.
+        var activity = ScriptableObject.CreateInstance<SpawnActorActivity>();
+
         for (int i = 0; i < count; i++)
         {
             var slimeType = slimeTypes[_rng.Next(slimeTypes.Count)];
+            activity.ActorType = slimeType;
 
             // Scatter in a ring around the player, dropping from slightly above.
             float angle  = (float)(_rng.NextDouble() * System.Math.PI * 2.0);
@@ -790,26 +993,24 @@ public static class TrapHandler
                 height,
                 UnityEngine.Mathf.Sin(angle) * radius);
 
-            var go = UnityEngine.Object.Instantiate(slimeType.prefab, spawnPos, UnityEngine.Quaternion.identity);
+            var go = activity.Spawn(spawnPos, UnityEngine.Quaternion.identity);
             if (go != null) spawned++;
         }
 
         Plugin.Instance.Log.LogInfo($"[AP] SlimeRingTrap: spawned {spawned} slimes around player");
         SlimeRancher2AP.UI.StatusHUD.Instance?.ShowNotification("Trap: Slime Ring!");
+        return true;
     }
 
     // -------------------------------------------------------------------------
     // Tarr Spawn trap — spawns Tarr near the player
     // -------------------------------------------------------------------------
 
-    private static void ApplyTarrSpawnTrap()
+    private static bool ApplyTarrSpawnTrap(ApItemInfo? apItem, int itemIndex)
     {
         var playerGo = SceneContext.Instance?.Player;
         if (playerGo == null)
-        {
-            Plugin.Instance.Log.LogWarning("[AP] TarrSpawnTrap: no Player in scene — skipped");
-            return;
-        }
+            return Requeue(apItem, itemIndex, "no Player in scene");
 
         var allTypes = Resources.FindObjectsOfTypeAll<IdentifiableType>();
         IdentifiableType? tarrType = null;
@@ -825,7 +1026,7 @@ public static class TrapHandler
         if (tarrType == null)
         {
             Plugin.Instance.Log.LogWarning("[AP] TarrSpawnTrap: 'Tarr' IdentifiableType not found or has no prefab — skipped");
-            return;
+            return true; // asset issue; don't retry
         }
 
 #if DEBUG
@@ -839,7 +1040,8 @@ public static class TrapHandler
         // Use SpawnActorActivity.Spawn() — the same code path the weather system uses
         // for Slime Rain / Tarr Rain. Raw Object.Instantiate skips Tarr's AI and state
         // machine initialization, producing a broken entity that does not aggro.
-        var activity = new SpawnActorActivity();
+        // Must use CreateInstance — new SpawnActorActivity() logs a Unity warning.
+        var activity = ScriptableObject.CreateInstance<SpawnActorActivity>();
         activity.ActorType = tarrType;
 
         for (int i = 0; i < count; i++)
@@ -858,20 +1060,18 @@ public static class TrapHandler
 
         Plugin.Instance.Log.LogInfo($"[AP] TarrSpawnTrap: spawned {spawned} Tarr near player");
         SlimeRancher2AP.UI.StatusHUD.Instance?.ShowNotification("Trap: Tarr Incoming!");
+        return true;
     }
 
     // -------------------------------------------------------------------------
     // Weather trap
     // -------------------------------------------------------------------------
 
-    private static void ApplyWeatherTrap()
+    private static bool ApplyWeatherTrap(ApItemInfo? apItem, int itemIndex)
     {
         var found = Resources.FindObjectsOfTypeAll<WeatherDirector>();
         if (found == null || found.Count == 0)
-        {
-            Plugin.Instance.Log.LogWarning("[AP] WeatherTrap: no WeatherDirector found in scene — trap skipped");
-            return;
-        }
+            return Requeue(apItem, itemIndex, "no WeatherDirector in scene");
 
         // Find all WeatherStateDefinition assets — these are the game's actual weather states
         // (Rain, Thunderstorm, Pollen, SlimeRain, etc.) and implement IWeatherState.
@@ -879,7 +1079,7 @@ public static class TrapHandler
         if (allStates == null || allStates.Count == 0)
         {
             Plugin.Instance.Log.LogWarning("[AP] WeatherTrap: no WeatherStateDefinition assets found — trap skipped");
-            return;
+            return true; // asset issue; don't retry
         }
 
         // Log available states on first trap fire (helpful for diagnosing StateName values).
@@ -911,7 +1111,7 @@ public static class TrapHandler
         if (eligible.Count == 0)
         {
             Plugin.Instance.Log.LogWarning("[AP] WeatherTrap: no eligible weather states after filtering — trap skipped");
-            return;
+            return true; // filtering issue; don't retry
         }
 
         // Pick a random state.
@@ -952,6 +1152,7 @@ public static class TrapHandler
         string label = chosen.StateName ?? chosen.name;
         Plugin.Instance.Log.LogInfo($"[AP] WeatherTrap: started '{label}' on {found.Count} director(s) for {durationSeconds}s");
         SlimeRancher2AP.UI.StatusHUD.Instance?.ShowNotification($"Trap: {label} weather for {(int)durationSeconds}s!");
+        return true;
     }
 
     // -------------------------------------------------------------------------
@@ -1016,28 +1217,19 @@ public static class TrapHandler
     /// Uses <c>TeleportToDestinationImpl</c> for zone entrances and
     /// <c>Teleport_ResetPlayer</c> for the home ranch.
     /// </summary>
-    private static void ApplyTeleportTrap()
+    private static bool ApplyTeleportTrap(ApItemInfo? apItem, int itemIndex)
     {
         var playerGo = SceneContext.Instance?.Player;
         if (playerGo == null)
-        {
-            Plugin.Instance.Log.LogWarning("[AP] TeleportTrap: no Player in scene — skipped");
-            return;
-        }
+            return Requeue(apItem, itemIndex, "no Player in scene");
 
         var teleportable = playerGo.GetComponent<TeleportablePlayer>();
         if (teleportable == null)
-        {
-            Plugin.Instance.Log.LogWarning("[AP] TeleportTrap: TeleportablePlayer component not found — skipped");
-            return;
-        }
+            return Requeue(apItem, itemIndex, "TeleportablePlayer component not found");
 
         var network = UnityEngine.Object.FindObjectOfType<TeleportNetwork>();
         if (network == null)
-        {
-            Plugin.Instance.Log.LogWarning("[AP] TeleportTrap: TeleportNetwork not in scene — skipped");
-            return;
-        }
+            return Requeue(apItem, itemIndex, "TeleportNetwork not in scene");
 
         var allGroups    = Resources.FindObjectsOfTypeAll<SceneGroup>();
         var currentGroup = teleportable.SceneGroup;
@@ -1086,7 +1278,7 @@ public static class TrapHandler
         if (eligible.Count == 0)
         {
             Plugin.Instance.Log.LogWarning("[AP] TeleportTrap: no eligible destinations — skipped");
-            return;
+            return true; // no destinations available; don't retry (player likely in menu)
         }
 
         // Prefer a different zone than the current one.
@@ -1107,13 +1299,14 @@ public static class TrapHandler
         }
 
         SlimeRancher2AP.UI.StatusHUD.Instance?.ShowNotification("Trap: Teleported!");
+        return true;
     }
 
     // -------------------------------------------------------------------------
     // Slime Rain trap — triggers the Slime Rain weather but overrides spawned slimes to Tarr
     // -------------------------------------------------------------------------
 
-    private static void ApplySlimeRainTrap()
+    private static bool ApplySlimeRainTrap(ApItemInfo? apItem, int itemIndex)
     {
         // Find the Slime Rain WeatherStateDefinition.
         var allStates = Resources.FindObjectsOfTypeAll<WeatherStateDefinition>();
@@ -1131,8 +1324,7 @@ public static class TrapHandler
         if (slimeRainDef == null)
         {
             Plugin.Instance.Log.LogWarning("[AP] SlimeRainTrap: no 'Slime Rain' WeatherStateDefinition found — falling back to SlimeRingTrap");
-            ApplySlimeRingTrap();
-            return;
+            return ApplySlimeRingTrap(apItem, itemIndex);
         }
 
         // Find Tarr IdentifiableType to use as the override.
@@ -1177,9 +1369,8 @@ public static class TrapHandler
         var found = Resources.FindObjectsOfTypeAll<WeatherDirector>();
         if (found == null || found.Count == 0)
         {
-            Plugin.Instance.Log.LogWarning("[AP] SlimeRainTrap: no WeatherDirector in scene — trap skipped");
             RestoreSlimeRainActorTypes();
-            return;
+            return Requeue(apItem, itemIndex, "no WeatherDirector in scene");
         }
 
         _activeWeatherState = slimeRainDef;
@@ -1210,6 +1401,7 @@ public static class TrapHandler
         Plugin.Instance.Log.LogInfo(
             $"[AP] SlimeRainTrap: started Slime Rain (Tarr override) on {found.Count} director(s) for {durationSeconds}s");
         SlimeRancher2AP.UI.StatusHUD.Instance?.ShowNotification("Trap: Slime Rain!");
+        return true;
     }
 
     private static void RestoreSlimeRainActorTypes()

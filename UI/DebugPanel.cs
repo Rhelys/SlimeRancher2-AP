@@ -32,7 +32,7 @@ public class DebugPanel : MonoBehaviour
     private const float BtnH    = 26;
     private const float Gap     = 4;
     private const float LabelH  = 20;
-    private const int   Pages   = 7;
+    private const int   Pages   = 9;
 
     private void Update()
     {
@@ -97,7 +97,9 @@ public class DebugPanel : MonoBehaviour
                 case 3: DrawPageGadgetsFunctional(x, y);  break;
                 case 4: DrawPageFiller(x, y);             break;
                 case 5: DrawPageMisc(x, y);               break;
-                case 6: DrawPageGoals(x, y);              break;
+                case 6: DrawPageRadiant(x, y);            break;
+                case 7: DrawPageGoals(x, y);              break;
+                case 8: DrawPageDumps(x, y);              break;
             }
 
             // Nav buttons sit below 20 content rows (tallest page is ~18 rows)
@@ -262,50 +264,43 @@ public class DebugPanel : MonoBehaviour
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Kill Player (DeathLink)"))
             DeathLinkHandler.KillPlayer();
         y += BtnH + Gap;
+    }
 
-        y = SectionLabel(x, y, "Dumps (→ BepInEx log)");
-        GUI.color = new Color(1f, 0.9f, 0.5f);
-        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Locations"))
-            LocationDumper.DumpAll();
+    // Page 6: Radiant slime tools
+    private void DrawPageRadiant(float x, float y)
+    {
+        y = SectionLabel(x, y, "Radiant Spawn Rate");
+
+        GUI.color = new Color(1f, 0.85f, 0.4f);
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Set All Bag Sizes → 2  (every other spawn radiant)"))
+            LocationDumper.SetRadiantBagSizes(2);
         y += BtnH + Gap;
-        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Gadget Names"))
-            LocationDumper.DumpGadgets();
+
+        GUI.color = new Color(0.5f, 1f, 0.5f);
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Force Radiant Spawn ON  (Harmony Postfix override)"))
+            LocationDumper.SetForceRadiantSpawn(true);
         y += BtnH + Gap;
-        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Pedia Entries"))
-            LocationDumper.DumpPedia();
+
+        GUI.color = new Color(1f, 0.5f, 0.5f);
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Force Radiant Spawn OFF (restore normal bag draws)"))
+            LocationDumper.SetForceRadiantSpawn(false);
         y += BtnH + Gap;
-        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Upgrade Components"))
-            LocationDumper.DumpUpgradeComponents();
+
+        GUI.color = Color.white;
+        y = SectionLabel(x, y, "Gold / Lucky Spawn Weight");
+
+        GUI.color = new Color(1f, 0.85f, 0.4f);
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Set Gold/Lucky Weight → 1000  (near-guaranteed spawn)"))
+            LocationDumper.SetGoldLuckySpawnWeight(1000f);
         y += BtnH + Gap;
-        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump IdentifiableTypes"))
-            LocationDumper.DumpIdentifiableTypes();
-        y += BtnH + Gap;
-        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Conversations (blueprint / gadget gifts)"))
-            LocationDumper.DumpConversations();
-        y += BtnH + Gap;
-        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Conversation Conditions (prerequisites)"))
-            LocationDumper.DumpConversationConditions();
-        y += BtnH + Gap;
-        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Access Doors (state snapshot)"))
-            LocationDumper.DumpAccessDoors();
-        y += BtnH + Gap;
-        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Slime Gates (Valley Labyrinth beam puzzle)"))
-            LocationDumper.DumpSlimeGates();
-        y += BtnH + Gap;
-        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Scene Groups (teleport trap zone names)"))
-            LocationDumper.DumpSceneGroups();
-        y += BtnH + Gap;
-        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Radiant Slimes (pedia entries + bag sizes)"))
-            LocationDumper.DumpRadiantSlimes();
-        y += BtnH + Gap;
-        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Allow Radiant Query (spawn gate conditions)"))
-            LocationDumper.DumpAllowRadiantQuery();
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Set Gold/Lucky Weight → 100   (very frequent)"))
+            LocationDumper.SetGoldLuckySpawnWeight(100f);
         y += BtnH + Gap;
 
         GUI.color = Color.white;
     }
 
-    // Page 6: Goal testing + Upgrade Components
+    // Page 7: Goal testing + Upgrade Components
     private void DrawPageGoals(float x, float y)
     {
         y = SectionLabel(x, y, "Goal Triggers");
@@ -339,6 +334,72 @@ public class DebugPanel : MonoBehaviour
 
         y = SectionLabel(x, y, "Upgrade Components");
         y = ItemBtn(x, y, "Grant: Archive Key Component", ItemTable.ArchiveKeyComponent);
+    }
+
+    // Page 8: All data dump buttons
+    private void DrawPageDumps(float x, float y)
+    {
+        GUI.color = new Color(1f, 0.9f, 0.5f);
+
+        y = SectionLabel(x, y, "Location / Asset Dumps (→ BepInEx log)");
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Locations"))
+            LocationDumper.DumpAll();
+        y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Gadget Names"))
+            LocationDumper.DumpGadgets();
+        y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Pedia Entries"))
+            LocationDumper.DumpPedia();
+        y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Upgrade Components"))
+            LocationDumper.DumpUpgradeComponents();
+        y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump IdentifiableTypes"))
+            LocationDumper.DumpIdentifiableTypes();
+        y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Slime Zones (NativeZones)"))
+            LocationDumper.DumpSlimeZones();
+        y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump IdentType Zones (showForZones)"))
+            LocationDumper.DumpIdentifiableTypeZones();
+        y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Conversations (gifts)"))
+            LocationDumper.DumpConversations();
+        y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Conversation Conditions"))
+            LocationDumper.DumpConversationConditions();
+        y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Access Doors"))
+            LocationDumper.DumpAccessDoors();
+        y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Slime Gates"))
+            LocationDumper.DumpSlimeGates();
+        y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Puzzle Slot Lockables"))
+            LocationDumper.DumpPuzzleSlotLockables();
+        y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Scene Groups"))
+            LocationDumper.DumpSceneGroups();
+        y += BtnH + Gap;
+
+        y = SectionLabel(x, y, "Radiant Dumps");
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Radiant Slimes (pedia + bag sizes)"))
+            LocationDumper.DumpRadiantSlimes();
+        y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Radiant Bag State"))
+            LocationDumper.DumpRadiantBagState();
+        y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Allow Radiant Query"))
+            LocationDumper.DumpAllowRadiantQuery();
+        y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Feral Spawner Radiant Flags"))
+            LocationDumper.DumpFeralSpawners();
+        y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Gold/Lucky Spawn Weights"))
+            LocationDumper.DumpGoldLuckySpawnWeights();
+        y += BtnH + Gap;
+
+        GUI.color = Color.white;
     }
 
     // -------------------------------------------------------------------------

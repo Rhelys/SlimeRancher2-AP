@@ -48,24 +48,32 @@ public class SlotData
     public bool   RandomizeGhostlyDrones   { get; init; } = false;
 
     /// <summary>
-    /// Controls how zone teleporters (Gorge/Strand/Bluffs/Labyrinth) are granted.
+    /// When true, the 28 plort doors (PuzzleSlotLockable, lockTag='plort_door') that are not
+    /// Grey Labyrinth shadow plort doors or the PB region gate become Archipelago location checks.
+    /// Slot data key: <c>"randomize_puzzle_doors"</c>.
+    /// </summary>
+    public bool   RandomizePuzzleDoors     { get; init; } = false;
+
+    /// <summary>
+    /// Controls how region gate switches and zone teleporters are handled.
     /// <list type="bullet">
-    ///   <item><term>"item"</term><description>
-    ///     TeleporterZone is a standalone AP item in the pool. Regions are also items.
-    ///     No automatic granting (current default).
+    ///   <item><term>"vanilla"</term><description>
+    ///     Region gates work as in the base game — activating a switch opens the zone immediately.
+    ///     No region access items are in the AP pool. RegionGatePatch does not block gates.
+    ///     The zone teleporter is granted automatically when the gate opens in-world (default).
+    ///   </description></item>
+    ///   <item><term>"locations"</term><description>
+    ///     Gate switches become blocked location checks. Region gates will not open until the
+    ///     matching Region Access item is received. TeleporterZone is not auto-granted.
     ///   </description></item>
     ///   <item><term>"bundled"</term><description>
-    ///     Regions are items. Receiving a region access item also unlocks that zone's teleporter.
-    ///     TeleporterZone is not in the AP pool.
-    ///   </description></item>
-    ///   <item><term>"auto"</term><description>
-    ///     Regions are NOT items (vanilla unlock). RegionGatePatch does not block gates.
-    ///     The zone teleporter is granted automatically when the gate opens in-world.
-    ///     TeleporterZone is not in the AP pool.
+    ///     Same as locations, but also grants the matching zone teleporter blueprint automatically
+    ///     when the Region Access item is received.
     ///   </description></item>
     /// </list>
+    /// Slot data key: <c>"region_access_mode"</c>.
     /// </summary>
-    public string ZoneTeleporterMode { get; init; } = "item";
+    public string RegionAccessMode { get; init; } = "vanilla";
 
     /// <summary>
     /// Controls which CommStation conversations become Archipelago location checks.
@@ -112,7 +120,8 @@ public class SlotData
             RadiantSpawnRateMultiplier   = (int)GetLong(raw, "radiant_spawn_rate_multiplier", 1),
             RandomizeResearchDrones  = GetBool(raw, "randomize_research_drones", defaultVal: false),
             RandomizeGhostlyDrones   = GetBool(raw, "randomize_ghostly_drones",  defaultVal: false),
-            ZoneTeleporterMode          = GetString(raw, "zone_teleporter_mode", "item"),
+            RandomizePuzzleDoors     = GetBool(raw, "randomize_puzzle_doors",     defaultVal: false),
+            RegionAccessMode            = GetString(raw, "region_access_mode", "vanilla"),
             ConversationChecks          = GetConversationCheckMode(raw, "conversation_checks"),
             TarrInstakill               = GetBool(raw, "tarr_instakill", defaultVal: false),
             IncomingDamageMultiplier    = (int)GetLong(raw, "incoming_damage_multiplier", 1),

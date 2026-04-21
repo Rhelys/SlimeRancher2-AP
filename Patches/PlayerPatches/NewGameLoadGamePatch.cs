@@ -47,6 +47,18 @@ internal static class NewGamePatch
         };
         SaveBindingManager.Save(slotIndex, binding);
 
+        // Reset the item watermark to -1 so that ALL AP items in the server's history
+        // are replayed and applied on the first load of this fresh save.
+        //
+        // Without this, if the AP slot has prior history (e.g. start items, manually
+        // sent items, or items from a previous SR2 run on the same AP slot), the
+        // sanity check in OnConnected would see watermark > server history and reset
+        // it to snapshot.Count-1 — treating those items as "already applied" even
+        // though this SR2 save has never received them.
+        Plugin.Instance.SaveManager.ForceLastItemIndex(-1);
+        Plugin.Instance.Log.LogInfo(
+            $"[AP] NewGamePatch: watermark reset to -1 — all items will replay on first load.");
+
         // NOTE: Icon injection via SetGameIconForNewGame is intentionally skipped.
         // Passing a transient GameIconDefinition with an unknown persistenceId causes
         // the game to fail when it tries to resolve the icon from the asset catalog
@@ -108,7 +120,18 @@ internal static class LoadGamePatch
         // in ArchipelagoClient.OnItemReceived already has the correct high-water mark.
         // Without this, all historical items are enqueued (since _lastItemIdx starts at -1)
         // and then requeued in an infinite loop while the scene is loading.
-        if (!string.IsNullOrEmpty(binding.Seed) && !string.IsNullOrEmpty(binding.Slot))
+        //
+        // Guard: skip preload when a session is already active. If HasActiveSession is true,
+        // OnConnected already set the correct watermark for the live session. Calling Preload
+        // here would overwrite it with data from a DIFFERENT save's binding file, causing
+        // newly-received items to be incorrectly skipped (observed: watermark=9021, idx=0).
+        // The preload is also immediately nullified by Disconnect()→ResetSession() inside
+        // Connect(), so it serves no purpose when a session is already running.
+        bool activeSession = Plugin.Instance.SaveManager.HasActiveSession;
+        Plugin.Instance.Log.LogInfo(
+            $"[AP] LoadGamePatch: HasActiveSession={activeSession} watermark={Plugin.Instance.SaveManager.LastItemIndex}");
+        if (!activeSession &&
+            !string.IsNullOrEmpty(binding.Seed) && !string.IsNullOrEmpty(binding.Slot))
             Plugin.Instance.SaveManager.PreloadLastItemIndex(binding.Seed, binding.Slot);
 
         // Kick off connection in background; game load proceeds immediately.

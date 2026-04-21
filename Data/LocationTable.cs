@@ -19,6 +19,14 @@ public enum LocationType
     ShadowPlortDoor,
 
     /// <summary>
+    /// A plort door (PuzzleSlotLockable, lockTag='plort_door') that is not the PB region gate
+    /// and not a Grey Labyrinth shadow plort door.  Optional — enabled by the
+    /// <c>randomize_puzzle_doors</c> apworld option.
+    /// Lookup key: posKey "sceneName_X_Y_Z".
+    /// </summary>
+    PuzzleDoor,
+
+    /// <summary>
     /// A Radiant Slime Slimepedia entry unlocked when the player first catches a radiant
     /// variant of that slime type.
     /// Included when <see cref="SlimeRancher2AP.Archipelago.SlotData.RandomizeSlimepediaRadiant"/> is true.
@@ -762,6 +770,50 @@ public static class LocationTable
         new(LocationConstants.SlimepediaRadiant_Tangle,   "Radiant Slimepedia: Tangle",   LocationType.SlimepediaRadiantEntry, "", "", "RadiantTangle"),
         new(LocationConstants.SlimepediaRadiant_Twin,     "Radiant Slimepedia: Twin",     LocationType.SlimepediaRadiantEntry, "", "", "RadiantTwin"),
         new(LocationConstants.SlimepediaRadiant_Yolky,    "Radiant Slimepedia: Yolky",    LocationType.SlimepediaRadiantEntry, "", "", "RadiantYolky"),
+
+        // -------------------------------------------------------------------------
+        // OTHER PUZZLE DOORS (819847–819874)  — optional, enabled by randomize_puzzle_doors
+        // GameObjectName = posKey "sceneName_X_Y_Z" (same lookup as TreasurePod).
+        // All 28 entries confirmed via AP-Dump (2026-04-21).
+        // Excludes: Grey Labyrinth shadow_plort_collector/door (819200–819249),
+        //           PB region gate (819845).
+        // -------------------------------------------------------------------------
+
+        // Ember Valley (4)
+        new(LocationConstants.PlortDoor_EmberValley_1, "Plort Door - Ember Valley 1", LocationType.PuzzleDoor, "zoneGorge_Area1", "zoneGorge_Area1_-193_-1_471"),
+        new(LocationConstants.PlortDoor_EmberValley_2, "Plort Door - Ember Valley 2", LocationType.PuzzleDoor, "zoneGorge_Area2", "zoneGorge_Area2_-332_10_285"),
+        new(LocationConstants.PlortDoor_EmberValley_3, "Plort Door - Ember Valley 3", LocationType.PuzzleDoor, "zoneGorge_Area3", "zoneGorge_Area3_-353_6_625"),
+        new(LocationConstants.PlortDoor_EmberValley_4, "Plort Door - Ember Valley 4", LocationType.PuzzleDoor, "zoneGorge_Area4", "zoneGorge_Area4_-892_12_508"),
+
+        // Rainbow Fields (1)
+        new(LocationConstants.PlortDoor_RainbowFields_1, "Plort Door - Rainbow Fields 1", LocationType.PuzzleDoor, "zoneFields", "zoneFields_338_-2_348"),
+
+        // Starlight Strand (12)
+        new(LocationConstants.PlortDoor_StarlightStrand_1,  "Plort Door - Starlight Strand 1",  LocationType.PuzzleDoor, "zoneStrand",       "zoneStrand_149_1_-257"),
+        new(LocationConstants.PlortDoor_StarlightStrand_2,  "Plort Door - Starlight Strand 2",  LocationType.PuzzleDoor, "zoneStrand",       "zoneStrand_101_1_-232"),
+        new(LocationConstants.PlortDoor_StarlightStrand_3,  "Plort Door - Starlight Strand 3",  LocationType.PuzzleDoor, "zoneStrand",       "zoneStrand_-5_13_-100"),
+        new(LocationConstants.PlortDoor_StarlightStrand_4,  "Plort Door - Starlight Strand 4",  LocationType.PuzzleDoor, "zoneStrand_Area1", "zoneStrand_Area1_59_14_-423"),
+        new(LocationConstants.PlortDoor_StarlightStrand_5,  "Plort Door - Starlight Strand 5",  LocationType.PuzzleDoor, "zoneStrand_Area1", "zoneStrand_Area1_53_2_-487"),
+        new(LocationConstants.PlortDoor_StarlightStrand_6,  "Plort Door - Starlight Strand 6",  LocationType.PuzzleDoor, "zoneStrand_Area1", "zoneStrand_Area1_49_-3_-534"),
+        new(LocationConstants.PlortDoor_StarlightStrand_7,  "Plort Door - Starlight Strand 7",  LocationType.PuzzleDoor, "zoneStrand_Area2", "zoneStrand_Area2_257_10_-308"),
+        new(LocationConstants.PlortDoor_StarlightStrand_8,  "Plort Door - Starlight Strand 8",  LocationType.PuzzleDoor, "zoneStrand_Area2", "zoneStrand_Area2_162_16_-360"),
+        new(LocationConstants.PlortDoor_StarlightStrand_9,  "Plort Door - Starlight Strand 9",  LocationType.PuzzleDoor, "zoneStrand_Area2", "zoneStrand_Area2_198_6_-207"),
+        new(LocationConstants.PlortDoor_StarlightStrand_10, "Plort Door - Starlight Strand 10", LocationType.PuzzleDoor, "zoneStrand_Area2", "zoneStrand_Area2_308_16_-278"),
+        new(LocationConstants.PlortDoor_StarlightStrand_11, "Plort Door - Starlight Strand 11", LocationType.PuzzleDoor, "zoneStrand_Area2", "zoneStrand_Area2_251_2_-232"),
+        new(LocationConstants.PlortDoor_StarlightStrand_12, "Plort Door - Starlight Strand 12", LocationType.PuzzleDoor, "zoneStrand_Area4", "zoneStrand_Area4_116_60_-651"),
+
+        // Grey Labyrinth (11 — plort_door only; shadow doors are 819200–819249)
+        new(LocationConstants.PlortDoor_GreyLabyrinth_1,  "Plort Door - Grey Labyrinth 1",  LocationType.PuzzleDoor, "zoneLabStrandEntrance",              "zoneLabStrandEntrance_1159_53_-1404"),
+        new(LocationConstants.PlortDoor_GreyLabyrinth_2,  "Plort Door - Grey Labyrinth 2",  LocationType.PuzzleDoor, "zoneLabStrandEntranceMain_B",        "zoneLabStrandEntranceMain_B_1222_29_-1307"),
+        new(LocationConstants.PlortDoor_GreyLabyrinth_3,  "Plort Door - Grey Labyrinth 3",  LocationType.PuzzleDoor, "zoneLabStrandEntranceMain_B",        "zoneLabStrandEntranceMain_B_1266_50_-1435"),
+        new(LocationConstants.PlortDoor_GreyLabyrinth_4,  "Plort Door - Grey Labyrinth 4",  LocationType.PuzzleDoor, "zoneLabValleyEntrance",              "zoneLabValleyEntrance_1786_66_-1155"),
+        new(LocationConstants.PlortDoor_GreyLabyrinth_5,  "Plort Door - Grey Labyrinth 5",  LocationType.PuzzleDoor, "zoneLabValleyEntrance",              "zoneLabValleyEntrance_1811_66_-1155"),
+        new(LocationConstants.PlortDoor_GreyLabyrinth_6,  "Plort Door - Grey Labyrinth 6",  LocationType.PuzzleDoor, "zoneLabValleyEntrance",              "zoneLabValleyEntrance_1767_66_-1155"),
+        new(LocationConstants.PlortDoor_GreyLabyrinth_7,  "Plort Door - Grey Labyrinth 7",  LocationType.PuzzleDoor, "zoneLabValleyEntrance",              "zoneLabValleyEntrance_1919_63_-1112"),
+        new(LocationConstants.PlortDoor_GreyLabyrinth_8,  "Plort Door - Grey Labyrinth 8",  LocationType.PuzzleDoor, "zoneLabValleyEntrance_B",            "zoneLabValleyEntrance_B_1833_49_-1094"),
+        new(LocationConstants.PlortDoor_GreyLabyrinth_9,  "Plort Door - Grey Labyrinth 9",  LocationType.PuzzleDoor, "zoneLabyrinthHub_C",                 "zoneLabyrinthHub_C_1469_88_-1057"),
+        new(LocationConstants.PlortDoor_GreyLabyrinth_10, "Plort Door - Grey Labyrinth 10", LocationType.PuzzleDoor, "zoneLabyrinthTerrarium_JungleGlacier","zoneLabyrinthTerrarium_JungleGlacier_1951_140_-854"),
+        new(LocationConstants.PlortDoor_GreyLabyrinth_11, "Plort Door - Grey Labyrinth 11", LocationType.PuzzleDoor, "zoneLabyrinthTerrarium_JungleGlacier","zoneLabyrinthTerrarium_JungleGlacier_2145_155_-856"),
     };
 
     // -------------------------------------------------------------------------
@@ -770,7 +822,7 @@ public static class LocationTable
 
     /// <summary>
     /// Keyed by <c>GameObjectName</c> (posKey or gameObject.name).
-    /// Covers: TreasurePod, Gordo, MapNode, GhostlyDrone, ShadowPlortDoor.
+    /// Covers: TreasurePod, Gordo, MapNode, GhostlyDrone, ShadowPlortDoor, PuzzleDoor.
     /// Excludes ResearchDrone, SlimepediaEntry (EntryName lookup), FabricatorCraft,
     /// and all Conversation types (ConversationDebugName lookup).
     /// </summary>
@@ -823,7 +875,7 @@ public static class LocationTable
 
     /// <summary>
     /// Look up by <c>GameObjectName</c> / posKey.
-    /// Used by TreasurePod, Gordo, MapNode, GhostlyDrone, and ShadowPlortDoor patches.
+    /// Used by TreasurePod, Gordo, MapNode, GhostlyDrone, ShadowPlortDoor, and PuzzleDoor patches.
     /// </summary>
     public static bool TryGetByObjectName(string name, out LocationInfo? info)
         => _byGameObjectName.TryGetValue(name, out info);

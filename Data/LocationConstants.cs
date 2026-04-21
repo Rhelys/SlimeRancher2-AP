@@ -17,6 +17,7 @@ namespace SlimeRancher2AP.Data;
 ///   819630â€”819683  Slimepedia Resources                         â€”  54 slots
 ///   819700â€”819714  Conversation Key Gifts (functional items)    â€”  15 slots
 ///   819821–819842  Radiant Slimepedia Entries (22 entries, confirmed via DumpRadiantSlimes)
+///   819843–819845  Region Gate Switches (3 entries, locations/bundled mode only)
 ///   819715â€”819762  Conversation Decoration Gifts                â€”  48 slots
 ///   819763â€”819816  Conversation Non-Gift (story/lore/deflect)   â€”  54 slots
 ///
@@ -682,5 +683,63 @@ public static class LocationConstants
     public const long SlimepediaRadiant_Tangle   = 819840;
     public const long SlimepediaRadiant_Twin     = 819841;
     public const long SlimepediaRadiant_Yolky    = 819842;
-    // 819843+ spare
+
+    // =========================================================================
+    // REGION GATE SWITCHES: 819843 – 819845  (3 entries)
+    // Only active when region_access_mode = "locations" or "bundled".
+    // Check is sent when the player activates a gate switch that is still blocked.
+    // Switch name → ID mapping mirrors RegionTable.SwitchToLocationId.
+    // =========================================================================
+    public const long RegionGate_EmberValley      = 819843;
+    public const long RegionGate_StarlightStrand  = 819844;
+    public const long RegionGate_PowderfallBluffs = 819845;
+    // 819846 spare
+
+    // =========================================================================
+    // OTHER PUZZLE DOORS: 819847 – 819895  (49 slots reserved)
+    // PuzzleSlotLockable doors (lockTag='plort_door') other than:
+    //   • Grey Labyrinth shadow plort doors (819200–819249)
+    //   • PB region gate (819845)
+    // All 28 doors confirmed via AP-Dump across all zones (2026-04-21).
+    // Optional locations enabled by the "randomize_puzzle_doors" apworld option.
+    //
+    // Lookup key: posKey "sceneName_X_Y_Z" (same as TreasurePod).
+    // =========================================================================
+
+    // Ember Valley (4 doors — excluding PB gate at zoneGorge_Area3_-645_34_681)
+    public const long PlortDoor_EmberValley_1 = 819847; // zoneGorge_Area1_-193_-1_471
+    public const long PlortDoor_EmberValley_2 = 819848; // zoneGorge_Area2_-332_10_285
+    public const long PlortDoor_EmberValley_3 = 819849; // zoneGorge_Area3_-353_6_625
+    public const long PlortDoor_EmberValley_4 = 819850; // zoneGorge_Area4_-892_12_508
+
+    // Rainbow Fields (1 door)
+    public const long PlortDoor_RainbowFields_1 = 819851; // zoneFields_338_-2_348
+
+    // Starlight Strand (12 doors)
+    public const long PlortDoor_StarlightStrand_1  = 819852; // zoneStrand_149_1_-257
+    public const long PlortDoor_StarlightStrand_2  = 819853; // zoneStrand_101_1_-232
+    public const long PlortDoor_StarlightStrand_3  = 819854; // zoneStrand_-5_13_-100
+    public const long PlortDoor_StarlightStrand_4  = 819855; // zoneStrand_Area1_59_14_-423
+    public const long PlortDoor_StarlightStrand_5  = 819856; // zoneStrand_Area1_53_2_-487
+    public const long PlortDoor_StarlightStrand_6  = 819857; // zoneStrand_Area1_49_-3_-534
+    public const long PlortDoor_StarlightStrand_7  = 819858; // zoneStrand_Area2_257_10_-308
+    public const long PlortDoor_StarlightStrand_8  = 819859; // zoneStrand_Area2_162_16_-360
+    public const long PlortDoor_StarlightStrand_9  = 819860; // zoneStrand_Area2_198_6_-207
+    public const long PlortDoor_StarlightStrand_10 = 819861; // zoneStrand_Area2_308_16_-278
+    public const long PlortDoor_StarlightStrand_11 = 819862; // zoneStrand_Area2_251_2_-232
+    public const long PlortDoor_StarlightStrand_12 = 819863; // zoneStrand_Area4_116_60_-651
+
+    // Grey Labyrinth (11 plort_door entries — excludes shadow_plort_collector/door)
+    public const long PlortDoor_GreyLabyrinth_1  = 819864; // zoneLabStrandEntrance_1159_53_-1404
+    public const long PlortDoor_GreyLabyrinth_2  = 819865; // zoneLabStrandEntranceMain_B_1222_29_-1307
+    public const long PlortDoor_GreyLabyrinth_3  = 819866; // zoneLabStrandEntranceMain_B_1266_50_-1435
+    public const long PlortDoor_GreyLabyrinth_4  = 819867; // zoneLabValleyEntrance_1786_66_-1155
+    public const long PlortDoor_GreyLabyrinth_5  = 819868; // zoneLabValleyEntrance_1811_66_-1155
+    public const long PlortDoor_GreyLabyrinth_6  = 819869; // zoneLabValleyEntrance_1767_66_-1155
+    public const long PlortDoor_GreyLabyrinth_7  = 819870; // zoneLabValleyEntrance_1919_63_-1112
+    public const long PlortDoor_GreyLabyrinth_8  = 819871; // zoneLabValleyEntrance_B_1833_49_-1094
+    public const long PlortDoor_GreyLabyrinth_9  = 819872; // zoneLabyrinthHub_C_1469_88_-1057
+    public const long PlortDoor_GreyLabyrinth_10 = 819873; // zoneLabyrinthTerrarium_JungleGlacier_1951_140_-854
+    public const long PlortDoor_GreyLabyrinth_11 = 819874; // zoneLabyrinthTerrarium_JungleGlacier_2145_155_-856
+    // 819875–819895 spare
 }

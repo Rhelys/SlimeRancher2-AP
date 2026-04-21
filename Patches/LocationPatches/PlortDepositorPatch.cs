@@ -23,13 +23,13 @@ internal static class PlortDepositorPatch
 #if DEBUG
         SlimeRancher2AP.Utils.DebugTrace.Once("PlortDepositorPatch.Postfix — first entry");
 #endif
-        // Only fire for Shadow Plort doors (Grey Labyrinth) — PlortDepositor is reused elsewhere.
         // Wrap in try/catch: _catchIdentifiableType.name can crash on partially-initialised
         // IL2CPP objects during scene state restoration.
-        bool isShadowPlort;
-        try { isShadowPlort = __instance._catchIdentifiableType?.name == "ShadowPlort"; }
+        string plortTypeName;
+        try { plortTypeName = __instance._catchIdentifiableType?.name ?? "?"; }
         catch { return; }
-        if (!isShadowPlort) return;
+
+        bool isShadowPlort = plortTypeName == "ShadowPlort";
 
         if (!Plugin.Instance.ModEnabled || !Plugin.Instance.SaveManager.HasActiveSession) return;
 
@@ -38,6 +38,25 @@ internal static class PlortDepositorPatch
         if (SceneContext.Instance?.PlayerState?._model == null) return;
 
         var posKey = WorldUtils.PositionKey(__instance.gameObject);
+
+        // Log ALL non-ShadowPlort fills so we can identify other doors (e.g. Powderfall Bluffs gate).
+        if (!isShadowPlort)
+        {
+            string doorName, sceneName;
+            try
+            {
+                doorName  = __instance.gameObject.name;
+                var scene = __instance.gameObject.scene;
+                sceneName = scene.IsValid() ? (scene.name ?? "") : "";
+            }
+            catch { doorName = "?"; sceneName = "?"; }
+
+            Plugin.Instance.Log.LogInfo(
+                $"[AP-PlortDoor] ActivateOnFill: plort='{plortTypeName}' name='{doorName}' " +
+                $"scene='{sceneName}' posKey='{posKey}'");
+            return;   // not a tracked location — don't send a check
+        }
+
         Plugin.Instance.Log.LogInfo($"[AP] Shadow Plort Door filled: posKey='{posKey}'");
 
         if (!LocationTable.TryGetByObjectName(posKey, out var info) || info == null)

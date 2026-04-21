@@ -4,6 +4,37 @@ using Il2CppMonomiPark.SlimeRancher.Slime;
 namespace SlimeRancher2AP.Patches.LocationPatches;
 
 /// <summary>
+/// Debug-only flag set by the debug panel "Force Radiant Spawn ON" button.
+/// When <c>true</c>, <see cref="ForceRadiantSpawnPatch"/> overrides every
+/// <c>DrawFromRadiantShuffleBag</c> return value to <c>true</c>, making every
+/// eligible slime encounter radiant regardless of bag state.
+/// </summary>
+internal static class RadiantDebugFlags
+{
+    internal static bool ForceRadiantSpawn = false;
+}
+
+/// <summary>
+/// Postfix on <c>RadiantSlimeDirector.DrawFromRadiantShuffleBag</c>.
+/// When <see cref="RadiantDebugFlags.ForceRadiantSpawn"/> is set, forces the
+/// return value to <c>true</c> so every draw is treated as a radiant spawn.
+///
+/// <para>
+/// This is a reliable alternative to <c>DEBUG_ForceRadiantSpawn</c> on the director,
+/// which appears to be an editor-only field that is not read by the shipping native code.
+/// </para>
+/// </summary>
+[HarmonyPatch(typeof(RadiantSlimeDirector), "DrawFromRadiantShuffleBag")]
+internal static class ForceRadiantSpawnPatch
+{
+    private static void Postfix(ref bool __result)
+    {
+        if (RadiantDebugFlags.ForceRadiantSpawn)
+            __result = true;
+    }
+}
+
+/// <summary>
 /// Scales radiant slime spawn frequency based on the <c>radiant_spawn_rate_multiplier</c>
 /// slot data option.
 ///

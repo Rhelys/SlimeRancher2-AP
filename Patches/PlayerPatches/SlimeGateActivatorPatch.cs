@@ -2,19 +2,68 @@ using HarmonyLib;
 using Il2CppMonomiPark.SlimeRancher;
 using Il2CppMonomiPark.World;
 using SlimeRancher2AP.Archipelago;
+using SlimeRancher2AP.Data;
+using SlimeRancher2AP.Utils;
 
 namespace SlimeRancher2AP.Patches.PlayerPatches;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// SlimeGateActivatorPatch
+//
+// Patches SlimeGateActivator.Activate() — fires when the player completes the
+// purchase interaction at a Slime Gate (e.g. the Powderfall Bluffs access door).
+// Used to:
+//   1. Log gate identity (name / scene / posKey) to identify which AccessDoor
+//      corresponds to the PB gate.
+//   2. (Future) Block the gate open and send the AP location check.
+//
+// SlimeGateActivator.GateDoor is the AccessDoor that actually opens.
+// ─────────────────────────────────────────────────────────────────────────────
+[HarmonyPatch(typeof(SlimeGateActivator), nameof(SlimeGateActivator.Activate))]
+internal static class SlimeGateActivatorPatch
+{
+    private static void Postfix(SlimeGateActivator __instance)
+    {
+#if DEBUG
+        DebugTrace.Once("SlimeGateActivatorPatch.Postfix — first entry");
+#endif
+        if (!Plugin.Instance.ModEnabled) return;
+
+        string activatorName, gateDoorName, sceneName, posKey;
+        try
+        {
+            activatorName = __instance.gameObject?.name ?? "null";
+            gateDoorName  = __instance.GateDoor?.gameObject?.name ?? "null";
+            var scene     = __instance.gameObject!.scene;
+            sceneName     = scene.IsValid() ? (scene.name ?? "") : "?";
+            posKey        = WorldUtils.PositionKey(__instance.gameObject);
+        }
+        catch { return; }
+
+        Plugin.Instance.Log.LogInfo(
+            $"[AP-SlimeGate] Activate: activator='{activatorName}' gateDoor='{gateDoorName}' " +
+            $"scene='{sceneName}' posKey='{posKey}'");
+
+        // Guard: only process during an active session with save loaded.
+        if (!Plugin.Instance.SaveManager.HasActiveSession) return;
+        if (SceneContext.Instance?.PlayerState?._model == null) return;
+
+        // TODO: when posKey matches the PB gate, send the AP check.
+        // Example (fill in the actual posKey after first in-game log run):
+        //   if (posKey == "<PB_GATE_POSKEY>")
+        //       Plugin.Instance.ApClient.SendCheck(LocationConstants.RegionGate_PowderfallBluffs);
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // AccessDoorOpenPatch — diagnostic only
 //
-// Logs AccessDoor.ForceUpdate calls so we can observe state transitions if
-// there are any. Not used for goal detection.
+// Logs AccessDoor.ForceUpdate calls so we can observe state transitions during
+// scene state restoration. Not used for real-time gate detection.
 //
-// AccessDoor.ForceUpdate() is called during scene state restoration to visually
-// restore previously-opened access doors (gordo rewards, etc.).  Accessing
-// __instance._model without a guard can cause a native IL2CPP crash if the
-// AccessDoor object is partially initialised at that point.
+// AccessDoor.ForceUpdate() fires during loading to visually restore previously-
+// opened access doors (gordo rewards, etc.).  Accessing __instance._model without
+// a guard can cause a native IL2CPP crash if the object is partially initialised.
 // ─────────────────────────────────────────────────────────────────────────────
 [HarmonyPatch(typeof(AccessDoor), nameof(AccessDoor.ForceUpdate),
     new System.Type[] { typeof(bool) })]
@@ -25,14 +74,11 @@ internal static class AccessDoorOpenPatch
     private static void Postfix(AccessDoor __instance, bool immediate)
     {
 #if DEBUG
-        SlimeRancher2AP.Utils.DebugTrace.Once("AccessDoorOpenPatch.Postfix — first entry");
+        DebugTrace.Once("AccessDoorOpenPatch.Postfix — first entry");
 #endif
         if (!Plugin.Instance.ModEnabled) return;
 
-        // Guard: skip during scene state restoration — same pattern used by all location patches.
-        // AccessDoor.ForceUpdate() fires during loading; _model on a partially-initialised
-        // AccessDoor may hold a non-null garbage native pointer, causing a native crash when
-        // dereferenced.  PlayerState._model becomes non-null only after save data is fully applied.
+        // Guard: skip during scene state restoration.
         if (SceneContext.Instance?.PlayerState?._model == null) return;
 
         AccessDoor.State? doorState;
@@ -55,7 +101,7 @@ internal static class AccessDoorOpenPatch
         catch { return; }
 
         Plugin.Instance.Log.LogInfo(
-            $"[AP-Gate] AccessDoor OPEN: name='{doorName}'  scene='{sceneName}'");
+            $"[AP-Gate] AccessDoor OPEN (restore): name='{doorName}'  scene='{sceneName}'");
     }
 
     internal static void Reset() => _reportedOpenDoors.Clear();
