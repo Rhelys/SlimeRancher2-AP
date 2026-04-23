@@ -103,8 +103,10 @@ public static class ItemTable
     public const long GreyLabyrinthCraftCache    = 819604;
     public const long RareCraftCache             = 819605;
 
-    // Traps: 819610–819614
-    public const long TrapSlimeRing     = 819610; // spawns common slimes in a ring around the player
+    // Filler — Slime Ring: 819610
+    public const long SlimeRing         = 819610; // spawns common slimes in a ring around the player
+
+    // Traps: 819611–819614
     public const long TrapTarrSpawn     = 819611; // spawns Tarr near the player
     public const long TrapTeleport      = 819612; // teleports player to a random accessible zone
     public const long TrapWeatherChange = 819613; // triggers random Heavy/SlimeRain weather
@@ -198,8 +200,10 @@ public static class ItemTable
         new(GreyLabyrinthCraftCache,    "Grey Labyrinth Craft Cache",    ItemType.Filler),
         new(RareCraftCache,             "Rare Craft Cache",              ItemType.Filler),
 
+        // Filler — Slime Ring
+        new(SlimeRing, "Slime Ring", ItemType.Filler),
+
         // Traps
-        new(TrapSlimeRing,     "Slime Ring Trap",     ItemType.Trap),
         new(TrapTarrSpawn,     "Tarr Spawn Trap",     ItemType.Trap),
         new(TrapTeleport,      "Teleport Trap",       ItemType.Trap),
         new(TrapWeatherChange, "Weather Change Trap", ItemType.Trap),

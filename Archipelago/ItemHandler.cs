@@ -509,6 +509,13 @@ public static class ItemHandler
             return;
         }
 
+        // Slime Ring — spawns common slimes in a ring around the player
+        if (item.Id == ItemTable.SlimeRing)
+        {
+            TrapHandler.ApplySlimeRingTrap(apItem, itemIndex);
+            return;
+        }
+
         // Plort/craft caches — deposit a random assortment of 10 items into the refinery
         var pool = item.Id switch
         {
@@ -859,7 +866,6 @@ public static class TrapHandler
     {
         switch (trapItemId)
         {
-            case ItemTable.TrapSlimeRing:     return ApplySlimeRingTrap(apItem, itemIndex);
             case ItemTable.TrapTarrSpawn:     return ApplyTarrSpawnTrap(apItem, itemIndex);
             case ItemTable.TrapTeleport:      return ApplyTeleportTrap(apItem, itemIndex);
             case ItemTable.TrapWeatherChange: return ApplyWeatherTrap(apItem, itemIndex);
@@ -917,7 +923,7 @@ public static class TrapHandler
         "Shadow", "Sloomber", "Twin", "Hyper",
     };
 
-    private static bool ApplySlimeRingTrap(ApItemInfo? apItem, int itemIndex)
+    internal static bool ApplySlimeRingTrap(ApItemInfo? apItem, int itemIndex)
     {
         var playerGo = SceneContext.Instance?.Player;
         if (playerGo == null)
@@ -954,13 +960,13 @@ public static class TrapHandler
 
         if (slimeTypes.Count == 0)
         {
-            Plugin.Instance.Log.LogWarning("[AP] SlimeRingTrap: no valid slime IdentifiableTypes found — skipped");
+            Plugin.Instance.Log.LogWarning("[AP] SlimeRing: no valid slime IdentifiableTypes found — skipped");
             return true; // asset issue; don't retry
         }
 
 #if DEBUG
         Plugin.Instance.Log.LogInfo(
-            $"[AP] SlimeRingTrap: pool={string.Join(", ", candidateNames)} ({slimeTypes.Count} resolved)");
+            $"[AP] SlimeRing: pool={string.Join(", ", candidateNames)} ({slimeTypes.Count} resolved)");
 #endif
 
 #if DEBUG
@@ -997,8 +1003,8 @@ public static class TrapHandler
             if (go != null) spawned++;
         }
 
-        Plugin.Instance.Log.LogInfo($"[AP] SlimeRingTrap: spawned {spawned} slimes around player");
-        SlimeRancher2AP.UI.StatusHUD.Instance?.ShowNotification("Trap: Slime Ring!");
+        Plugin.Instance.Log.LogInfo($"[AP] SlimeRing: spawned {spawned} slimes around player");
+        SlimeRancher2AP.UI.StatusHUD.Instance?.ShowNotification("Slime Ring!");
         return true;
     }
 
@@ -1323,7 +1329,7 @@ public static class TrapHandler
 
         if (slimeRainDef == null)
         {
-            Plugin.Instance.Log.LogWarning("[AP] SlimeRainTrap: no 'Slime Rain' WeatherStateDefinition found — falling back to SlimeRingTrap");
+            Plugin.Instance.Log.LogWarning("[AP] SlimeRainTrap: no 'Slime Rain' WeatherStateDefinition found — falling back to SlimeRing");
             return ApplySlimeRingTrap(apItem, itemIndex);
         }
 

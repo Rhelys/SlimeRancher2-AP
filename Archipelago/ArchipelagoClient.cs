@@ -3,6 +3,7 @@ using Archipelago.MultiClient.Net.BounceFeatures.DeathLink;
 using Archipelago.MultiClient.Net.Enums;
 using Archipelago.MultiClient.Net.Helpers;
 using Archipelago.MultiClient.Net.Models;
+using SlimeRancher2AP.Patches.PlayerPatches;
 using SlimeRancher2AP.SaveData;
 using SlimeRancher2AP.UI;
 using System.Linq;
@@ -111,7 +112,9 @@ public class ArchipelagoClient
                     SlotData = SlotData.Parse(success.SlotData);
                     Plugin.Instance.Log.LogInfo(
                         $"[AP] SlotData: goal='{SlotData.Goal}' region_access_mode='{SlotData.RegionAccessMode}' " +
-                        $"conversation_checks='{SlotData.ConversationChecks}'");
+                        $"conversation_checks='{SlotData.ConversationChecks}' " +
+                        $"weather_freq_mult={SlotData.WeatherFrequencyMultiplier} force_heavy={SlotData.ForceHeavyWeather} " +
+                        $"all_radiant={SlotData.AllRadiantSlimes} radiant_mult={SlotData.RadiantSpawnRateMultiplier}");
 
                     if (SlotData.DeathLink)
                     {
@@ -184,10 +187,11 @@ public class ArchipelagoClient
                     Plugin.Instance.Log.LogInfo(
                         $"[AP] Connected as '{data.SlotName}' (slot {data.Slot}, seed {data.Seed})");
 
-                    // GoalHandler.Initialize() and OnConnected touch Unity APIs — defer to main thread.
+                    // GoalHandler.Initialize(), WeatherPatch, and OnConnected touch Unity APIs — defer to main thread.
                     _pendingMainThreadAction = () =>
                     {
                         GoalHandler.Initialize();
+                        WeatherPatch.OnSlotDataReceived(); // applies WeatherFrequencyMultiplier to the persistent WeatherRegistry
                         OnConnected?.Invoke();
                     };
                 }
@@ -219,6 +223,7 @@ public class ArchipelagoClient
             Session.Items.ItemReceived -= OnItemReceived;
         Session = null;
         SlotData                 = null;
+        WeatherPatch.OnDisconnected();
         _receivedCount           = 0;
         _snapshotCount           = 0;
         _pendingMainThreadAction = null;

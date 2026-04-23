@@ -9,6 +9,8 @@ using Il2CppMonomiPark.SlimeRancher.RecipePinning;
 using Il2CppMonomiPark.SlimeRancher.UI.Map;
 using Il2CppMonomiPark.SlimeRancher.World;
 using Il2CppMonomiPark.SlimeRancher.Slime;
+using Il2CppMonomiPark.SlimeRancher.DataModel;
+using Il2CppMonomiPark.SlimeRancher.Weather;
 using Il2CppMonomiPark.SlimeRancher.World.ResearchDrone;
 using SlimeRancher2AP.Utils;
 using System;
@@ -1073,6 +1075,171 @@ public static class LocationDumper
         Plugin.Instance.Log.LogInfo($"[AP-Debug] SetForceRadiantSpawn: ForceRadiantSpawn = {enabled}");
     }
 
+    // -------------------------------------------------------------------------
+    // Weather dumps
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Dumps the runtime state of the <c>WeatherRegistry</c> — global forecast timing,
+    /// per-zone eligible patterns, currently running patterns, upcoming forecast schedule,
+    /// and the <c>NextChangeAt</c> timestamp that controls when the next weather event starts.
+    ///
+    /// <para>This is the companion to <see cref="DumpWeatherPatterns"/>, which shows the
+    /// static transition graphs. This dump shows live scheduling data so you can see how
+    /// long until the next weather change fires and which patterns are currently active.</para>
+    ///
+    /// <para>Format per zone:
+    /// <code>
+    ///   Zone 'Name'  NextChangeAt=X  ForecastUnlocked=Y
+    ///     Eligible patterns: A, B, C
+    ///     Running: A [state: foo]
+    ///     Forecast (N entries): ...
+    /// </code>
+    /// </para>
+    ///
+    /// Trigger: F9 → Weather Dumps page → "Dump Weather Registry".
+    /// </summary>
+    public static void DumpWeatherRegistry()
+    {
+        var log = Plugin.Instance.Log;
+        log.LogInfo("[AP-Dump] ======= WEATHER REGISTRY DUMP START =======");
+
+        var registries = Resources.FindObjectsOfTypeAll<WeatherRegistry>();
+        if (registries.Count == 0)
+        {
+            log.LogWarning("[AP-Dump] WeatherRegistry not found — load a save first (registry is scene-level)");
+            log.LogInfo("[AP-Dump] ======== WEATHER REGISTRY DUMP END ========");
+            return;
+        }
+
+        var registry = registries[0];
+        log.LogInfo($"[AP-Dump] WeatherRegistry found: '{registry.gameObject?.name ?? "(no go)"}'");
+
+        // ── Global forecast timing ─────────────────────────────────────────────
+        try
+        {
+            float daysToForecast = registry.DaysToForecast;
+            float intervalLow    = registry.ForecastHourIntervalLow;
+            float intervalHigh   = registry.ForecastHourIntervalHigh;
+            log.LogInfo($"[AP-Dump] DaysToForecast={daysToForecast:F2}  " +
+                        $"ForecastHourInterval=[{intervalLow:F2}, {intervalHigh:F2}]");
+        }
+        catch (Exception ex) { log.LogWarning($"[AP-Dump] Timing fields error: {ex.Message}"); }
+
+        // ── Zone config list ───────────────────────────────────────────────────
+        try
+        {
+            var cfgList = registry.ZoneConfigList;
+            int cfgCount = cfgList?.Count ?? 0;
+            log.LogInfo($"[AP-Dump] ZoneConfigList count: {cfgCount}");
+            if (cfgList != null)
+            {
+                for (int i = 0; i < cfgList.Count; i++)
+                {
+                    var cfg = cfgList[i];
+                    string zoneName = cfg?.Zone?.name ?? "(null)";
+                    int patCount = cfg?.Patterns?.Count ?? 0;
+                    log.LogInfo($"[AP-Dump]   config[{i}] zone='{zoneName}'  eligiblePatterns={patCount}");
+                }
+            }
+        }
+        catch (Exception ex) { log.LogWarning($"[AP-Dump] ZoneConfigList error: {ex.Message}"); }
+
+        // ── Per-zone runtime state ─────────────────────────────────────────────
+        Il2CppSystem.Collections.Generic.List<ZoneDefinition>? weatherZones = null;
+        try { weatherZones = registry.DEBUG_GetWeatherZones(); }
+        catch (Exception ex) { log.LogWarning($"[AP-Dump] DEBUG_GetWeatherZones error: {ex.Message}"); }
+
+        if (weatherZones == null || weatherZones.Count == 0)
+        {
+            log.LogWarning("[AP-Dump] No weather zones returned — zone streaming may not have loaded the weather director yet.");
+            log.LogInfo("[AP-Dump] ======== WEATHER REGISTRY DUMP END ========");
+            return;
+        }
+
+        log.LogInfo($"[AP-Dump] Weather zones ({weatherZones.Count}):");
+
+        // Also walk _zones dict for NextChangeAt / ForecastUnlocked
+        Il2CppSystem.Collections.Generic.Dictionary<ZoneDefinition, WeatherRegistry.ZoneWeatherData>? zoneDict = null;
+        try { zoneDict = registry._zones; }
+        catch (Exception ex) { log.LogWarning($"[AP-Dump] _zones field error: {ex.Message}"); }
+
+        for (int zi = 0; zi < weatherZones.Count; zi++)
+        {
+            var zone = weatherZones[zi];
+            if (zone == null) { log.LogInfo($"[AP-Dump]   Zone[{zi}] NULL"); continue; }
+            string zoneName = zone.name ?? $"Zone[{zi}]";
+
+            // NextChangeAt + ForecastUnlocked from _zones dict
+            double nextChangeAt = -1;
+            bool   forecastUnlocked = false;
+            try
+            {
+                if (zoneDict != null && zoneDict.ContainsKey(zone))
+                {
+                    var zd = zoneDict[zone];
+                    nextChangeAt    = zd.NextChangeAt;
+                    forecastUnlocked = zd.ForecastUnlocked;
+                }
+            }
+            catch { /* guard */ }
+
+            log.LogInfo($"[AP-Dump]   Zone '{zoneName}'  NextChangeAt={nextChangeAt:F4}  ForecastUnlocked={forecastUnlocked}");
+
+            // Eligible patterns
+            try
+            {
+                var eligible = registry.DEBUG_GetZoneWeathers(zone);
+                int ec = eligible?.Count ?? 0;
+                if (ec == 0)
+                {
+                    log.LogInfo($"[AP-Dump]     Eligible patterns: (none)");
+                }
+                else
+                {
+                    var names = new System.Collections.Generic.List<string>(ec);
+                    for (int i = 0; i < ec; i++) names.Add(eligible![i]?.name ?? "(null)");
+                    log.LogInfo($"[AP-Dump]     Eligible patterns ({ec}): {string.Join(", ", names)}");
+                }
+            }
+            catch (Exception ex) { log.LogWarning($"[AP-Dump]     DEBUG_GetZoneWeathers error: {ex.Message}"); }
+
+            // Currently running patterns
+            try
+            {
+                var running = registry.DEBUG_GetRunningWeather(zone);
+                int rc = running?.Count ?? 0;
+                if (rc == 0)
+                {
+                    log.LogInfo($"[AP-Dump]     Running: (clear — no active weather)");
+                }
+                else
+                {
+                    for (int i = 0; i < rc; i++)
+                    {
+                        var rp = running![i];
+                        if (rp == null) continue;
+                        string patName = "(unknown)";
+                        try { patName = rp.TryCast<WeatherPatternDefinition>()?.name ?? "(IWeatherPattern — not a def)"; } catch { }
+                        log.LogInfo($"[AP-Dump]     Running[{i}]: '{patName}'");
+                    }
+                }
+            }
+            catch (Exception ex) { log.LogWarning($"[AP-Dump]     DEBUG_GetRunningWeather error: {ex.Message}"); }
+
+            // Forecast schedule
+            try
+            {
+                var forecast = registry.DEBUG_GetForecast(zone);
+                int fc = forecast?.Count ?? 0;
+                log.LogInfo($"[AP-Dump]     Forecast: {fc} scheduled entries");
+            }
+            catch (Exception ex) { log.LogWarning($"[AP-Dump]     DEBUG_GetForecast error: {ex.Message}"); }
+        }
+
+        log.LogInfo("[AP-Dump] ======== WEATHER REGISTRY DUMP END ========");
+    }
+
     /// <summary>
     /// Dumps the full condition tree of <c>RadiantSlimeConfig._allowRadiantSlimesToSpawnQuery</c>
     /// — the master gate that must be satisfied before any radiant slime can spawn.
@@ -1392,6 +1559,82 @@ public static class LocationDumper
             log.LogInfo("[AP-Dump]   (no feral spawners found — load a save in a zone with feral slimes)");
 
         log.LogInfo("[AP-Dump] ===== END FERAL SPAWNER RADIANT FLAGS =====");
+    }
+
+    /// <summary>
+    /// Dumps all WeatherPatternDefinition transition graphs and WeatherStateDefinition
+    /// timing values (MinDurationHours, MapTier) to the BepInEx log.
+    ///
+    /// Output format per transition:
+    ///   [Pattern 'Name'] 'FromState' → 'ToState'  ChancePerHour=X  (MinDurationHours=Y  MapTier=Z)
+    ///
+    /// ChancePerHour is the probability per in-game hour that this transition fires.
+    /// MinDurationHours is the minimum time the ToState must run before any outbound
+    /// transition is evaluated.
+    ///
+    /// Trigger: F9 → Dumps page → "Dump Weather Patterns".
+    /// </summary>
+    public static void DumpWeatherPatterns()
+    {
+        var log = Plugin.Instance.Log;
+        log.LogInfo("[AP-Dump] ======= WEATHER PATTERN DUMP START =======");
+
+        // ── WeatherStateDefinition timing ──────────────────────────────────────
+        var allStates = Resources.FindObjectsOfTypeAll<WeatherStateDefinition>();
+        log.LogInfo($"[AP-Dump] WeatherStateDefinitions ({allStates.Count} total):");
+        for (int i = 0; i < allStates.Count; i++)
+        {
+            var s = allStates[i];
+            if (s == null) continue;
+            log.LogInfo($"[AP-Dump]   State '{s.StateName ?? s.name}'  " +
+                        $"MinDurationHours={s.MinDurationHours:F4}  MapTier={s.MapTier}");
+        }
+
+        // ── WeatherPatternDefinition transition graph ──────────────────────────
+        var allPatterns = Resources.FindObjectsOfTypeAll<WeatherPatternDefinition>();
+        log.LogInfo($"[AP-Dump] WeatherPatternDefinitions ({allPatterns.Count} total):");
+        for (int pi = 0; pi < allPatterns.Count; pi++)
+        {
+            var pattern = allPatterns[pi];
+            if (pattern == null) continue;
+            string patName = pattern.name ?? $"Pattern[{pi}]";
+            log.LogInfo($"[AP-Dump]   Pattern '{patName}':");
+
+            var transitionLists = pattern.RunningTransitions;
+            if (transitionLists == null || transitionLists.Count == 0)
+            {
+                log.LogInfo($"[AP-Dump]     (no transitions)");
+                continue;
+            }
+
+            for (int ti = 0; ti < transitionLists.Count; ti++)
+            {
+                var tl = transitionLists[ti];
+                if (tl == null) continue;
+                string fromName = tl.FromState?.StateName ?? tl.FromState?.name ?? "(null)";
+
+                var transitions = tl.Transitions;
+                if (transitions == null || transitions.Count == 0)
+                {
+                    log.LogInfo($"[AP-Dump]     '{fromName}' → (no outbound transitions)");
+                    continue;
+                }
+
+                for (int tti = 0; tti < transitions.Count; tti++)
+                {
+                    var t = transitions[tti];
+                    if (t == null) continue;
+                    string toName = t.ToState?.StateName ?? t.ToState?.name ?? "(null)";
+                    float minDur  = t.ToState?.MinDurationHours ?? 0f;
+                    int   mapTier = t.ToState?.MapTier ?? 0;
+                    log.LogInfo($"[AP-Dump]     '{fromName}' → '{toName}'  " +
+                                $"ChancePerHour={t.ChancePerHour:F4}  " +
+                                $"(MinDurationHours={minDur:F4}  MapTier={mapTier})");
+                }
+            }
+        }
+
+        log.LogInfo("[AP-Dump] ======== WEATHER PATTERN DUMP END ========");
     }
 
     private static string GetGameObjectPath(UnityEngine.GameObject go)

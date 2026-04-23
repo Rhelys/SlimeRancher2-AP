@@ -102,6 +102,7 @@ public class ApUpdateBehaviour : MonoBehaviour
         SlimeRancher2AP.Utils.DebugTrace.Once("Update.4 — after ProcessDeathQueue");
 #endif
         TrapHandler.Tick();
+        SlimeRancher2AP.Patches.PlayerPatches.WeatherPatch.TryApplyIfNeeded();
 #if DEBUG
         SlimeRancher2AP.Utils.DebugTrace.Once("Update.5 — after TrapHandler.Tick");
 #endif

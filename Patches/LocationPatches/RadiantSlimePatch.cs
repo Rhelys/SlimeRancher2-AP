@@ -16,9 +16,11 @@ internal static class RadiantDebugFlags
 
 /// <summary>
 /// Postfix on <c>RadiantSlimeDirector.DrawFromRadiantShuffleBag</c>.
-/// When <see cref="RadiantDebugFlags.ForceRadiantSpawn"/> is set, forces the
-/// return value to <c>true</c> so every draw is treated as a radiant spawn.
-///
+/// Forces the return value to <c>true</c> (every slime encounter is radiant) when either:
+/// <list type="bullet">
+///   <item><see cref="RadiantDebugFlags.ForceRadiantSpawn"/> is set (debug panel toggle), or</item>
+///   <item><c>SlotData.AllRadiantSlimes</c> is <c>true</c> (apworld option).</item>
+/// </list>
 /// <para>
 /// This is a reliable alternative to <c>DEBUG_ForceRadiantSpawn</c> on the director,
 /// which appears to be an editor-only field that is not read by the shipping native code.
@@ -30,7 +32,16 @@ internal static class ForceRadiantSpawnPatch
     private static void Postfix(ref bool __result)
     {
         if (RadiantDebugFlags.ForceRadiantSpawn)
+        {
             __result = true;
+            return;
+        }
+
+        if (Plugin.Instance.ModEnabled &&
+            (Plugin.Instance.ApClient?.SlotData?.AllRadiantSlimes ?? false))
+        {
+            __result = true;
+        }
     }
 }
 
@@ -52,6 +63,7 @@ internal static class ForceRadiantSpawnPatch
 ///   <item><term>2</term><description>Bags halved — radiant slimes appear ~2× as often.</description></item>
 ///   <item><term>5</term><description>Bags ÷5 — radiant slimes appear ~5× as often.</description></item>
 ///   <item><term>10</term><description>Bags ÷10 — radiant slimes appear ~10× as often.</description></item>
+///   <item><term>50</term><description>Bags ÷50 — near-guaranteed on every other encounter (bag floor is 2).</description></item>
 /// </list>
 /// Bag sizes are floored at 1 to prevent division-to-zero.
 /// </para>
@@ -86,7 +98,7 @@ internal static class RadiantSlimeSpawnRatePatch
         {
             var entry = bags[i];
             if (entry == null) continue;
-            int newSize = System.Math.Max(1, entry.BagSize / multiplier);
+            int newSize = System.Math.Max(2, entry.BagSize / multiplier);
             entry.BagSize = newSize;
             scaled++;
         }

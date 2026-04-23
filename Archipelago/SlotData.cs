@@ -43,6 +43,13 @@ public class SlotData
     /// <c>RadiantSlimeSpawnRatePatch</c> on scene init.
     /// Slot data key: <c>"radiant_spawn_rate_multiplier"</c>. Range: 1–10.
     /// </summary>
+    /// <summary>
+    /// When true, every slime encounter is forced to be a radiant spawn — the shuffle-bag
+    /// algorithm is bypassed entirely. <see cref="RadiantSpawnRateMultiplier"/> has no
+    /// additional effect when this is enabled.
+    /// Slot data key: <c>"all_radiant_slimes"</c>.
+    /// </summary>
+    public bool   AllRadiantSlimes             { get; init; } = false;
     public int    RadiantSpawnRateMultiplier   { get; init; } = 1;
     public bool   RandomizeResearchDrones  { get; init; } = false;
     public bool   RandomizeGhostlyDrones   { get; init; } = false;
@@ -103,6 +110,23 @@ public class SlotData
     /// </summary>
     public int IncomingDamageMultiplier { get; init; } = 1;
 
+    /// <summary>
+    /// When true, weather events jump directly to their Heavy state as soon as they start.
+    /// Light and Medium states are bypassed. Flat single-state patterns (Slime Rain, Snow)
+    /// are unaffected (MapTier 0 — no tiered variants exist for them).
+    /// On by default to ensure players reliably see severe-weather resource spawns.
+    /// Slot data key: <c>"force_heavy_weather"</c>.
+    /// </summary>
+    public bool ForceHeavyWeather { get; init; } = true;
+
+    /// <summary>
+    /// Divides <c>WeatherRegistry.ForecastHourIntervalLow/High</c> by this value on scene load,
+    /// making weather events start more frequently.
+    /// 1 = vanilla interval (default). Range: 1–4.
+    /// Slot data key: <c>"weather_frequency_multiplier"</c>.
+    /// </summary>
+    public int WeatherFrequencyMultiplier { get; init; } = 1;
+
     public static SlotData Parse(Dictionary<string, object> raw)
     {
         return new SlotData
@@ -117,6 +141,7 @@ public class SlotData
             RandomizeSlimepedia          = GetBool(raw, "randomize_slimepedia",           defaultVal: false),
             RandomizeSlimepediaResources = GetBool(raw, "randomize_slimepedia_resources", defaultVal: false),
             RandomizeSlimepediaRadiant   = GetBool(raw, "randomize_slimepedia_radiant",   defaultVal: false),
+            AllRadiantSlimes             = GetBool(raw, "all_radiant_slimes",             defaultVal: false),
             RadiantSpawnRateMultiplier   = (int)GetLong(raw, "radiant_spawn_rate_multiplier", 1),
             RandomizeResearchDrones  = GetBool(raw, "randomize_research_drones", defaultVal: false),
             RandomizeGhostlyDrones   = GetBool(raw, "randomize_ghostly_drones",  defaultVal: false),
@@ -125,6 +150,8 @@ public class SlotData
             ConversationChecks          = GetConversationCheckMode(raw, "conversation_checks"),
             TarrInstakill               = GetBool(raw, "tarr_instakill", defaultVal: false),
             IncomingDamageMultiplier    = (int)GetLong(raw, "incoming_damage_multiplier", 1),
+            ForceHeavyWeather           = GetBool(raw, "force_heavy_weather",          defaultVal: true),
+            WeatherFrequencyMultiplier  = (int)GetLong(raw, "weather_frequency_multiplier", 1),
         };
     }
 

@@ -32,7 +32,7 @@ public class DebugPanel : MonoBehaviour
     private const float BtnH    = 26;
     private const float Gap     = 4;
     private const float LabelH  = 20;
-    private const int   Pages   = 9;
+    private const int   Pages   = 10;
 
     private void Update()
     {
@@ -100,6 +100,7 @@ public class DebugPanel : MonoBehaviour
                 case 6: DrawPageRadiant(x, y);            break;
                 case 7: DrawPageGoals(x, y);              break;
                 case 8: DrawPageDumps(x, y);              break;
+                case 9: DrawPageWeatherDumps(x, y);       break;
             }
 
             // Nav buttons sit below 20 content rows (tallest page is ~18 rows)
@@ -248,8 +249,10 @@ public class DebugPanel : MonoBehaviour
 
     private void DrawPageMisc(float x, float y)
     {
+        y = SectionLabel(x, y, "Filler (misc)");
+        y = ItemBtn(x, y, "Slime Ring",          ItemTable.SlimeRing);
+
         y = SectionLabel(x, y, "Traps");
-        y = ItemBtn(x, y, "Slime Ring Trap",     ItemTable.TrapSlimeRing);
         y = ItemBtn(x, y, "Tarr Spawn Trap",     ItemTable.TrapTarrSpawn);
         y = ItemBtn(x, y, "Teleport Trap",       ItemTable.TrapTeleport);
         y = ItemBtn(x, y, "Weather Change Trap", ItemTable.TrapWeatherChange);
@@ -397,6 +400,24 @@ public class DebugPanel : MonoBehaviour
         y += BtnH + Gap;
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Gold/Lucky Spawn Weights"))
             LocationDumper.DumpGoldLuckySpawnWeights();
+        y += BtnH + Gap;
+
+        GUI.color = Color.white;
+    }
+
+    // Page 9: Weather dump buttons
+    private void DrawPageWeatherDumps(float x, float y)
+    {
+        GUI.color = new Color(0.7f, 0.9f, 1f);
+
+        y = SectionLabel(x, y, "Weather Dumps (→ BepInEx log)");
+
+        GUI.color = new Color(1f, 0.9f, 0.5f);
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Weather Patterns (transition graphs)"))
+            LocationDumper.DumpWeatherPatterns();
+        y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Weather Registry (runtime state)"))
+            LocationDumper.DumpWeatherRegistry();
         y += BtnH + Gap;
 
         GUI.color = Color.white;
