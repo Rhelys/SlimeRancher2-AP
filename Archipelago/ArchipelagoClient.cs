@@ -224,9 +224,15 @@ public class ArchipelagoClient
         DeathLink?.Disable();
         DeathLink       = null;
         _liveScoutCache = null;
-        // Unregister before nulling Session so the -= doesn't throw on a null ref.
+        // Unregister and close the socket before nulling Session.
+        // Without DisconnectAsync the underlying WebSocket stays open and the AP
+        // server never sees the client leave — it only observes the tag change from
+        // DeathLink.Disable() above.
         if (Session != null)
+        {
             Session.Items.ItemReceived -= OnItemReceived;
+            try { Session.Socket.DisconnectAsync(); } catch { /* best-effort */ }
+        }
         Session = null;
         SlotData                 = null;
         WeatherPatch.OnDisconnected();

@@ -216,21 +216,11 @@ public static class ItemHandler
         if (mode == "bundled")
             GrantRegionTeleporter(item.Name);
 
-        // Open the gate immediately for all modes.
-        //
-        // In locations/bundled modes the player already pressed the gate button once
-        // (which sent the location check and was blocked).  SR2's gate button is a
-        // one-shot interactable — it does not allow a second press after the first
-        // interaction, so we cannot rely on the player pressing it again.  Instead we
-        // call SetStateForAll directly; RegionGatePatch.Prefix will allow it through
-        // because IsRegionUnlocked now returns true (set above).
-        //
-        // If the switch is not loaded (player is far away), the UnlockRegion save flag
-        // ensures the gate opens automatically when world-state is next restored.
         // ── Powderfall Bluffs: PuzzleSlotLockable (plort door), not WorldStatePrimarySwitch ──
         // The plorts are already consumed when the door was filled; we can't "re-fill" it.
         // Call ActivateOnUnlock() directly — PuzzleSlotLockableActivatePatch.Prefix will
         // allow it through because IsRegionUnlocked now returns true (set by UnlockRegion above).
+        // PB is a special case: there is no button to press again, so auto-activation is required.
         if (item.Name == RegionTable.PBRegionItemName)
         {
             // Identify the PB gate by posKey, not object name — multiple doors share the
@@ -276,38 +266,18 @@ public static class ItemHandler
         }
 
         // ── EV / SS and any future WorldStatePrimarySwitch gates ──
+        // The gate is now unlocked in the save file (UnlockRegion above).
+        // RegionGatePatch.Prefix will allow the gate to open the next time the player
+        // physically presses the button — IsRegionUnlocked will return true and the
+        // Prefix will pass through, opening the gate and sending the location check.
         if (!RegionTable.TryGetSwitch(item.Name, out var switchName))
         {
-            Plugin.Instance.Log.LogInfo($"[AP] Region '{item.Name}' unlocked (no switch mapping).");
+            Plugin.Instance.Log.LogInfo($"[AP] Region '{item.Name}' unlocked — no switch mapping, nothing more to do.");
             return;
         }
 
-        bool found = false;
-        foreach (var sw in Resources.FindObjectsOfTypeAll<WorldStatePrimarySwitch>())
-        {
-            if (sw.gameObject?.name != switchName) continue;
-            try { sw.SetStateForAll(SwitchHandler.State.DOWN, true); }
-            catch (Exception ex)
-            {
-                Plugin.Instance.Log.LogWarning($"[AP] SetStateForAll threw for '{switchName}': {ex.Message}");
-            }
-            Plugin.Instance.Log.LogInfo($"[AP] Opened region gate: {switchName}");
-
-            // Belt-and-suspenders: RegionGatePatch.Prefix already sends this check, but call it
-            // here too in case the Prefix was skipped or the connection wasn't ready.
-            // Only for locations/bundled mode — vanilla mode has no gate location checks.
-            // Idempotent — SendCheck guards with IsChecked().
-            if (mode != "vanilla" && RegionTable.TryGetLocationId(switchName, out var locId))
-                Plugin.Instance.ApClient.SendCheck(locId);
-
-            found = true;
-            break;
-        }
-
-        if (!found)
-            Plugin.Instance.Log.LogWarning(
-                $"[AP] Region '{item.Name}' unlocked in save, but switch '{switchName}' is not " +
-                $"loaded in the current scene — gate will open automatically when you approach it.");
+        Plugin.Instance.Log.LogInfo(
+            $"[AP] Region '{item.Name}' unlocked — press the gate button ('{switchName}') to open it.");
     }
 
     /// <summary>
@@ -836,6 +806,9 @@ public static class TrapHandler
         if (sceneGroupRef == null || sceneGroupRef == _lastSeenGroupRef) return;
         _lastSeenGroupRef = sceneGroupRef;
         _visitedSceneGroupRefs.Add(sceneGroupRef);
+        // Persist first visits so the teleport trap knows which zones are safe to send
+        // the player to across sessions, not just within the current play session.
+        Plugin.Instance.SaveManager.MarkZoneVisited(sceneGroupRef);
 #if DEBUG
         Plugin.Instance.Log.LogInfo($"[AP] TrapHandler: zone visit recorded — '{sceneGroupRef}'");
 #endif
@@ -1266,34 +1239,22 @@ public static class TrapHandler
 #endif
         foreach (var dest in _trapDestinations)
         {
-            // A destination is eligible if:
-            //   (a) all required gates are recorded as open (AP save or gate-open event), OR
-            //   (b) the player has physically visited this zone this session AND at least one
-            //       prerequisite gate is accessible.
+            // A destination is eligible only if the player has physically visited that zone
+            // in this or any previous session. This prevents the trap from sending the player
+            // to a zone they've never entered, where region-gate buttons haven't been
+            // activated and could block their return path.
             //
-            // The partial-gate requirement prevents the visited fallback from sending the player
-            // to areas they cannot legitimately reach. Example failure case without this guard:
-            // the player loads a save from inside the Grey Labyrinth — that records a visit —
-            // but neither Starlight Strand nor Ember Valley is unlocked, so the Labyrinth
-            // entrance beam puzzles are unreachable and teleporting there would strand the player.
-            bool gatesOpen = true;
-            bool anyGateOpen = dest.RegionGates.Length == 0; // no gates = always "any open"
-            string? failedGate = null;
-            foreach (var gate in dest.RegionGates)
-            {
-                if (IsRegionGateOpen(gate)) { anyGateOpen = true; }
-                else { gatesOpen = false; failedGate ??= gate; }
-            }
-            bool visited = _visitedSceneGroupRefs.Contains(dest.SceneGroupRef);
-            bool eligibleViaVisit = visited && anyGateOpen;
-            if (!gatesOpen && !eligibleViaVisit)
+            // Visited status is checked in two places so it works both with and without an
+            // active AP session:
+            //   • SaveManager.HasVisitedZone — persisted across sessions (primary source)
+            //   • _visitedSceneGroupRefs     — in-memory for the current session (fallback)
+            bool visited = Plugin.Instance.SaveManager.HasVisitedZone(dest.SceneGroupRef)
+                        || _visitedSceneGroupRefs.Contains(dest.SceneGroupRef);
+            if (!visited)
             {
 #if DEBUG
-                string skipReason = visited
-                    ? $"visited but no prerequisite gate open"
-                    : $"gate '{failedGate}' locked, not visited";
                 Plugin.Instance.Log.LogInfo(
-                    $"[AP] TeleportTrap: dest='{dest.SceneGroupRef}' skipped — {skipReason}");
+                    $"[AP] TeleportTrap: dest='{dest.SceneGroupRef}' skipped — never visited");
 #endif
                 continue;
             }

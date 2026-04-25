@@ -37,12 +37,14 @@ public class ApSaveManager
     private ConfigEntry<string>? _checkedLocations;
     private ConfigEntry<int>?    _lastItemIndex;
     private ConfigEntry<string>? _unlockedRegions;
+    private ConfigEntry<string>? _visitedZones;
     private ConfigEntry<long>?   _newbucksEarned;
     private ConfigEntry<string>? _appliedEphemeralIndices;
 
-    private readonly HashSet<long>   _checkedSet    = new();
-    private readonly HashSet<string> _regionSet     = new();
-    private readonly HashSet<int>    _ephemeralSet  = new();
+    private readonly HashSet<long>   _checkedSet      = new();
+    private readonly HashSet<string> _regionSet       = new();
+    private readonly HashSet<string> _visitedZoneSet  = new();
+    private readonly HashSet<int>    _ephemeralSet    = new();
     // volatile: _lastItemIdx and _sessionActive are written on the background thread
     // (OnConnected / ResetSession) and read on the main thread (LoadGamePatch) and the
     // network-callback thread (OnItemReceived). Without volatile the JIT / CPU is free to
@@ -149,11 +151,12 @@ public class ApSaveManager
         _checkedLocations        = null;
         _lastItemIndex           = null;
         _unlockedRegions         = null;
+        _visitedZones            = null;
         _newbucksEarned          = null;
         _appliedEphemeralIndices = null;
         _lastItemIdx             = -1;
-        // Keep _checkedSet, _regionSet, _scoutData in memory — they'll be re-loaded
-        // from the correct file by the next OnConnected call.
+        // Keep _checkedSet, _regionSet, _visitedZoneSet, _scoutData in memory —
+        // they'll be re-loaded from the correct file by the next OnConnected call.
     }
 
     /// <summary>
@@ -182,6 +185,8 @@ public class ApSaveManager
             "Index of last applied item (dedup key for reconnect)");
         _unlockedRegions         = _saveFile.Bind("Progress", "UnlockedRegions", "",
             "Comma-separated unlocked region names");
+        _visitedZones            = _saveFile.Bind("Progress", "VisitedZones", "",
+            "Comma-separated SceneGroup.ReferenceId strings for zones the player has physically visited");
         _newbucksEarned          = _saveFile.Bind("Progress", "NewbucksEarned", 0L,
             "Cumulative newbucks earned this AP run (tracked via PlayerState.AddCurrency)");
         _appliedEphemeralIndices = _saveFile.Bind("Progress", "AppliedEphemeralIndices", "",
@@ -196,6 +201,11 @@ public class ApSaveManager
         _regionSet.Clear();
         foreach (var r in (_unlockedRegions.Value ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries))
             if (!string.IsNullOrWhiteSpace(r)) _regionSet.Add(r);
+
+        // Deserialize visited zones
+        _visitedZoneSet.Clear();
+        foreach (var z in (_visitedZones.Value ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries))
+            if (!string.IsNullOrWhiteSpace(z)) _visitedZoneSet.Add(z);
 
         // Deserialize applied ephemeral item indices
         _ephemeralSet.Clear();
@@ -225,6 +235,7 @@ public class ApSaveManager
 
     public bool IsChecked(long id)              => _checkedSet.Contains(id);
     public bool IsRegionUnlocked(string name)   => _regionSet.Contains(name);
+    public bool HasVisitedZone(string sgRef)    => _visitedZoneSet.Contains(sgRef);
 
     public void MarkChecked(long id)
     {
@@ -241,6 +252,20 @@ public class ApSaveManager
         if (!added) return;
         _unlockedRegions!.Value = string.Join(",", _regionSet);
         _saveFile.Save();
+    }
+
+    /// <summary>
+    /// Records that the player has physically visited the given SceneGroup for the first time.
+    /// Persists immediately so the teleport trap can use this data across sessions.
+    /// No-op if <paramref name="sgRef"/> has already been recorded or if no save file is open.
+    /// </summary>
+    public void MarkZoneVisited(string sgRef)
+    {
+        if (!_visitedZoneSet.Add(sgRef)) return;   // already recorded
+        if (_saveFile == null) return;              // no open save file — in-memory only
+        _visitedZones!.Value = string.Join(",", _visitedZoneSet);
+        _saveFile.Save();
+        Plugin.Instance.Log.LogInfo($"[AP] Zone visited (first time): '{sgRef}'");
     }
 
     public void UpdateLastItemIndex(int idx)

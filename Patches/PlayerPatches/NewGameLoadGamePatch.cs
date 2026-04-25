@@ -171,6 +171,33 @@ internal static class LoadGamePatch
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// SessionEndedPatch — disconnects from the AP server when the player uses
+// Save and Quit to return to the main menu.
+//
+// Without this patch the mod stays connected after quitting to menu, which
+// prevents auto-connecting a different save slot (LoadGamePatch bails out if
+// IsConnected is already true and the seed matches the previous session).
+//
+// Patch point: AutoSaveDirector.OnSessionEnded()  [CallerCount = 1]
+//   Called by the save director immediately before unloading the gameplay
+//   scenes; fires only on Save and Quit, not on application exit (that path
+//   goes through OnApplicationQuit instead).
+// ─────────────────────────────────────────────────────────────────────────────
+
+[HarmonyPatch(typeof(AutoSaveDirector), "OnSessionEnded")]
+internal static class SessionEndedPatch
+{
+    private static void Postfix()
+    {
+        if (!Plugin.Instance.ModEnabled) return;
+        if (!Plugin.Instance.ApClient.IsConnected) return;
+
+        Plugin.Instance.Log.LogInfo("[AP] SessionEndedPatch: Save and Quit detected — disconnecting from AP server.");
+        Plugin.Instance.ApClient.Disconnect();
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // DeleteGamePatch — removes the binding sidecar when a save slot is deleted so
 // the slot is no longer treated as an AP save.
 //
