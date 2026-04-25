@@ -1037,17 +1037,24 @@ public static class LocationDumper
             return;
         }
 
-        log.LogInfo("[AP-Debug] ===== LIVE RADIANT BAG STATE =====");
+        // NOTE: RadiantSlimesModel.RadiantShuffleBags is the PERSISTED BAG SNAPSHOT loaded
+        // from the save file, NOT the live native bag state. The game tracks active bags in
+        // a private native field. Bags only appear here after they've been serialized to a
+        // save file at least once. Missing slimes are NOT proof the multiplier is broken —
+        // they just haven't been saved mid-cycle yet.
+        log.LogInfo("[AP-Debug] ===== RADIANT BAG STATE (persisted snapshot from save) =====");
         foreach (var director in directors)
         {
             if (director == null) continue;
+            bool spawnAllowed = director._isRadiantSpawnAllowedCached;
+            log.LogInfo($"[AP-Debug]   isRadiantSpawnAllowedCached={spawnAllowed}  DEBUG_ForceRadiantSpawn={director.DEBUG_ForceRadiantSpawn}  DEBUG_BagSizeScalar={director.DEBUG_BagSizeScalar}");
             var model = director.RadiantSlimesModel;
             if (model == null) { log.LogInfo("[AP-Debug]   (director has null RadiantSlimesModel)"); continue; }
-            var liveBags = model.RadiantShuffleBags;
-            if (liveBags == null) { log.LogInfo("[AP-Debug]   (RadiantShuffleBags dictionary is null)"); continue; }
+            var savedBags = model.RadiantShuffleBags;
+            if (savedBags == null) { log.LogInfo("[AP-Debug]   (RadiantShuffleBags dictionary is null)"); continue; }
 
-            log.LogInfo($"[AP-Debug]   {liveBags.Count} live bag(s):");
-            foreach (var kvp in liveBags)
+            log.LogInfo($"[AP-Debug]   {savedBags.Count} saved bag(s):");
+            foreach (var kvp in savedBags)
             {
                 string slimeName = kvp.Key?.name ?? "(null)";
                 var bag = kvp.Value;
@@ -1518,12 +1525,19 @@ public static class LocationDumper
         var log = Plugin.Instance.Log;
         var spawners = Resources.FindObjectsOfTypeAll<DirectedActorSpawner>();
 
-        log.LogInfo($"[AP-Dump] ===== FERAL SPAWNER RADIANT FLAGS ({spawners.Count} total spawners) =====");
+        // activeInHierarchy filter: Resources.FindObjectsOfTypeAll is memory-wide and includes
+        // spawners from other streaming zones. Only count/log the ones active in the current scene.
+        int activeCount = 0;
+        for (int i = 0; i < spawners.Count; i++)
+            if (spawners[i] != null && spawners[i].gameObject.activeInHierarchy) activeCount++;
+
+        log.LogInfo($"[AP-Dump] ===== FERAL SPAWNER RADIANT FLAGS ({activeCount} active / {spawners.Count} total spawners) =====");
 
         int feralCount = 0;
         foreach (var spawner in spawners)
         {
             if (spawner == null) continue;
+            if (!spawner.gameObject.activeInHierarchy) continue;  // skip other streamed zones
             var constraints = spawner.Constraints;
             if (constraints == null) continue;
 
@@ -1546,10 +1560,12 @@ public static class LocationDumper
                 radiantStatus = "BLOCKED (never radiant)";
             else if (onlyRadiant)
                 radiantStatus = "FORCED (always radiant)";
-            else if (chanceOverride != 0f)
-                radiantStatus = $"override={chanceOverride:F4} (skips bag)";
+            else if (chanceOverride != 0f && chanceOverride != 1f)
+                radiantStatus = $"override={chanceOverride:F4} (non-default — may affect bag)";
+            else if (chanceOverride == 1f)
+                radiantStatus = $"override=1.0 (default — same as all zones, no effect observed)";
             else
-                radiantStatus = "normal bag draw";
+                radiantStatus = "normal bag draw (override=0)";
 
             log.LogInfo($"[AP-Dump]   radiant={radiantStatus}  path='{path}'");
             feralCount++;
@@ -1557,6 +1573,45 @@ public static class LocationDumper
 
         if (feralCount == 0)
             log.LogInfo("[AP-Dump]   (no feral spawners found — load a save in a zone with feral slimes)");
+
+        // ── Second pass: ALL spawners with _onlySpawnRadiant=true, regardless of feral flag ──
+        // These are guaranteed-radiant spawn points that may not use feral constraints.
+        // Filter by activeInHierarchy so only spawners in the currently loaded scene are shown
+        // (Resources.FindObjectsOfTypeAll is memory-wide and includes other streaming zones).
+        log.LogInfo("[AP-Dump] --- Guaranteed Radiant Spawners (_onlySpawnRadiant=true, active in scene) ---");
+        int guaranteedCount = 0;
+        foreach (var spawner in spawners)
+        {
+            if (spawner == null) continue;
+            if (!spawner.gameObject.activeInHierarchy) continue;  // skip spawners from other streamed zones
+            if (!spawner._onlySpawnRadiant) continue;
+
+            string path = GetGameObjectPath(spawner.gameObject);
+
+            // Log what slime types this spawner can produce.
+            var constraints = spawner.Constraints;
+            var slimeNames = new List<string>();
+            if (constraints != null)
+            {
+                for (int ci = 0; ci < constraints.Length; ci++)
+                {
+                    var c = constraints[ci];
+                    if (c?.Slimeset?.Members == null) continue;
+                    for (int mi = 0; mi < c.Slimeset.Members.Length; mi++)
+                    {
+                        var m = c.Slimeset.Members[mi];
+                        if (m?.IdentType != null) slimeNames.Add(m.IdentType.name);
+                    }
+                }
+            }
+
+            string slimeList = slimeNames.Count > 0 ? string.Join(", ", slimeNames) : "(no slimeset)";
+            log.LogInfo($"[AP-Dump]   GUARANTEED RADIANT  path='{path}'  slimes=[{slimeList}]");
+            guaranteedCount++;
+        }
+
+        if (guaranteedCount == 0)
+            log.LogInfo("[AP-Dump]   (none found in current scene)");
 
         log.LogInfo("[AP-Dump] ===== END FERAL SPAWNER RADIANT FLAGS =====");
     }
@@ -1635,6 +1690,596 @@ public static class LocationDumper
         }
 
         log.LogInfo("[AP-Dump] ======== WEATHER PATTERN DUMP END ========");
+    }
+
+    /// <summary>
+    /// Dumps all active <c>DirectedActorSpawner</c> instances, grouped by zone, in a compact
+    /// hierarchical format designed for easy post-processing.
+    ///
+    /// <para>Per-spawner fields logged:</para>
+    /// <list type="bullet">
+    ///   <item><term>Zone</term><description>Human-readable zone name derived from scene name.</description></item>
+    ///   <item><term>Spawn point name</term><description>Short GameObject path (up to 3 levels).</description></item>
+    ///   <item><term>directedWeight</term><description>
+    ///     Relative weight among all spawners registered with the cell's director — higher means
+    ///     this spawn point is chosen more often.
+    ///   </description></item>
+    ///   <item><term>delayFactor</term><description>Multiplier on the base spawn delay (1.0 = vanilla rate).</description></item>
+    ///   <item><term>Per-constraint</term><description>
+    ///     Selection chance (if multiple constraint sets exist), feral flag, and time window.
+    ///   </description></item>
+    ///   <item><term>Per-slime</term><description>Chance % within the chosen constraint's pool.</description></item>
+    /// </list>
+    ///
+    /// Only active-in-hierarchy spawners are included (others belong to streaming zones not
+    /// currently loaded). Run once per zone while standing in it.
+    /// Trigger: F9 → Dumps page → "Dump Slime Spawn Weights".
+    /// </summary>
+    public static void DumpSlimeSpawnWeights()
+    {
+        var log      = Plugin.Instance.Log;
+        var allSpawners = Resources.FindObjectsOfTypeAll<DirectedActorSpawner>();
+
+        // ── Collect only active spawners that have at least one slimeset ──────────
+        // Key: (sceneName, cellRootName) — spawners sharing the same cell compete in the
+        // same directed-spawn pool, so their directedWeight values sum to the cell total.
+        var byCell = new System.Collections.Generic.Dictionary<
+            (string scene, string cell),
+            List<DirectedActorSpawner>>();
+
+        for (int si = 0; si < allSpawners.Count; si++)
+        {
+            var s = allSpawners[si];
+            if (s == null) continue;
+            // Skip prefab/template instances that live outside any scene (empty scene name).
+            // Do NOT filter by activeInHierarchy — inactive spawners belong to zones that are
+            // resident in memory but not currently streamed in, and we want all of them.
+            if (string.IsNullOrEmpty(s.gameObject.scene.name)) continue;
+
+            var cons = s.Constraints;
+            if (cons == null || cons.Length == 0) continue;
+
+            // Keep all spawners that have at least one constraint — the per-constraint loop
+            // below already skips empty slimesets, so non-slime spawners just produce no output.
+            string scene = s.gameObject.scene.name ?? "unknown";
+            string cell  = CellAncestorName(s.gameObject);   // first "cell*" ancestor = pool boundary
+            var key = (scene, cell);
+            if (!byCell.TryGetValue(key, out var lst))
+            {
+                lst = new List<DirectedActorSpawner>();
+                byCell[key] = lst;
+            }
+            lst.Add(s);
+        }
+
+        int totalSpawners = 0;
+        foreach (var kvp in byCell) totalSpawners += kvp.Value.Count;
+
+        // allSpawners.Count is the raw Resources.FindObjectsOfTypeAll count — includes prefab
+        // template instances (no scene name) and constraint-less spawners that are not real
+        // world spawners. totalSpawners is the filtered count of world-placed slime spawners.
+        log.LogInfo($"[AP-Dump] ======= SLIME SPAWN WEIGHTS" +
+                    $"  raw={allSpawners.Count}" +
+                    $"  world-placed={totalSpawners}" +
+                    $"  cells={byCell.Count} =======");
+
+        // ── Output grouped by zone → cell, spawners sorted high→low chance ────────
+        // Sort cells: zone display name first, then cell name within zone.
+        var cellKeys = new List<(string scene, string cell)>(byCell.Keys);
+        cellKeys.Sort((a, b) =>
+        {
+            int cmp = string.Compare(SceneToZoneName(a.scene), SceneToZoneName(b.scene), StringComparison.Ordinal);
+            if (cmp != 0) return cmp;
+            return string.Compare(a.cell, b.cell, StringComparison.Ordinal);
+        });
+
+        string lastZone = "";
+        foreach (var key in cellKeys)
+        {
+            string zoneName = SceneToZoneName(key.scene);
+            if (zoneName != lastZone)
+            {
+                log.LogInfo($"[AP-Dump]");
+                log.LogInfo($"[AP-Dump] ══ {zoneName}  (scene prefix: {key.scene}) ══════════════════════");
+                lastZone = zoneName;
+            }
+
+            var list = byCell[key];
+
+            // Compute the cell-total directedWeight so we can express each spawner as a %.
+            float cellTotal = 0f;
+            for (int i = 0; i < list.Count; i++)
+            {
+                try { cellTotal += list[i].DirectedSpawnWeight; } catch { }
+            }
+
+            // Sort high→low chance.
+            list.Sort((a, b) =>
+            {
+                float wa = 0f, wb = 0f;
+                try { wa = a.DirectedSpawnWeight; } catch { }
+                try { wb = b.DirectedSpawnWeight; } catch { }
+                return wb.CompareTo(wa);
+            });
+
+            log.LogInfo($"[AP-Dump]   ── Cell: {key.cell}  ({list.Count} spawn point(s)  cellTotal={cellTotal:F1})");
+
+            foreach (var spawner in list)
+            {
+                float directedWeight = 0f, delayFactor = 1f;
+                try { directedWeight = spawner.DirectedSpawnWeight; } catch { }
+                try { delayFactor    = spawner.SpawnDelayFactor;    } catch { }
+
+                float spawnChancePct = cellTotal > 0f ? directedWeight / cellTotal * 100f : 0f;
+
+                string radiantTag = spawner._onlySpawnRadiant     ? " [GUARANTEED RADIANT]"
+                                  : spawner._blockRadiantSpawning ? " [RADIANT BLOCKED]"
+                                  : "";
+
+                string spawnName = SpawnerShortName(spawner);
+                log.LogInfo($"[AP-Dump]     {spawnName}" +
+                            $"  spawnChance={spawnChancePct:F1}%" +
+                            $"  delayFactor={delayFactor:F1}x" +
+                            radiantTag);
+
+                var constraints = spawner.Constraints;
+
+                // Pre-sum constraint weights so multi-constraint spawners can show selection %
+                float totalConstraintWeight = 0f;
+                for (int ci = 0; ci < constraints.Length; ci++)
+                    if (constraints[ci] != null) totalConstraintWeight += constraints[ci].Weight;
+
+                for (int ci = 0; ci < constraints.Length; ci++)
+                {
+                    var constraint = constraints[ci];
+                    if (constraint == null) continue;
+                    var slimeset = constraint.Slimeset;
+                    if (slimeset?.Members == null || slimeset.Members.Length == 0) continue;
+
+                    bool feral = false;
+                    try { feral = constraint.Feral; } catch { }
+
+                    string timeStr = "ANY";
+                    try { timeStr = constraint.Window?.TimeMode.ToString() ?? "ANY"; } catch { }
+
+                    // Constraint selection probability — only meaningful when > 1 constraint
+                    string constraintPct = "";
+                    if (constraints.Length > 1 && totalConstraintWeight > 0f)
+                        constraintPct = $"  ({constraint.Weight / totalConstraintWeight * 100f:F0}% of spawns)";
+
+                    log.LogInfo($"[AP-Dump]       constraint[{ci}]  feral={feral}  time={timeStr}{constraintPct}");
+
+                    // Per-member chances within this constraint's pool
+                    float totalMemberWeight = 0f;
+                    for (int mi = 0; mi < slimeset.Members.Length; mi++)
+                        if (slimeset.Members[mi] != null) totalMemberWeight += slimeset.Members[mi].Weight;
+
+                    var sorted = new List<(string name, float pct)>();
+                    for (int mi = 0; mi < slimeset.Members.Length; mi++)
+                    {
+                        var m = slimeset.Members[mi];
+                        if (m == null) continue;
+                        float pct = totalMemberWeight > 0f ? m.Weight / totalMemberWeight * 100f : 0f;
+                        sorted.Add((m.IdentType?.name ?? "(null)", pct));
+                    }
+                    sorted.Sort((a, b) => b.pct.CompareTo(a.pct));
+
+                    foreach (var (name, pct) in sorted)
+                        log.LogInfo($"[AP-Dump]         {name.PadRight(26)} {pct:F1}%");
+                }
+            }
+        }
+
+        log.LogInfo("[AP-Dump] ======= END SLIME SPAWN WEIGHTS =======");
+    }
+
+    /// <summary>
+    /// Walks up the transform hierarchy to find the first ancestor whose name starts with
+    /// "cell" (SR2 naming convention: <c>cellGorge_A</c>, <c>cellFloorSwitchRoom</c>, etc.).
+    /// That node is where the <c>CellDirector</c> lives, and all <c>DirectedActorSpawner</c>
+    /// instances under it register with the same director — so their <c>DirectedSpawnWeight</c>
+    /// values are comparable and sum to the cell total.
+    /// Falls back to the hierarchy root name if no "cell*" ancestor is found.
+    /// </summary>
+    private static string CellAncestorName(GameObject go)
+    {
+        var t = go.transform;
+        Transform? root = null;
+        while (t != null)
+        {
+            if (t.gameObject.name.StartsWith("cell", StringComparison.OrdinalIgnoreCase))
+                return t.gameObject.name;
+            root = t;
+            t = t.parent;
+        }
+        return root?.gameObject.name ?? go.name;
+    }
+
+    /// <summary>Maps a scene name to a human-readable SR2 zone display name.</summary>
+    private static string SceneToZoneName(string sceneName)
+    {
+        if (sceneName.IndexOf("Gorge",       StringComparison.OrdinalIgnoreCase) >= 0) return "Ember Valley";
+        if (sceneName.IndexOf("Strand",      StringComparison.OrdinalIgnoreCase) >= 0) return "Starlight Strand";
+        if (sceneName.IndexOf("Bluffs",      StringComparison.OrdinalIgnoreCase) >= 0) return "Starlight Strand";
+        if (sceneName.IndexOf("Sands",       StringComparison.OrdinalIgnoreCase) >= 0) return "Shimmering Sands";
+        if (sceneName.IndexOf("Labyrinth",   StringComparison.OrdinalIgnoreCase) >= 0 ||
+            sceneName.IndexOf("LavaDepths",  StringComparison.OrdinalIgnoreCase) >= 0 ||
+            sceneName.IndexOf("Dreamland",   StringComparison.OrdinalIgnoreCase) >= 0 ||
+            sceneName.IndexOf("LabValley",   StringComparison.OrdinalIgnoreCase) >= 0) return "Grey Labyrinth";
+        if (sceneName.IndexOf("Fields",      StringComparison.OrdinalIgnoreCase) >= 0) return "Rainbow Fields";
+        if (sceneName.IndexOf("Ranch",        StringComparison.OrdinalIgnoreCase) >= 0 ||
+            sceneName.IndexOf("Conservatory", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            sceneName.IndexOf("Home",         StringComparison.OrdinalIgnoreCase) >= 0) return "The Ranch";
+        return sceneName;   // unknown zone — return raw scene name
+    }
+
+    /// <summary>Returns a compact 2–3 level path for a spawner's GameObject.</summary>
+    private static string SpawnerShortName(DirectedActorSpawner spawner)
+    {
+        string name = spawner.gameObject.name;
+        var parent = spawner.transform.parent;
+        if (parent != null)
+        {
+            name = parent.gameObject.name + "/" + name;
+            var grandparent = parent.parent;
+            // Include grandparent only when it's not a root-level scene object
+            if (grandparent != null && grandparent.parent != null)
+                name = grandparent.gameObject.name + "/" + name;
+        }
+        return name;
+    }
+
+    /// <summary>
+    /// Exports the current zone's spawn rate data to
+    /// <c>BepInEx/spawn_rates.json</c>, merging with any data already in that
+    /// file (existing scene keys are overwritten; other zones' keys are kept).
+    /// <para>
+    /// Also records the full list of scene names baked into the game's build
+    /// settings so the companion HTML viewer can show a "coverage" panel —
+    /// which zone scenes have been captured and which still need a visit.
+    /// </para>
+    /// Run once per zone area while standing in it to build up a complete
+    /// dataset across all zones. Call <see cref="ClearSpawnRatesJson"/> to
+    /// wipe the file and start fresh.
+    /// Trigger: F9 → Dumps page → "Export Spawn JSON".
+    /// </summary>
+    public static void ExportSpawnRatesJson()
+    {
+        var log = Plugin.Instance.Log;
+        var allSpawners = Resources.FindObjectsOfTypeAll<DirectedActorSpawner>();
+
+        // ── Build scene → cell → spawner row list ─────────────────────────────
+        // Same grouping logic as DumpSlimeSpawnWeights; produces one JSON object
+        // per (zone, cell, spawner, constraint, slime) tuple.
+        var byScene = new System.Collections.Generic.Dictionary<
+            string,
+            System.Collections.Generic.List<System.Collections.Generic.Dictionary<string, object>>>();
+
+        var byCellForWeights = new System.Collections.Generic.Dictionary<
+            (string scene, string cell), (float total, System.Collections.Generic.List<DirectedActorSpawner> spawners)>();
+
+        for (int si = 0; si < allSpawners.Count; si++)
+        {
+            var s = allSpawners[si];
+            if (s == null) continue;
+            if (string.IsNullOrEmpty(s.gameObject.scene.name)) continue;
+            var cons = s.Constraints;
+            if (cons == null || cons.Length == 0) continue;
+
+            string scene = s.gameObject.scene.name;
+            string cell  = CellAncestorName(s.gameObject);
+            var key = (scene, cell);
+            if (!byCellForWeights.TryGetValue(key, out var entry))
+                entry = (0f, new System.Collections.Generic.List<DirectedActorSpawner>());
+            float w = 0f; try { w = s.DirectedSpawnWeight; } catch { }
+            byCellForWeights[key] = (entry.total + w, entry.spawners);
+            entry.spawners.Add(s);
+            byCellForWeights[key] = (entry.total + w, entry.spawners);
+        }
+
+        // Second pass: build rows now that cell totals are known
+        var rowsByScene = new System.Collections.Generic.Dictionary<
+            string,
+            System.Collections.Generic.List<object>>();
+
+        foreach (var kvp in byCellForWeights)
+        {
+            string scene     = kvp.Key.scene;
+            string cell      = kvp.Key.cell;
+            float  cellTotal = kvp.Value.total;
+            string zoneName  = SceneToZoneName(scene);
+
+            if (!rowsByScene.TryGetValue(scene, out var sceneRows))
+            {
+                sceneRows = new System.Collections.Generic.List<object>();
+                rowsByScene[scene] = sceneRows;
+            }
+
+            foreach (var spawner in kvp.Value.spawners)
+            {
+                float dirW = 0f, delay = 1f;
+                try { dirW  = spawner.DirectedSpawnWeight; } catch { }
+                try { delay = spawner.SpawnDelayFactor;    } catch { }
+                float spawnChancePct = cellTotal > 0f ? dirW / cellTotal * 100f : 0f;
+                bool  radOnly    = spawner._onlySpawnRadiant;
+                bool  radBlocked = spawner._blockRadiantSpawning;
+                string spawnerPath = SpawnerShortName(spawner);
+
+                var constraints = spawner.Constraints;
+                float totalCW = 0f;
+                for (int ci = 0; ci < constraints.Length; ci++)
+                    if (constraints[ci] != null) totalCW += constraints[ci].Weight;
+
+                for (int ci = 0; ci < constraints.Length; ci++)
+                {
+                    var constraint = constraints[ci];
+                    if (constraint == null) continue;
+                    var slimeset = constraint.Slimeset;
+                    if (slimeset?.Members == null || slimeset.Members.Length == 0) continue;
+
+                    bool feral = false;
+                    try { feral = constraint.Feral; } catch { }
+                    string time = "ANY";
+                    try { time = constraint.Window?.TimeMode.ToString() ?? "ANY"; } catch { }
+                    float cPct = constraints.Length > 1 && totalCW > 0f
+                        ? constraint.Weight / totalCW * 100f : 100f;
+
+                    float totalMW = 0f;
+                    for (int mi = 0; mi < slimeset.Members.Length; mi++)
+                        if (slimeset.Members[mi] != null) totalMW += slimeset.Members[mi].Weight;
+
+                    for (int mi = 0; mi < slimeset.Members.Length; mi++)
+                    {
+                        var m = slimeset.Members[mi];
+                        if (m == null) continue;
+                        float slimePct = totalMW > 0f ? m.Weight / totalMW * 100f : 0f;
+                        string slimeName = m.IdentType?.name ?? "(null)";
+
+                        // Inline mini-JSON serialisation — avoids any Json.NET dependency
+                        sceneRows.Add(new {
+                            zone        = zoneName,
+                            scene       = scene,
+                            cell        = cell,
+                            spawner     = spawnerPath,
+                            spawnChance = System.Math.Round(spawnChancePct, 2),
+                            delayFactor = System.Math.Round(delay, 2),
+                            radiantOnly = radOnly,
+                            radiantBlocked = radBlocked,
+                            cIdx        = ci,
+                            feral       = feral,
+                            time        = time,
+                            cPct        = System.Math.Round(cPct, 1),
+                            slime       = slimeName,
+                            slimePct    = System.Math.Round(slimePct, 2),
+                        });
+                    }
+                }
+            }
+        }
+
+        // ── Accumulate all-ever-seen scene names for coverage tracking ───────
+        // SR2 uses Addressables, so SceneManager.sceneCountInBuildSettings only
+        // returns 1 ("Bootstrap"). Instead we build the list from all scene keys
+        // that have appeared across every export run — existing file + this run.
+        // The HTML viewer uses this to show which zones have been captured.
+
+        // ── Read existing JSON file (if any), merge, write back ───────────────
+        string jsonPath = System.IO.Path.Combine(BepInEx.Paths.BepInExRootPath, "spawn_rates.json");
+
+        // Existing file is stored as a hand-rolled JSON object so we can merge
+        // without a full JSON parser — we just look for our sentinel keys.
+        var existingSceneData = new System.Collections.Generic.Dictionary<string, string>();
+        if (System.IO.File.Exists(jsonPath))
+        {
+            try
+            {
+                string existing = System.IO.File.ReadAllText(jsonPath);
+                // Extract per-scene blocks: "zoneXxx": { ... rows ... }
+                // Simple regex-free approach: split on our sentinel comment pattern
+                // Actually easier: we write it ourselves, so we know the format.
+                // Each scene block starts with  "SCENE_sceneName": [  and ends with  ],
+                // We'll re-parse on next export by just replacing the matching scene key.
+                // For simplicity, store the whole existing object, strip the outer {},
+                // remove any existing entry for scenes we're overwriting, and re-insert.
+                string trimmed = existing.Trim();
+                if (trimmed.StartsWith("{") && trimmed.EndsWith("}"))
+                    existingSceneData["__raw__"] = trimmed.Substring(1, trimmed.Length - 2).Trim();
+            }
+            catch { /* corrupt file — start fresh */ }
+        }
+
+        // ── Extract kept existing scene entries FIRST (needed for allSeenScenes) ─
+        var existingParts = new System.Collections.Generic.List<string>();
+        if (existingSceneData.TryGetValue("__raw__", out string? raw) && !string.IsNullOrEmpty(raw))
+        {
+            // The existing file's scene_rows block as a raw string — we need to
+            // extract individual scene entries. Since we wrote them, each entry is:
+            //   "scene_rows": {
+            //     "zoneName": [ ... ],     ← one per scene
+            //   }
+            // Re-parse the whole file as a string hunt for scene_rows content
+            string existingFull = System.IO.File.Exists(jsonPath)
+                ? System.IO.File.ReadAllText(jsonPath) : "";
+            int srStart = existingFull.IndexOf("\"scene_rows\":", StringComparison.Ordinal);
+            if (srStart >= 0)
+            {
+                // Find the opening { of scene_rows value
+                int braceOpen = existingFull.IndexOf('{', srStart + 13);
+                if (braceOpen >= 0)
+                {
+                    // Walk brackets to find matching close
+                    int depth2 = 0, pos = braceOpen;
+                    while (pos < existingFull.Length)
+                    {
+                        char ch = existingFull[pos];
+                        if (ch == '{') depth2++;
+                        else if (ch == '}') { depth2--; if (depth2 == 0) break; }
+                        pos++;
+                    }
+                    string sceneRowsContent = existingFull.Substring(braceOpen + 1, pos - braceOpen - 1).Trim();
+                    // Split into individual scene entries by finding top-level "key": [ ... ]
+                    // For each, check if the key is one we're overwriting; if not, keep it.
+                    var scenesToOverwrite = new System.Collections.Generic.HashSet<string>(rowsByScene.Keys);
+                    // Simple line-oriented split: each scene entry starts with whitespace + "zoneName":
+                    // We wrote one scene per entry block ending in ],
+                    int idx2 = 0;
+                    while (idx2 < sceneRowsContent.Length)
+                    {
+                        // Find next quoted key
+                        int keyStart = sceneRowsContent.IndexOf('"', idx2);
+                        if (keyStart < 0) break;
+                        int keyEnd = sceneRowsContent.IndexOf('"', keyStart + 1);
+                        if (keyEnd < 0) break;
+                        string sceneKey = sceneRowsContent.Substring(keyStart + 1, keyEnd - keyStart - 1);
+                        // Find the colon then the opening [
+                        int colon = sceneRowsContent.IndexOf(':', keyEnd);
+                        if (colon < 0) break;
+                        int arrOpen = sceneRowsContent.IndexOf('[', colon);
+                        if (arrOpen < 0) break;
+                        // Walk to matching ]
+                        int d = 0, p = arrOpen;
+                        while (p < sceneRowsContent.Length)
+                        {
+                            char c = sceneRowsContent[p];
+                            if (c == '[') d++;
+                            else if (c == ']') { d--; if (d == 0) break; }
+                            p++;
+                        }
+                        string entryBlock = sceneRowsContent.Substring(keyStart, p - keyStart + 1);
+                        if (!scenesToOverwrite.Contains(sceneKey))
+                            existingParts.Add("    " + entryBlock.Trim());
+                        idx2 = p + 1;
+                        // Skip trailing comma/whitespace
+                        while (idx2 < sceneRowsContent.Length &&
+                               (sceneRowsContent[idx2] == ',' || sceneRowsContent[idx2] == '\r' ||
+                                sceneRowsContent[idx2] == '\n' || sceneRowsContent[idx2] == ' '))
+                            idx2++;
+                    }
+                }
+            }
+        }
+
+        // ── Now build the JSON — existingParts is fully populated ────────────
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("{");
+        sb.AppendLine($"  \"exported_at\": \"{System.DateTime.UtcNow:O}\",");
+
+        // all_seen_scenes: union of current run + all previously kept scenes
+        var allSeenScenes = new System.Collections.Generic.SortedSet<string>(rowsByScene.Keys);
+        foreach (var ep in existingParts)
+        {
+            int q1 = ep.IndexOf('"');
+            int q2 = q1 >= 0 ? ep.IndexOf('"', q1 + 1) : -1;
+            if (q1 >= 0 && q2 > q1) allSeenScenes.Add(ep.Substring(q1 + 1, q2 - q1 - 1));
+        }
+        sb.Append("  \"all_seen_scenes\": [");
+        bool firstSeen = true;
+        foreach (var sn in allSeenScenes)
+        {
+            if (!firstSeen) sb.Append(", ");
+            sb.Append($"\"{JsonEsc(sn)}\"");
+            firstSeen = false;
+        }
+        sb.AppendLine("],");
+
+        // scenes_in_this_run
+        var scenesThisRun = new System.Collections.Generic.List<string>(rowsByScene.Keys);
+        sb.Append("  \"scenes_in_this_run\": [");
+        for (int i = 0; i < scenesThisRun.Count; i++)
+        {
+            sb.Append($"\"{JsonEsc(scenesThisRun[i])}\"");
+            if (i < scenesThisRun.Count - 1) sb.Append(", ");
+        }
+        sb.AppendLine("],");
+
+        sb.AppendLine("  \"scene_rows\": {");
+
+        // Write kept existing scene entries
+        for (int i = 0; i < existingParts.Count; i++)
+        {
+            sb.Append(existingParts[i]);
+            sb.AppendLine(",");
+        }
+
+        // Write new/updated scene entries
+        int sceneIdx = 0;
+        foreach (var sceneKvp in rowsByScene)
+        {
+            string sceneName = sceneKvp.Key;
+            var    rows2     = sceneKvp.Value;
+
+            sb.Append($"    \"{JsonEsc(sceneName)}\": [");
+            for (int ri = 0; ri < rows2.Count; ri++)
+            {
+                if (ri % 5 == 0) sb.AppendLine().Append("      ");
+                sb.Append(SerialiseRow(rows2[ri]));
+                if (ri < rows2.Count - 1) sb.Append(", ");
+            }
+            sb.AppendLine();
+            sb.Append("    ]");
+            if (sceneIdx < rowsByScene.Count - 1) sb.Append(",");
+            sb.AppendLine();
+            sceneIdx++;
+        }
+
+        sb.AppendLine("  }");
+        sb.AppendLine("}");
+
+        try
+        {
+            // UTF8 without BOM — browsers reject BOM in JSON.parse
+            System.IO.File.WriteAllText(jsonPath, sb.ToString(),
+                new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            int totalRows = 0;
+            foreach (var v in rowsByScene.Values) totalRows += v.Count;
+            log.LogInfo($"[AP-Export] Wrote {totalRows} rows for {rowsByScene.Count} scene(s)" +
+                        $"  (+{existingParts.Count} kept from previous runs)" +
+                        $"  total seen scenes: {allSeenScenes.Count}" +
+                        $"  → {jsonPath}");
+        }
+        catch (Exception ex)
+        {
+            log.LogError($"[AP-Export] Failed to write {jsonPath}: {ex.Message}");
+        }
+    }
+
+    /// <summary>Wipes <c>BepInEx/spawn_rates.json</c> so the next export starts fresh.</summary>
+    public static void ClearSpawnRatesJson()
+    {
+        string jsonPath = System.IO.Path.Combine(BepInEx.Paths.BepInExRootPath, "spawn_rates.json");
+        try
+        {
+            System.IO.File.Delete(jsonPath);
+            Plugin.Instance.Log.LogInfo($"[AP-Export] Cleared {jsonPath}");
+        }
+        catch (Exception ex)
+        {
+            Plugin.Instance.Log.LogWarning($"[AP-Export] Could not clear file: {ex.Message}");
+        }
+    }
+
+    private static string JsonEsc(string s) =>
+        s.Replace("\\", "\\\\").Replace("\"", "\\\"");
+
+    private static string SerialiseRow(object row)
+    {
+        // row is an anonymous type — reflect its properties
+        var sb = new System.Text.StringBuilder("{");
+        var props = row.GetType().GetProperties();
+        for (int i = 0; i < props.Length; i++)
+        {
+            var prop = props[i];
+            sb.Append($"\"{prop.Name}\":");
+            object? val = prop.GetValue(row);
+            if (val is string s)       sb.Append($"\"{JsonEsc(s)}\"");
+            else if (val is bool b)    sb.Append(b ? "true" : "false");
+            else if (val is int n)     sb.Append(n);
+            else if (val is double d)  sb.Append(d.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            else                       sb.Append(val?.ToString() ?? "null");
+            if (i < props.Length - 1) sb.Append(",");
+        }
+        sb.Append("}");
+        return sb.ToString();
     }
 
     private static string GetGameObjectPath(UnityEngine.GameObject go)

@@ -147,6 +147,21 @@ public static class ItemHandler
                 $"but local table maps that ID to '{item.Name}'. " +
                 $"Regenerate the game on the AP server with the current apworld version to fix.");
 
+        // Filler and trap items are one-shot effects (Newbucks, craft caches, teleport, etc.).
+        // If the watermark was reset due to a server history mismatch, ALL items replay from
+        // index 0 — these must be skipped to avoid duplicate grants and trap-on-load crashes.
+        // Upgrades, gadgets, and region access are idempotent or self-correcting and are
+        // intentionally NOT guarded here so they always reach the correct level on reconnect.
+        bool isEphemeral = item.Type is ItemType.Filler or ItemType.Trap;
+        if (isEphemeral && Plugin.Instance.SaveManager.IsEphemeralApplied(itemIndex))
+        {
+            Plugin.Instance.Log.LogInfo(
+                $"[AP] Skipping already-applied {item.Type.ToString().ToLowerInvariant()}: " +
+                $"{item.Name} (idx={itemIndex})");
+            Plugin.Instance.SaveManager.UpdateLastItemIndex(itemIndex);
+            return;
+        }
+
         Plugin.Instance.Log.LogInfo($"[AP] Applying item: {item.Name} (id={item.Id}, idx={itemIndex})");
 
         // Traps return false when they requeue for a later retry (scene/player not ready).
@@ -168,7 +183,12 @@ public static class ItemHandler
         }
 
         if (advanceWatermark)
+        {
             Plugin.Instance.SaveManager.UpdateLastItemIndex(itemIndex);
+            // Persist the index so this filler/trap is never re-applied on future replays.
+            if (isEphemeral)
+                Plugin.Instance.SaveManager.MarkEphemeralApplied(itemIndex);
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -1248,20 +1268,32 @@ public static class TrapHandler
         {
             // A destination is eligible if:
             //   (a) all required gates are recorded as open (AP save or gate-open event), OR
-            //   (b) the player has physically visited this zone this session — if you can be
-            //       there, you can be sent there.
+            //   (b) the player has physically visited this zone this session AND at least one
+            //       prerequisite gate is accessible.
+            //
+            // The partial-gate requirement prevents the visited fallback from sending the player
+            // to areas they cannot legitimately reach. Example failure case without this guard:
+            // the player loads a save from inside the Grey Labyrinth — that records a visit —
+            // but neither Starlight Strand nor Ember Valley is unlocked, so the Labyrinth
+            // entrance beam puzzles are unreachable and teleporting there would strand the player.
             bool gatesOpen = true;
+            bool anyGateOpen = dest.RegionGates.Length == 0; // no gates = always "any open"
             string? failedGate = null;
             foreach (var gate in dest.RegionGates)
             {
-                if (!IsRegionGateOpen(gate)) { gatesOpen = false; failedGate = gate; break; }
+                if (IsRegionGateOpen(gate)) { anyGateOpen = true; }
+                else { gatesOpen = false; failedGate ??= gate; }
             }
             bool visited = _visitedSceneGroupRefs.Contains(dest.SceneGroupRef);
-            if (!gatesOpen && !visited)
+            bool eligibleViaVisit = visited && anyGateOpen;
+            if (!gatesOpen && !eligibleViaVisit)
             {
 #if DEBUG
+                string skipReason = visited
+                    ? $"visited but no prerequisite gate open"
+                    : $"gate '{failedGate}' locked, not visited";
                 Plugin.Instance.Log.LogInfo(
-                    $"[AP] TeleportTrap: dest='{dest.SceneGroupRef}' skipped — gate '{failedGate}' locked, not visited");
+                    $"[AP] TeleportTrap: dest='{dest.SceneGroupRef}' skipped — {skipReason}");
 #endif
                 continue;
             }

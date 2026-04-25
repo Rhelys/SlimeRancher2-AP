@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SR2 Spawn Rates</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #07090f;
+    --bg2:       #0d1120;
+    --bg3:       #141828;
+    --border:    #1f2840;
+    --border2:   #2a3560;
+    --text:      #c8d4f0;
+    --text-dim:  #5a6a90;
+    --text-mute: #2e3d60;
+    --pink:      #ff6eb4;
+    --cyan:      #3df0d8;
+    --yellow:    #ffe45a;
+    --orange:    #ff8f3c;
+    --purple:    #a78bfa;
+    --green:     #4ade80;
+    --red:       #f87171;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Outfit', sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* HEADER */
+  .header {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--cyan);
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+  }
+  .header-title span { color: var(--pink); }
+  .header-sub {
+    font-size: 12px;
+    color: var(--text-dim);
+    font-family: 'Space Mono', monospace;
+  }
+  .header-gap { flex: 1; }
+
+  /* LOAD BUTTON */
+  .load-btn {
+    padding: 7px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border2);
+    background: var(--bg3);
+    color: var(--cyan);
+    cursor: pointer;
+    font-family: 'Outfit', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .load-btn:hover { background: #0d2820; border-color: var(--cyan); }
+  #fileInput { display: none; }
+
+  /* TABS */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--bg3);
+    border-radius: 8px;
+    padding: 3px;
+  }
+  .tab {
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-family: 'Outfit', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { background: var(--bg2); color: var(--cyan); box-shadow: 0 0 0 1px var(--border2); }
+
+  /* CONTROLS */
+  .controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    padding: 12px 24px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .search-wrap {
+    position: relative;
+    flex: 1;
+    min-width: 180px;
+    max-width: 280px;
+  }
+  .search-wrap svg {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-dim);
+    pointer-events: none;
+  }
+  input[type="text"], select {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: 'Outfit', sans-serif;
+    font-size: 13px;
+    padding: 7px 10px;
+    outline: none;
+    transition: border-color 0.15s;
+    width: 100%;
+  }
+  .search-wrap input { padding-left: 32px; }
+  input[type="text"]:focus, select:focus { border-color: var(--cyan); }
+
+  .filter-select { min-width: 140px; max-width: 200px; }
+
+  .count-badge {
+    font-size: 12px;
+    font-family: 'Space Mono', monospace;
+    color: var(--text-dim);
+    white-space: nowrap;
+    margin-left: auto;
+  }
+  .count-badge b { color: var(--cyan); }
+
+  .toggle-btn {
+    padding: 7px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg3);
+    color: var(--text-dim);
+    cursor: pointer;
+    font-family: 'Outfit', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .toggle-btn:hover { border-color: var(--border2); color: var(--text); }
+  .toggle-btn.on { border-color: var(--cyan); color: var(--cyan); background: #0d2820; }
+
+  /* TABLE WRAPPER */
+  .table-wrap {
+    overflow: auto;
+    max-height: calc(100vh - 105px);
+    padding: 0 0 32px 0;
+  }
+
+  table {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: max-content;
+    min-width: 100%;
+  }
+
+  th {
+    background: var(--bg2);
+    color: var(--text-dim);
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    white-space: nowrap;
+    cursor: pointer;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    user-select: none;
+    transition: color 0.1s;
+  }
+  th:hover { color: var(--text); }
+  th.sorted { color: var(--cyan); }
+  th.sorted::after { content: ' ↓'; }
+  th.sorted.asc::after { content: ' ↑'; }
+  th.frozen { position: sticky; left: 0; z-index: 20; background: var(--bg2); border-right: 2px solid var(--border2); }
+
+  td {
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid #0f1525;
+    white-space: nowrap;
+    font-size: 13px;
+    transition: background 0.05s;
+  }
+  td.frozen {
+    position: sticky;
+    left: 0;
+    background: var(--bg2);
+    border-right: 2px solid var(--border2);
+    z-index: 5;
+    font-weight: 500;
+    color: var(--text);
+  }
+  tr:hover td { background: #111a30; }
+  tr:hover td.frozen { background: #141e38; }
+
+  td.num { font-family: 'Space Mono', monospace; font-size: 11px; text-align: center; }
+  td.empty { color: var(--text-mute); text-align: center; }
+
+  .heat { font-family: 'Space Mono', monospace; font-size: 11px; text-align: center; border-radius: 3px; }
+
+  .tag-feral {
+    display: inline-block;
+    background: #3d1020; border: 1px solid #7a2040; color: var(--pink);
+    font-size: 10px; padding: 1px 5px; border-radius: 3px;
+    font-family: 'Space Mono', monospace;
+  }
+  .tag-radiant {
+    display: inline-block;
+    background: #1a1a3d; border: 1px solid #5a5aff; color: var(--purple);
+    font-size: 10px; padding: 1px 5px; border-radius: 3px;
+    font-family: 'Space Mono', monospace;
+  }
+  .tag-day   { color: var(--yellow); font-family: 'Space Mono', monospace; font-size: 11px; }
+  .tag-night { color: var(--purple); font-family: 'Space Mono', monospace; font-size: 11px; }
+  .tag-any   { color: var(--text-dim); font-family: 'Space Mono', monospace; font-size: 11px; }
+
+  /* LOAD PROMPT */
+  .load-prompt {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    gap: 16px;
+    color: var(--text-dim);
+  }
+  .load-prompt .big-btn {
+    padding: 14px 32px;
+    border-radius: 8px;
+    border: 2px solid var(--border2);
+    background: var(--bg3);
+    color: var(--cyan);
+    cursor: pointer;
+    font-family: 'Outfit', sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    transition: all 0.15s;
+  }
+  .load-prompt .big-btn:hover { border-color: var(--cyan); background: #0d2820; }
+  .load-prompt p { font-size: 13px; color: var(--text-dim); text-align: center; max-width: 400px; line-height: 1.6; }
+
+  /* COVERAGE TABLE */
+  .coverage-grid {
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .coverage-section-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    margin: 12px 0 6px;
+  }
+  .coverage-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 14px;
+    border-radius: 6px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .coverage-row.captured { border-color: #2a5040; }
+  .coverage-row.missing  { border-color: #5a2030; }
+  .coverage-row.unknown  { opacity: 0.5; }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+  .dot-green  { background: var(--green); }
+  .dot-red    { background: var(--red); }
+  .dot-grey   { background: var(--text-mute); }
+  .scene-name { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--text-dim); }
+  .zone-name  { font-weight: 600; color: var(--text); }
+  .coverage-row .row-count { margin-left: auto; font-family: 'Space Mono', monospace; font-size: 11px; color: var(--text-dim); }
+
+  /* ZONE SECTION HEADER ROW */
+  tr.zone-header td {
+    background: #0f1830;
+    color: var(--cyan);
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid var(--border2);
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+  tr.zone-header td.frozen { background: #0f1830; }
+  tr:hover.zone-header td { background: #131c38; }
+
+  .empty-state { padding: 60px 24px; text-align: center; color: var(--text-dim); font-size: 15px; }
+
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3a4d7a; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="header-title"><span>SR2</span> Spawn Rates</div>
+    <div class="header-sub" id="headerSub">no data loaded</div>
+  </div>
+  <div class="header-gap"></div>
+  <button class="load-btn" onclick="document.getElementById('fileInput').click()">⬆ Load JSON</button>
+  <input type="file" id="fileInput" accept=".json" onchange="onFileChosen(event)">
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('zone')">By Zone</button>
+    <button class="tab"        onclick="switchTab('cell')">By Cell</button>
+    <button class="tab"        onclick="switchTab('spawner')">Per Spawner</button>
+    <button class="tab"        onclick="switchTab('coverage')">Coverage</button>
+  </div>
+</div>
+
+<div class="controls" id="controls">
+  <div class="search-wrap">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    <input type="text" id="searchCell" placeholder="Filter cell / spawner…" oninput="applyFilters()">
+  </div>
+  <select class="filter-select" id="filterZone" onchange="applyFilters()">
+    <option value="">All zones</option>
+  </select>
+  <select class="filter-select" id="filterTime" onchange="applyFilters()">
+    <option value="">Any time</option>
+    <option value="DAY">Day only</option>
+    <option value="NIGHT">Night only</option>
+    <option value="ANY">Always (ANY)</option>
+  </select>
+  <select class="filter-select" id="filterSlime" onchange="applyFilters()">
+    <option value="">All slimes</option>
+  </select>
+  <button class="toggle-btn on" id="heatBtn" onclick="toggleHeat()">Heatmap: ON</button>
+  <button class="toggle-btn" id="hideEmptyBtn" onclick="toggleHideEmpty()">Hide empty: OFF</button>
+  <span class="count-badge" id="countBadge"></span>
+</div>
+
+<div class="table-wrap" id="tableWrap">
+  <div class="load-prompt">
+    <button class="big-btn" onclick="document.getElementById('fileInput').click()">⬆ Load spawn_rates.json</button>
+    <p>Export from the debug panel in-game (F9 → Dumps → <strong>Export Spawn JSON</strong>), then load the file here.<br>
+    Run once per zone area to build complete coverage across all zones.</p>
+  </div>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let allRows        = [];   // flat array of all loaded row objects
+let allZones       = [];
+let allSlimes      = [];
+let allBuildScenes = [];   // every scene in the game's build settings
+let capturedScenes = {};   // scene name → row count
+
+let currentTab  = 'zone';
+let sortCol     = null;
+let sortAsc     = false;
+let heatmap     = true;
+let hideEmpty   = false;
+let filterZone  = '';
+let filterTime  = '';
+let filterSlime = '';
+let cellSearch  = '';
+
+// Known zone scenes from SceneToZoneName mapping — lets us label build scenes
+const ZONE_SCENE_PATTERNS = [
+  { pattern: /Gorge/i,        zone: 'Ember Valley'      },
+  { pattern: /Strand/i,       zone: 'Starlight Strand'  },
+  { pattern: /Bluffs/i,       zone: 'Starlight Strand'  },
+  { pattern: /Labyrinth/i,    zone: 'Grey Labyrinth'    },
+  { pattern: /LavaDepths/i,   zone: 'Grey Labyrinth'    },
+  { pattern: /Dreamland/i,    zone: 'Grey Labyrinth'    },
+  { pattern: /LabValley/i,    zone: 'Grey Labyrinth'    },
+  { pattern: /Fields/i,       zone: 'Rainbow Fields'    },
+  { pattern: /Ranch/i,        zone: 'The Ranch'         },
+  { pattern: /Conservatory/i, zone: 'The Ranch'         },
+  { pattern: /Home/i,         zone: 'The Ranch'         },
+];
+
+function sceneToZone(scene) {
+  for (const { pattern, zone } of ZONE_SCENE_PATTERNS)
+    if (pattern.test(scene)) return zone;
+  return null;
+}
+
+// ── File loading ──────────────────────────────────────────────────────────────
+function onFileChosen(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      processData(JSON.parse(ev.target.result));
+    } catch(err) {
+      alert('Failed to parse JSON: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+function processData(data) {
+  allRows = [];
+  capturedScenes = {};
+  allBuildScenes = data.all_build_scenes || [];
+
+  if (data.scene_rows) {
+    for (const [scene, rows] of Object.entries(data.scene_rows)) {
+      capturedScenes[scene] = rows.length;
+      allRows.push(...rows);
+    }
+  }
+
+  // all_seen_scenes accumulates every scene ever exported (replaces old all_build_scenes)
+  allBuildScenes = data.all_seen_scenes || data.all_build_scenes || [];
+
+  allZones  = [...new Set(allRows.map(r => r.zone))].sort();
+  allSlimes = [...new Set(allRows.map(r => r.slime))]
+    .filter(s => s && s !== '(null)')
+    .sort();
+
+  // Populate filter dropdowns
+  const zoneEl = document.getElementById('filterZone');
+  zoneEl.innerHTML = '<option value="">All zones</option>';
+  allZones.forEach(z => {
+    const o = document.createElement('option');
+    o.value = o.textContent = z;
+    zoneEl.appendChild(o);
+  });
+
+  const slimeEl = document.getElementById('filterSlime');
+  slimeEl.innerHTML = '<option value="">All slimes</option>';
+  allSlimes.forEach(s => {
+    const o = document.createElement('option');
+    o.value = o.textContent = s;
+    slimeEl.appendChild(o);
+  });
+
+  const capturedCount = Object.keys(capturedScenes).length;
+  const totalRows     = allRows.length;
+  const uniqueCells   = new Set(allRows.map(r => r.cell)).size;
+  document.getElementById('headerSub').textContent =
+    `${totalRows.toLocaleString()} rows · ${capturedCount} scene(s) · ${uniqueCells} cells · ${allSlimes.length} slime types`;
+
+  applyFilters();
+}
+
+// ── Filters ───────────────────────────────────────────────────────────────────
+function applyFilters() {
+  filterZone  = document.getElementById('filterZone').value;
+  filterTime  = document.getElementById('filterTime').value;
+  filterSlime = document.getElementById('filterSlime').value;
+  cellSearch  = document.getElementById('searchCell').value.toLowerCase();
+  renderTable();
+}
+
+function getFilteredRows() {
+  return allRows.filter(r => {
+    if (filterZone  && r.zone  !== filterZone)  return false;
+    if (filterTime  && r.time  !== filterTime)  return false;
+    if (filterSlime && r.slime !== filterSlime) return false;
+    if (cellSearch  && !r.cell.toLowerCase().includes(cellSearch) &&
+                       !r.spawner.toLowerCase().includes(cellSearch)) return false;
+    return true;
+  });
+}
+
+// ── Heat colour (effective-chance scale: 0–50%) ───────────────────────────────
+function heatColor(eff) {
+  // eff is effective spawn chance: spawnChance * cPct/100 * slimePct/100
+  if (!eff) return { bg: '#0a1018', fg: '#1e2d45' };
+  if (eff < 0.5)  return { bg: '#0d2820', fg: '#3a8060' };
+  if (eff < 2)    return { bg: '#0e4030', fg: '#5ab870' };
+  if (eff < 5)    return { bg: '#0d5c3a', fg: '#7ad880' };
+  if (eff < 12)   return { bg: '#0e7840', fg: '#a0e870' };
+  return                 { bg: '#2a9e4e', fg: '#e8ffd0' };
+}
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  currentTab = tab;
+  sortCol = null; sortAsc = false;
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    t.classList.toggle('active',
+      (i===0&&tab==='zone')||(i===1&&tab==='cell')||(i===2&&tab==='spawner')||(i===3&&tab==='coverage'));
+  });
+  applyFilters();
+}
+
+function toggleHeat() {
+  heatmap = !heatmap;
+  const btn = document.getElementById('heatBtn');
+  btn.textContent = `Heatmap: ${heatmap ? 'ON' : 'OFF'}`;
+  btn.classList.toggle('on', heatmap);
+  applyFilters();
+}
+
+function toggleHideEmpty() {
+  hideEmpty = !hideEmpty;
+  const btn = document.getElementById('hideEmptyBtn');
+  btn.textContent = `Hide empty: ${hideEmpty ? 'ON' : 'OFF'}`;
+  btn.classList.toggle('on', hideEmpty);
+  applyFilters();
+}
+
+function setSort(col) {
+  if (sortCol === col) sortAsc = !sortAsc;
+  else { sortCol = col; sortAsc = false; }
+  renderTable();
+}
+
+// ── Render dispatcher ─────────────────────────────────────────────────────────
+function renderTable() {
+  const wrap = document.getElementById('tableWrap');
+  if (allRows.length === 0) {
+    wrap.innerHTML = `<div class="load-prompt">
+      <button class="big-btn" onclick="document.getElementById('fileInput').click()">⬆ Load spawn_rates.json</button>
+      <p>Export from the debug panel in-game (F9 → Dumps → <strong>Export Spawn JSON</strong>), then load the file here.</p>
+    </div>`;
+    return;
+  }
+  if (currentTab === 'zone')     renderZoneTable(wrap);
+  else if (currentTab === 'cell')    renderCellTable(wrap);
+  else if (currentTab === 'spawner') renderSpawnerTable(wrap);
+  else                               renderCoverageTable(wrap);
+}
+
+// ── Aggregate helper ──────────────────────────────────────────────────────────
+// Returns Map: groupKey → { slime → maxEffective, _meta: {...} }
+function aggregateByKey(rows, keyFn, metaFn) {
+  const map = new Map();
+  for (const r of rows) {
+    const key = keyFn(r);
+    if (!map.has(key)) map.set(key, { _meta: metaFn(r), _cellSet: new Set(), _spawnerSet: new Set() });
+    const entry = map.get(key);
+    const eff = r.spawnChance * (r.cPct / 100) * (r.slimePct / 100);
+    if (entry[r.slime] === undefined || eff > entry[r.slime]) entry[r.slime] = eff;
+    entry._cellSet.add(r.cell);
+    entry._spawnerSet.add(r.cell + '|' + r.spawner);
+  }
+  return map;
+}
+
+function getVisSlimes(rows) {
+  if (filterSlime) return [filterSlime];
+  if (!hideEmpty)  return allSlimes;
+  const seen = new Set(rows.map(r => r.slime));
+  return allSlimes.filter(s => seen.has(s));
+}
+
+function sortedRows(map, keyFn) {
+  let arr = [...map.entries()];
+  if (sortCol) {
+    arr.sort(([,a], [,b]) => {
+      let av = a[sortCol] ?? -1, bv = b[sortCol] ?? -1;
+      if (typeof av === 'string') av = av.toLowerCase();
+      if (typeof bv === 'string') bv = bv.toLowerCase();
+      if (av < bv) return sortAsc ? -1 : 1;
+      if (av > bv) return sortAsc ? 1 : -1;
+      return 0;
+    });
+  }
+  return arr;
+}
+
+function thSort(key, label, frozen) {
+  const s = sortCol === key;
+  const cls = [frozen ? 'frozen' : '', s ? 'sorted' + (sortAsc ? ' asc' : '') : ''].filter(Boolean).join(' ');
+  return `<th class="${cls}" onclick="setSort('${key}')">${label}</th>`;
+}
+
+function heatCell(eff) {
+  if (eff === undefined) return `<td class="empty">·</td>`;
+  if (!heatmap) return `<td class="num">${eff.toFixed(2)}%</td>`;
+  const c = heatColor(eff);
+  return `<td class="heat" style="background:${c.bg};color:${c.fg}" title="${eff.toFixed(3)}%">${eff.toFixed(2)}%</td>`;
+}
+
+// ── By Zone tab ───────────────────────────────────────────────────────────────
+function renderZoneTable(wrap) {
+  const filtered = getFilteredRows();
+  const agg = aggregateByKey(filtered, r => r.zone, r => ({ zone: r.zone }));
+  const vis = getVisSlimes(filtered);
+
+  if (sortCol && sortCol !== '_cells' && sortCol !== '_spawners')
+    ;  // slime sort handled by sortedRows
+  let arr = [...agg.entries()];
+  if (sortCol === '_cells')    arr.sort(([,a],[,b]) => (a._cellSet.size - b._cellSet.size) * (sortAsc?1:-1));
+  else if (sortCol === '_spawners') arr.sort(([,a],[,b]) => (a._spawnerSet.size - b._spawnerSet.size) * (sortAsc?1:-1));
+  else arr = sortedRows(agg);
+
+  document.getElementById('countBadge').innerHTML =
+    `<b>${arr.length}</b> zone(s) · <b>${filtered.length.toLocaleString()}</b> rows`;
+
+  if (arr.length === 0) { wrap.innerHTML = '<div class="empty-state">No data matches your filters.</div>'; return; }
+
+  let html = '<table><thead><tr>';
+  html += thSort('_meta.zone', 'Zone', 'frozen');
+  html += thSort('_cells',    'Cells', false);
+  html += thSort('_spawners', 'Spawners', false);
+  vis.forEach(s => html += thSort(s, s, false));
+  html += '</tr></thead><tbody>';
+
+  for (const [key, entry] of arr) {
+    html += '<tr>';
+    html += `<td class="frozen">${key}</td>`;
+    html += `<td class="num" style="color:var(--text-dim)">${entry._cellSet.size}</td>`;
+    html += `<td class="num" style="color:var(--text-dim)">${entry._spawnerSet.size}</td>`;
+    vis.forEach(s => html += heatCell(entry[s]));
+    html += '</tr>';
+  }
+
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+// ── By Cell tab ───────────────────────────────────────────────────────────────
+function renderCellTable(wrap) {
+  const filtered = getFilteredRows();
+  const agg = aggregateByKey(filtered, r => r.zone + '||' + r.cell, r => ({ zone: r.zone, cell: r.cell }));
+  const vis = getVisSlimes(filtered);
+
+  let arr = [...agg.entries()];
+  if (sortCol === '_spawners') arr.sort(([,a],[,b]) => (a._spawnerSet.size - b._spawnerSet.size) * (sortAsc?1:-1));
+  else arr = sortedRows(agg);
+
+  document.getElementById('countBadge').innerHTML =
+    `<b>${arr.length}</b> cell(s) · <b>${filtered.length.toLocaleString()}</b> rows`;
+
+  if (arr.length === 0) { wrap.innerHTML = '<div class="empty-state">No data matches your filters.</div>'; return; }
+
+  let html = '<table><thead><tr>';
+  html += thSort('_meta.cell', 'Cell', 'frozen');
+  html += thSort('_meta.zone', 'Zone', false);
+  html += thSort('_spawners',  '#',    false);
+  vis.forEach(s => html += thSort(s, s, false));
+  html += '</tr></thead><tbody>';
+
+  let lastZone = null;
+  for (const [key, entry] of arr) {
+    const { zone, cell } = entry._meta;
+    if (zone !== lastZone) {
+      lastZone = zone;
+      html += `<tr class="zone-header"><td class="frozen" colspan="1">${zone}</td>` +
+              `<td colspan="${2 + vis.length}" style="color:var(--text-dim);font-size:11px;font-family:'Space Mono',monospace"></td></tr>`;
+    }
+    html += '<tr>';
+    const cellDisplay = cell.replace(/^cell/, '');
+    html += `<td class="frozen" title="${cell}">${cellDisplay}</td>`;
+    html += `<td class="num" style="color:var(--text-dim);font-size:11px">${zone}</td>`;
+    html += `<td class="num" style="color:var(--text-dim)">${entry._spawnerSet.size}</td>`;
+    vis.forEach(s => html += heatCell(entry[s]));
+    html += '</tr>';
+  }
+
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+// ── Per Spawner tab ───────────────────────────────────────────────────────────
+function renderSpawnerTable(wrap) {
+  const filtered = getFilteredRows();
+
+  // Group into unique (zone, cell, spawner, cIdx) rows
+  const map = new Map();
+  for (const r of filtered) {
+    const key = `${r.zone}||${r.cell}||${r.spawner}||${r.cIdx}`;
+    if (!map.has(key)) {
+      map.set(key, {
+        zone: r.zone, cell: r.cell, spawner: r.spawner,
+        spawnChance: r.spawnChance, delayFactor: r.delayFactor,
+        radiantOnly: r.radiantOnly, radiantBlocked: r.radiantBlocked,
+        cIdx: r.cIdx, feral: r.feral, time: r.time, cPct: r.cPct,
+        slimes: {}
+      });
+    }
+    map.get(key).slimes[r.slime] = r.slimePct;
+  }
+
+  let arr = [...map.values()];
+  const vis = getVisSlimes(filtered);
+
+  if (sortCol) {
+    arr.sort((a, b) => {
+      let av, bv;
+      if (['zone','cell','spawner','time'].includes(sortCol)) {
+        av = (a[sortCol]||'').toLowerCase(); bv = (b[sortCol]||'').toLowerCase();
+      } else if (['spawnChance','delayFactor','cPct','cIdx'].includes(sortCol)) {
+        av = a[sortCol] ?? 0; bv = b[sortCol] ?? 0;
+      } else {
+        av = a.slimes[sortCol] ?? -1; bv = b.slimes[sortCol] ?? -1;
+      }
+      if (av < bv) return sortAsc ? -1 : 1;
+      if (av > bv) return sortAsc ? 1 : -1;
+      return 0;
+    });
+  }
+
+  document.getElementById('countBadge').innerHTML =
+    `<b>${arr.length.toLocaleString()}</b> spawner×constraint rows`;
+
+  if (arr.length === 0) { wrap.innerHTML = '<div class="empty-state">No spawners match your filters.</div>'; return; }
+
+  let html = '<table><thead><tr>';
+  html += thSort('cell',        'Cell',      'frozen');
+  html += thSort('zone',        'Zone',       false);
+  html += thSort('spawner',     'Spawner',    false);
+  html += thSort('spawnChance', 'Pool%',      false);
+  html += thSort('delayFactor', 'Delay',      false);
+  html += thSort('cIdx',        'Con',        false);
+  html += thSort('time',        'Time',       false);
+  html += thSort('cPct',        'Con%',       false);
+  html += `<th>Flags</th>`;
+  vis.forEach(s => html += thSort(s, s, false));
+  html += '</tr></thead><tbody>';
+
+  const MAX = 3000;
+  const shown = arr.slice(0, MAX);
+  let lastZone = null;
+  for (const row of shown) {
+    if (row.zone !== lastZone) {
+      lastZone = row.zone;
+      html += `<tr class="zone-header"><td class="frozen">${row.zone}</td>` +
+              `<td colspan="${8 + vis.length}"></td></tr>`;
+    }
+    html += '<tr>';
+    const cellDisplay = row.cell.replace(/^cell/, '');
+    html += `<td class="frozen" title="${row.cell}">${cellDisplay}</td>`;
+    html += `<td class="num" style="color:var(--text-dim);font-size:11px">${row.zone}</td>`;
+    // Truncate long spawner paths
+    const sp = row.spawner.length > 40 ? '…' + row.spawner.slice(-38) : row.spawner;
+    html += `<td title="${row.spawner}" style="font-size:12px;color:var(--text-dim)">${sp}</td>`;
+    html += `<td class="num">${row.spawnChance.toFixed(1)}%</td>`;
+    html += `<td class="num" style="color:${row.delayFactor > 1.5 ? 'var(--orange)' : 'var(--text-dim)'}">${row.delayFactor.toFixed(1)}×</td>`;
+    html += `<td class="num" style="color:var(--text-mute)">${row.cIdx}</td>`;
+    const timeTag = row.time === 'DAY' ? `<span class="tag-day">☀ DAY</span>`
+                  : row.time === 'NIGHT' ? `<span class="tag-night">☾ NIGHT</span>`
+                  : `<span class="tag-any">ANY</span>`;
+    html += `<td class="num">${timeTag}</td>`;
+    html += `<td class="num" style="color:var(--text-dim)">${row.cPct.toFixed(0)}%</td>`;
+    // Flags
+    let flags = '';
+    if (row.feral)         flags += `<span class="tag-feral">feral</span> `;
+    if (row.radiantOnly)   flags += `<span class="tag-radiant">✦ radiant</span>`;
+    if (row.radiantBlocked) flags += `<span style="color:var(--text-mute);font-size:10px">no-rad</span>`;
+    html += `<td class="num">${flags || '<span style="color:var(--text-mute)">·</span>'}</td>`;
+    // Slimes (raw slimePct within constraint)
+    vis.forEach(s => {
+      const val = row.slimes[s];
+      if (val === undefined) { html += `<td class="empty">·</td>`; return; }
+      if (!heatmap) { html += `<td class="num">${val.toFixed(1)}%</td>`; return; }
+      const c = heatColor(val * row.spawnChance / 100);
+      html += `<td class="heat" style="background:${c.bg};color:${c.fg}" title="${val.toFixed(1)}%">${val.toFixed(1)}%</td>`;
+    });
+    html += '</tr>';
+  }
+
+  if (arr.length > MAX) {
+    html += `<tr><td colspan="${9 + vis.length}" style="text-align:center;color:var(--yellow);padding:12px;font-size:12px;font-family:'Space Mono',monospace">
+      …${(arr.length - MAX).toLocaleString()} more rows — apply a filter to narrow results</td></tr>`;
+  }
+
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+// ── Coverage tab ──────────────────────────────────────────────────────────────
+function renderCoverageTable(wrap) {
+  // Group all ever-seen scenes by zone (SR2 uses Addressables so we can't
+  // enumerate build-settings scenes — we accumulate from exported data instead)
+  const capturedSet = new Set(Object.keys(capturedScenes));
+  const allSeenScenes = [...new Set([...allBuildScenes, ...capturedSet])].sort();
+
+  const byZone = {};
+  const nonZone = [];
+  for (const scene of allSeenScenes) {
+    const zone = sceneToZone(scene);
+    if (zone) {
+      (byZone[zone] = byZone[zone] || []).push(scene);
+    } else {
+      nonZone.push(scene);
+    }
+  }
+
+  // Zone-level summary: a zone is "complete" if it has at least one captured scene
+  const zoneNames = Object.keys(byZone).sort();
+  const capturedZones = zoneNames.filter(z => byZone[z].some(s => capturedSet.has(s)));
+  const totalRows = Object.values(capturedScenes).reduce((a, b) => a + b, 0);
+
+  let html = `<div class="coverage-grid">
+    <div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:4px">
+      Zone Coverage —
+      <span style="color:${capturedZones.length===zoneNames.length?'var(--green)':'var(--yellow)'}">
+        ${capturedZones.length} / ${zoneNames.length} zones captured
+      </span>
+      <span style="font-size:12px;font-weight:400;color:var(--text-dim);margin-left:12px">
+        ${capturedSet.size} scenes · ${totalRows.toLocaleString()} rows total
+      </span>
+    </div>
+    <div style="font-size:12px;color:var(--text-dim);margin-bottom:16px">
+      Enter each zone and press <strong>Export Spawn JSON</strong> (F9 → Dumps page).
+      All sub-areas for a zone load simultaneously — one export per zone is enough.
+    </div>`;
+
+  for (const zone of zoneNames) {
+    const scenes = byZone[zone].sort();
+    const zoneRows = scenes.reduce((s, sc) => s + (capturedScenes[sc] || 0), 0);
+    const zoneCaptured = scenes.filter(s => capturedSet.has(s)).length;
+    const zoneComplete = zoneCaptured > 0;
+
+    html += `<div class="coverage-section-title">
+      ${zone}
+      <span style="font-weight:400;color:${zoneComplete?'var(--green)':'var(--red)'}">
+        — ${zoneComplete ? `✓ ${zoneCaptured}/${scenes.length} scene(s) · ${zoneRows.toLocaleString()} rows` : '○ not captured'}
+      </span>
+    </div>`;
+
+    for (const scene of scenes) {
+      const isCaptured = capturedSet.has(scene);
+      html += `<div class="coverage-row ${isCaptured ? 'captured' : 'missing'}">
+        <div class="dot ${isCaptured ? 'dot-green' : 'dot-red'}"></div>
+        <span class="zone-name">${isCaptured ? '✓' : '○'} ${scene}</span>
+        ${isCaptured
+          ? `<span class="row-count">${capturedScenes[scene].toLocaleString()} rows</span>`
+          : `<span class="row-count" style="color:var(--text-mute)">enter zone to capture</span>`}
+      </div>`;
+    }
+  }
+
+  if (nonZone.length > 0) {
+    html += `<div class="coverage-section-title" style="margin-top:16px">Non-zone scenes</div>`;
+    for (const scene of nonZone) {
+      html += `<div class="coverage-row unknown">
+        <div class="dot dot-grey"></div>
+        <span class="zone-name" style="color:var(--text-dim)">${scene}</span>
+        ${capturedSet.has(scene) ? `<span class="row-count">${capturedScenes[scene].toLocaleString()} rows</span>` : ''}
+      </div>`;
+    }
+  }
+
+  html += '</div>';
+  wrap.innerHTML = html;
+}
+
+// Init — show load prompt
+renderTable();
+</script>
+</body>
+</html>

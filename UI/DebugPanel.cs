@@ -385,6 +385,42 @@ public class DebugPanel : MonoBehaviour
             LocationDumper.DumpSceneGroups();
         y += BtnH + Gap;
 
+        y = SectionLabel(x, y, "Spawn Weights");
+
+        // ── Live loaded-scene list ────────────────────────────────────────────
+        // Shows every Unity scene currently in memory. Zone scenes (starting with
+        // "zone") are highlighted so you can see at a glance which streaming areas
+        // are loaded. Walk to a new sub-area and watch for new entries before
+        // pressing Export Spawn JSON.
+        var prevColor = GUI.color;
+        int sceneCount = UnityEngine.SceneManagement.SceneManager.sceneCount;
+        for (int si = 0; si < sceneCount; si++)
+        {
+            var sc = UnityEngine.SceneManagement.SceneManager.GetSceneAt(si);
+            bool isZone = sc.name.StartsWith("zone", System.StringComparison.OrdinalIgnoreCase);
+            GUI.color = isZone ? new Color(0.4f, 1f, 0.7f) : new Color(0.4f, 0.4f, 0.5f);
+            GUI.Label(new Rect(x + 4, y, PanelW - 8, LabelH), sc.name);
+            y += LabelH;
+        }
+        if (sceneCount == 0)
+        {
+            GUI.color = new Color(0.4f, 0.4f, 0.5f);
+            GUI.Label(new Rect(x + 4, y, PanelW - 8, LabelH), "(no scenes loaded)");
+            y += LabelH;
+        }
+        GUI.color = prevColor;
+        y += Gap;
+
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Slime Spawn Weights (PeriodicActorSpawner)"))
+            LocationDumper.DumpSlimeSpawnWeights();
+        y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Export Spawn JSON (append/merge)"))
+            LocationDumper.ExportSpawnRatesJson();
+        y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Clear Spawn JSON"))
+            LocationDumper.ClearSpawnRatesJson();
+        y += BtnH + Gap;
+
         y = SectionLabel(x, y, "Radiant Dumps");
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Radiant Slimes (pedia + bag sizes)"))
             LocationDumper.DumpRadiantSlimes();

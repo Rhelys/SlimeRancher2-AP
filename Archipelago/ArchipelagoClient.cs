@@ -3,6 +3,7 @@ using Archipelago.MultiClient.Net.BounceFeatures.DeathLink;
 using Archipelago.MultiClient.Net.Enums;
 using Archipelago.MultiClient.Net.Helpers;
 using Archipelago.MultiClient.Net.Models;
+using SlimeRancher2AP.Patches.LocationPatches;
 using SlimeRancher2AP.Patches.PlayerPatches;
 using SlimeRancher2AP.SaveData;
 using SlimeRancher2AP.UI;
@@ -139,6 +140,11 @@ public class ArchipelagoClient
                     var snapshot = Session.Items.AllItemsReceived.ToList();
                     int savedWatermark = Plugin.Instance.SaveManager.LastItemIndex;
 
+                    Plugin.Instance.Log.LogInfo(
+                        $"[AP] Reconnect state: savedWatermark={savedWatermark}, " +
+                        $"snapshot.Count={snapshot.Count} — " +
+                        $"expect {System.Math.Max(0, snapshot.Count - (savedWatermark + 1))} item(s) to replay");
+
                     // Sanity-check: the watermark should never exceed the highest item
                     // position the server has on record (snapshot.Count - 1).  If it does,
                     // the saved value is stale — either from a fresh SR2 save on an old AP
@@ -224,6 +230,7 @@ public class ArchipelagoClient
         Session = null;
         SlotData                 = null;
         WeatherPatch.OnDisconnected();
+        RadiantSlimeSpawnRatePatch.OnDisconnected();
         _receivedCount           = 0;
         _snapshotCount           = 0;
         _pendingMainThreadAction = null;
@@ -391,6 +398,12 @@ public class ArchipelagoClient
 #if DEBUG
         SlimeRancher2AP.Utils.DebugTrace.Once("ProcessItemQueue.5 — exited lock");
 #endif
+
+        if (pending.Count > 0)
+            Plugin.Instance.Log.LogInfo(
+                $"[AP] Processing {pending.Count} queued item(s); " +
+                $"LastItemIndex={Plugin.Instance.SaveManager.LastItemIndex}, " +
+                $"snapshotCount={_snapshotCount}");
 
         foreach (var entry in pending)
         {

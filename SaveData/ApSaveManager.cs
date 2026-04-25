@@ -38,9 +38,11 @@ public class ApSaveManager
     private ConfigEntry<int>?    _lastItemIndex;
     private ConfigEntry<string>? _unlockedRegions;
     private ConfigEntry<long>?   _newbucksEarned;
+    private ConfigEntry<string>? _appliedEphemeralIndices;
 
-    private readonly HashSet<long>   _checkedSet = new();
-    private readonly HashSet<string> _regionSet  = new();
+    private readonly HashSet<long>   _checkedSet    = new();
+    private readonly HashSet<string> _regionSet     = new();
+    private readonly HashSet<int>    _ephemeralSet  = new();
     // volatile: _lastItemIdx and _sessionActive are written on the background thread
     // (OnConnected / ResetSession) and read on the main thread (LoadGamePatch) and the
     // network-callback thread (OnItemReceived). Without volatile the JIT / CPU is free to
@@ -142,13 +144,14 @@ public class ApSaveManager
     {
         // Clear the session flag FIRST so HasActiveSession returns false immediately,
         // preventing any concurrent LoadGamePatch from seeing a half-torn-down session.
-        _sessionActive    = false;
-        _saveFile         = null;
-        _checkedLocations = null;
-        _lastItemIndex    = null;
-        _unlockedRegions  = null;
-        _newbucksEarned   = null;
-        _lastItemIdx      = -1;
+        _sessionActive           = false;
+        _saveFile                = null;
+        _checkedLocations        = null;
+        _lastItemIndex           = null;
+        _unlockedRegions         = null;
+        _newbucksEarned          = null;
+        _appliedEphemeralIndices = null;
+        _lastItemIdx             = -1;
         // Keep _checkedSet, _regionSet, _scoutData in memory — they'll be re-loaded
         // from the correct file by the next OnConnected call.
     }
@@ -173,14 +176,16 @@ public class ApSaveManager
         _saveFile     = new ConfigFile(Path.Combine(dir, baseName + ".cfg"), true);
         _scoutFilePath = Path.Combine(dir, baseName + "_scouts.json");
 
-        _checkedLocations = _saveFile.Bind("Progress", "CheckedLocations", "",
+        _checkedLocations        = _saveFile.Bind("Progress", "CheckedLocations", "",
             "Comma-separated checked location IDs");
-        _lastItemIndex    = _saveFile.Bind("Progress", "LastItemIndex", -1,
+        _lastItemIndex           = _saveFile.Bind("Progress", "LastItemIndex", -1,
             "Index of last applied item (dedup key for reconnect)");
-        _unlockedRegions  = _saveFile.Bind("Progress", "UnlockedRegions", "",
+        _unlockedRegions         = _saveFile.Bind("Progress", "UnlockedRegions", "",
             "Comma-separated unlocked region names");
-        _newbucksEarned   = _saveFile.Bind("Progress", "NewbucksEarned", 0L,
+        _newbucksEarned          = _saveFile.Bind("Progress", "NewbucksEarned", 0L,
             "Cumulative newbucks earned this AP run (tracked via PlayerState.AddCurrency)");
+        _appliedEphemeralIndices = _saveFile.Bind("Progress", "AppliedEphemeralIndices", "",
+            "Comma-separated item indices of filler/trap items already applied — never re-applied on replay");
 
         // Deserialize checked locations
         _checkedSet.Clear();
@@ -192,6 +197,11 @@ public class ApSaveManager
         foreach (var r in (_unlockedRegions.Value ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries))
             if (!string.IsNullOrWhiteSpace(r)) _regionSet.Add(r);
 
+        // Deserialize applied ephemeral item indices
+        _ephemeralSet.Clear();
+        foreach (var s in (_appliedEphemeralIndices.Value ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries))
+            if (int.TryParse(s, out var idx)) _ephemeralSet.Add(idx);
+
         _lastItemIdx        = _lastItemIndex.Value;
         _newbucksEarnedVal  = _newbucksEarned.Value;
 
@@ -199,6 +209,10 @@ public class ApSaveManager
         _scoutData.Clear();
         LoadScoutFile();
 
+        Plugin.Instance.Log.LogInfo(
+            $"[AP] Save file: {Path.GetFileName(_saveFile.ConfigFilePath)} — " +
+            $"LastItemIndex on disk={_lastItemIndex.Value}, " +
+            $"EphemeralIndices on disk='{_appliedEphemeralIndices!.Value}'");
         Plugin.Instance.Log.LogInfo(
             $"[AP] Save loaded: {_checkedSet.Count} locations checked, " +
             $"last item index {_lastItemIdx}, {_regionSet.Count} regions unlocked, " +
@@ -234,6 +248,24 @@ public class ApSaveManager
         if (_saveFile == null || idx <= _lastItemIdx) return;
         _lastItemIdx           = idx;
         _lastItemIndex!.Value  = idx;
+        _saveFile.Save();
+    }
+
+    /// <summary>
+    /// Returns true if the filler or trap at the given server item index was already
+    /// applied in a previous session. Used to suppress replay of one-shot effects
+    /// (Newbucks grants, craft caches, traps) when the watermark is reset.
+    /// </summary>
+    public bool IsEphemeralApplied(int idx) => _ephemeralSet.Contains(idx);
+
+    /// <summary>
+    /// Records that the filler or trap at the given server item index was successfully
+    /// applied. Persists immediately so it survives crashes and reconnects.
+    /// </summary>
+    public void MarkEphemeralApplied(int idx)
+    {
+        if (_saveFile == null || !_ephemeralSet.Add(idx)) return;
+        _appliedEphemeralIndices!.Value = string.Join(",", _ephemeralSet);
         _saveFile.Save();
     }
 
