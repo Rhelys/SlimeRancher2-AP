@@ -231,6 +231,7 @@ public class ArchipelagoClient
         SlotData                 = null;
         WeatherPatch.OnDisconnected();
         RadiantSlimeSpawnRatePatch.OnDisconnected();
+        GoldLuckySpawnRatePatch.OnDisconnected();
         _receivedCount           = 0;
         _snapshotCount           = 0;
         _pendingMainThreadAction = null;

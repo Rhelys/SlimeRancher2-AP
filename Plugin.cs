@@ -104,6 +104,7 @@ public class ApUpdateBehaviour : MonoBehaviour
         TrapHandler.Tick();
         SlimeRancher2AP.Patches.PlayerPatches.WeatherPatch.TryApplyIfNeeded();
         SlimeRancher2AP.Patches.LocationPatches.RadiantSlimeSpawnRatePatch.TryApplyIfNeeded();
+        SlimeRancher2AP.Patches.LocationPatches.GoldLuckySpawnRatePatch.TryApplyIfNeeded();
 #if DEBUG
         SlimeRancher2AP.Utils.DebugTrace.Once("Update.5 — after TrapHandler.Tick");
 #endif

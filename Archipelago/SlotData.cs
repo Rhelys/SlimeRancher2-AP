@@ -51,6 +51,17 @@ public class SlotData
     /// </summary>
     public bool   AllRadiantSlimes             { get; init; } = false;
     public int    RadiantSpawnRateMultiplier   { get; init; } = 1;
+
+    /// <summary>
+    /// Multiplier applied to Gold and Lucky slime spawn weight.
+    /// 1 = vanilla weights (default). Higher values make Gold/Lucky slimes proportionally
+    /// more likely to spawn from any spawner that includes them.
+    /// Implemented by scaling <c>SlimeSet.Member.Weight</c> for Gold/Lucky members in
+    /// <c>GoldLuckySpawnRatePatch</c> on scene init.
+    /// Slot data key: <c>"gold_lucky_spawn_rate_multiplier"</c>. Range: 1–50.
+    /// </summary>
+    public int    GoldLuckySpawnRateMultiplier { get; init; } = 1;
+
     public bool   RandomizeResearchDrones  { get; init; } = false;
     public bool   RandomizeGhostlyDrones   { get; init; } = false;
 
@@ -143,6 +154,7 @@ public class SlotData
             RandomizeSlimepediaRadiant   = GetBool(raw, "randomize_slimepedia_radiant",   defaultVal: false),
             AllRadiantSlimes             = GetBool(raw, "all_radiant_slimes",             defaultVal: false),
             RadiantSpawnRateMultiplier   = (int)GetLong(raw, "radiant_spawn_rate_multiplier", 1),
+            GoldLuckySpawnRateMultiplier = (int)Math.Clamp(GetLong(raw, "gold_lucky_spawn_rate_multiplier", 1), 1, 35),
             RandomizeResearchDrones  = GetBool(raw, "randomize_research_drones", defaultVal: false),
             RandomizeGhostlyDrones   = GetBool(raw, "randomize_ghostly_drones",  defaultVal: false),
             RandomizePuzzleDoors     = GetBool(raw, "randomize_puzzle_doors",     defaultVal: false),
