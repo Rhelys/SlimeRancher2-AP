@@ -231,6 +231,10 @@ public static class GoalHandler
     /// Checks whether BOTH the Slimes category and the Resources category are fully unlocked.
     /// Goal fires only when both AllUnlocked() calls return true.
     /// </summary>
+    // PediaEntry.name for the Tarr slimepedia entry — excluded from the goal check when
+    // DisableTarr is on, since it is removed from the AP location pool in that mode.
+    private const string TarrPediaEntryName = "Tarr";
+
     private static void CheckSlimepediaGoal()
     {
 #if DEBUG
@@ -248,6 +252,8 @@ public static class GoalHandler
         SlimeRancher2AP.Utils.DebugTrace.Once($"CheckSlimepediaGoal — step 2: list count={categories.Count}");
 #endif
 
+        bool disableTarr = Plugin.Instance.ApClient.SlotData?.DisableTarr ?? false;
+
         bool slimesUnlocked    = false;
         bool resourcesUnlocked = false;
 
@@ -255,16 +261,26 @@ public static class GoalHandler
         {
             var cat = categories[i];
             var name = cat?._category?.name;
-            if (name == SlimesCategoryName)
-                slimesUnlocked = cat!.AllUnlocked();
-            else if (name == ResourcesCategoryName)
-                resourcesUnlocked = cat!.AllUnlocked();
 
-            if (slimesUnlocked && resourcesUnlocked) break; // No need to keep iterating
+            if (name == SlimesCategoryName)
+            {
+                // When DisableTarr is on, Tarr's slimepedia location is not in the AP pool.
+                // The player may never unlock it, so check each entry individually and skip Tarr.
+                if (disableTarr)
+                    slimesUnlocked = IsCategoryUnlockedExcluding(pedia, cat!, TarrPediaEntryName);
+                else
+                    slimesUnlocked = cat!.AllUnlocked();
+            }
+            else if (name == ResourcesCategoryName)
+            {
+                resourcesUnlocked = cat!.AllUnlocked();
+            }
+
+            if (slimesUnlocked && resourcesUnlocked) break;
         }
 #if DEBUG
         SlimeRancher2AP.Utils.DebugTrace.Once(
-            $"CheckSlimepediaGoal — slimes={slimesUnlocked} resources={resourcesUnlocked}");
+            $"CheckSlimepediaGoal — slimes={slimesUnlocked} resources={resourcesUnlocked} disableTarr={disableTarr}");
 #endif
 
         if (slimesUnlocked && resourcesUnlocked)
@@ -273,6 +289,27 @@ public static class GoalHandler
                 "[AP] Slimepedia goal met: all Slimes and Resources entries unlocked");
             NotifyGoalComplete();
         }
+    }
+
+    /// <summary>
+    /// Returns true if every entry in <paramref name="cat"/> is unlocked, ignoring any entry
+    /// whose <c>PediaEntry.name</c> matches <paramref name="excludeEntryName"/>.
+    /// Used so that the slimepedia goal still fires when Tarr is excluded from the AP pool.
+    /// </summary>
+    private static bool IsCategoryUnlockedExcluding(PediaDirector pedia,
+                                                     PediaRuntimeCategory cat,
+                                                     string excludeEntryName)
+    {
+        var items = cat._items;
+        if (items == null) return false;
+        for (int i = 0; i < items.Count; i++)
+        {
+            var entry = items[i];
+            if (entry == null) continue;
+            if (entry.name == excludeEntryName) continue;   // skip excluded entry
+            if (!pedia.IsUnlocked(entry)) return false;
+        }
+        return true;
     }
 
     // -------------------------------------------------------------------------

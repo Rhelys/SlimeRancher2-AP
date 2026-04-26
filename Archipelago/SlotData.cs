@@ -110,6 +110,13 @@ public class SlotData
     public ConversationCheckMode ConversationChecks { get; init; } = ConversationCheckMode.Off;
 
     /// <summary>
+    /// When true, Tarr slimes are excluded from the randomizer: the Slimepedia Tarr location
+    /// is removed from the pool and Tarr Spawn / Tarr Rain traps have weight 0.
+    /// Slot data key: <c>"disable_tarr"</c>.
+    /// </summary>
+    public bool DisableTarr { get; init; } = false;
+
+    /// <summary>
     /// When true, Tarr bites always kill the player instantly regardless of health or multiplier.
     /// Slot data key: <c>"tarr_instakill"</c>.
     /// </summary>
@@ -160,6 +167,7 @@ public class SlotData
             RandomizePuzzleDoors     = GetBool(raw, "randomize_puzzle_doors",     defaultVal: false),
             RegionAccessMode            = GetString(raw, "region_access_mode", "vanilla"),
             ConversationChecks          = GetConversationCheckMode(raw, "conversation_checks"),
+            DisableTarr                 = GetBool(raw, "disable_tarr",   defaultVal: false),
             TarrInstakill               = GetBool(raw, "tarr_instakill", defaultVal: false),
             IncomingDamageMultiplier    = (int)GetLong(raw, "incoming_damage_multiplier", 1),
             ForceHeavyWeather           = GetBool(raw, "force_heavy_weather",          defaultVal: true),
