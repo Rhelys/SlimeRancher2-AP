@@ -123,6 +123,7 @@ public class ApUpdateBehaviour : MonoBehaviour
         GoalHandler.Tick();
 #if DEBUG
         SlimeRancher2AP.Utils.DebugTrace.Once("Update.6 — after GoalHandler.Tick");
+        SlimeRancher2AP.Utils.NoClipManager.Tick();
 #endif
     }
 }

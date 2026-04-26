@@ -404,8 +404,8 @@ let cellSearch  = '';
 // Known zone scenes from SceneToZoneName mapping — lets us label build scenes
 const ZONE_SCENE_PATTERNS = [
   { pattern: /Gorge/i,        zone: 'Ember Valley'      },
+  { pattern: /Bluffs/i,       zone: 'Powderfall Bluffs' },  // must come before /Strand/
   { pattern: /Strand/i,       zone: 'Starlight Strand'  },
-  { pattern: /Bluffs/i,       zone: 'Starlight Strand'  },
   { pattern: /Labyrinth/i,    zone: 'Grey Labyrinth'    },
   { pattern: /LavaDepths/i,   zone: 'Grey Labyrinth'    },
   { pattern: /Dreamland/i,    zone: 'Grey Labyrinth'    },
@@ -661,7 +661,15 @@ function renderCellTable(wrap) {
 
   let arr = [...agg.entries()];
   if (sortCol === '_spawners') arr.sort(([,a],[,b]) => (a._spawnerSet.size - b._spawnerSet.size) * (sortAsc?1:-1));
-  else arr = sortedRows(agg);
+  else if (sortCol) arr = sortedRows(agg);
+  else arr.sort(([,a],[,b]) => {
+    // Default: zone first, then cell — keeps same-zone cells adjacent so zone
+    // headers don't repeat when multiple scenes from the same zone were exported.
+    const zA = a._meta.zone, zB = b._meta.zone;
+    if (zA < zB) return -1; if (zA > zB) return 1;
+    const cA = a._meta.cell, cB = b._meta.cell;
+    return cA < cB ? -1 : cA > cB ? 1 : 0;
+  });
 
   document.getElementById('countBadge').innerHTML =
     `<b>${arr.length}</b> cell(s) · <b>${filtered.length.toLocaleString()}</b> rows`;
@@ -707,6 +715,7 @@ function renderSpawnerTable(wrap) {
     if (!map.has(key)) {
       map.set(key, {
         zone: r.zone, cell: r.cell, spawner: r.spawner,
+        x: r.x, y: r.y, z: r.z,
         spawnChance: r.spawnChance, delayFactor: r.delayFactor,
         radiantOnly: r.radiantOnly, radiantBlocked: r.radiantBlocked,
         cIdx: r.cIdx, feral: r.feral, time: r.time, cPct: r.cPct,
@@ -750,6 +759,7 @@ function renderSpawnerTable(wrap) {
   html += thSort('time',        'Time',       false);
   html += thSort('cPct',        'Con%',       false);
   html += `<th>Flags</th>`;
+  html += `<th title="World-space position (x, z). Hover for full x/y/z.">Pos</th>`;
   vis.forEach(s => html += thSort(s, s, false));
   html += '</tr></thead><tbody>';
 
@@ -760,7 +770,7 @@ function renderSpawnerTable(wrap) {
     if (row.zone !== lastZone) {
       lastZone = row.zone;
       html += `<tr class="zone-header"><td class="frozen">${row.zone}</td>` +
-              `<td colspan="${8 + vis.length}"></td></tr>`;
+              `<td colspan="${9 + vis.length}"></td></tr>`;
     }
     html += '<tr>';
     const cellDisplay = row.cell.replace(/^cell/, '');
@@ -783,6 +793,14 @@ function renderSpawnerTable(wrap) {
     if (row.radiantOnly)   flags += `<span class="tag-radiant">✦ radiant</span>`;
     if (row.radiantBlocked) flags += `<span style="color:var(--text-mute);font-size:10px">no-rad</span>`;
     html += `<td class="num">${flags || '<span style="color:var(--text-mute)">·</span>'}</td>`;
+    // Position (x, z) — y in tooltip
+    const hasPos = row.x !== undefined && row.x !== null;
+    if (hasPos) {
+      const posTitle = `x=${row.x.toFixed(1)}, y=${row.y.toFixed(1)}, z=${row.z.toFixed(1)}`;
+      html += `<td class="num" title="${posTitle}" style="font-size:10px;color:var(--text-mute);white-space:nowrap">(${row.x.toFixed(0)}, ${row.z.toFixed(0)})</td>`;
+    } else {
+      html += `<td class="empty">·</td>`;
+    }
     // Slimes (raw slimePct within constraint)
     vis.forEach(s => {
       const val = row.slimes[s];

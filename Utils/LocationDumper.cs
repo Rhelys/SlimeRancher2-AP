@@ -1899,8 +1899,8 @@ public static class LocationDumper
     private static string SceneToZoneName(string sceneName)
     {
         if (sceneName.IndexOf("Gorge",       StringComparison.OrdinalIgnoreCase) >= 0) return "Ember Valley";
+        if (sceneName.IndexOf("Bluffs",      StringComparison.OrdinalIgnoreCase) >= 0) return "Powderfall Bluffs";
         if (sceneName.IndexOf("Strand",      StringComparison.OrdinalIgnoreCase) >= 0) return "Starlight Strand";
-        if (sceneName.IndexOf("Bluffs",      StringComparison.OrdinalIgnoreCase) >= 0) return "Starlight Strand";
         if (sceneName.IndexOf("Sands",       StringComparison.OrdinalIgnoreCase) >= 0) return "Shimmering Sands";
         if (sceneName.IndexOf("Labyrinth",   StringComparison.OrdinalIgnoreCase) >= 0 ||
             sceneName.IndexOf("LavaDepths",  StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -2004,6 +2004,7 @@ public static class LocationDumper
                 bool  radOnly    = spawner._onlySpawnRadiant;
                 bool  radBlocked = spawner._blockRadiantSpawning;
                 string spawnerPath = SpawnerShortName(spawner);
+                var pos = spawner.transform.position;
 
                 var constraints = spawner.Constraints;
                 float totalCW = 0f;
@@ -2041,6 +2042,9 @@ public static class LocationDumper
                             scene       = scene,
                             cell        = cell,
                             spawner     = spawnerPath,
+                            x           = System.Math.Round(pos.x, 2),
+                            y           = System.Math.Round(pos.y, 2),
+                            z           = System.Math.Round(pos.z, 2),
                             spawnChance = System.Math.Round(spawnChancePct, 2),
                             delayFactor = System.Math.Round(delay, 2),
                             radiantOnly = radOnly,

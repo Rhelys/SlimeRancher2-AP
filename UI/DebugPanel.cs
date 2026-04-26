@@ -263,6 +263,16 @@ public class DebugPanel : MonoBehaviour
         y = CheckBtn(x, y, "Gordo 1",        819250);
         y = CheckBtn(x, y, "Map Node 1",     819300);
 
+        y = SectionLabel(x, y, "Movement");
+        bool noclip = SlimeRancher2AP.Utils.NoClipManager.IsActive;
+        GUI.color = noclip ? new Color(0.4f, 1f, 0.4f) : Color.white;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH),
+                noclip ? "NoClip  ON  [Space=up  LCtrl=down  LShift=3x]  (click to disable)"
+                       : "NoClip  OFF  (click to enable)"))
+            SlimeRancher2AP.Utils.NoClipManager.Toggle();
+        GUI.color = Color.white;
+        y += BtnH + Gap;
+
         y = SectionLabel(x, y, "DeathLink");
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Kill Player (DeathLink)"))
             DeathLinkHandler.KillPlayer();
