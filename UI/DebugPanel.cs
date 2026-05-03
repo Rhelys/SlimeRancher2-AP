@@ -32,7 +32,12 @@ public class DebugPanel : MonoBehaviour
     private const float BtnH    = 26;
     private const float Gap     = 4;
     private const float LabelH  = 20;
-    private const int   Pages   = 10;
+    private const int   Pages   = 11;
+
+    // Teleport page — coordinate state (floats; adjusted with ± step buttons)
+    private float _tpX = 0f;
+    private float _tpY = 0f;
+    private float _tpZ = 0f;
 
     private void Update()
     {
@@ -100,7 +105,8 @@ public class DebugPanel : MonoBehaviour
                 case 6: DrawPageRadiant(x, y);            break;
                 case 7: DrawPageGoals(x, y);              break;
                 case 8: DrawPageDumps(x, y);              break;
-                case 9: DrawPageWeatherDumps(x, y);       break;
+                case 9:  DrawPageWeatherDumps(x, y);  break;
+                case 10: DrawPageTeleport(x, y);      break;
             }
 
             // Nav buttons sit below 20 content rows (tallest page is ~18 rows)
@@ -262,16 +268,6 @@ public class DebugPanel : MonoBehaviour
         y = CheckBtn(x, y, "Treasure Pod 1", 819000);
         y = CheckBtn(x, y, "Gordo 1",        819250);
         y = CheckBtn(x, y, "Map Node 1",     819300);
-
-        y = SectionLabel(x, y, "Movement");
-        bool noclip = SlimeRancher2AP.Utils.NoClipManager.IsActive;
-        GUI.color = noclip ? new Color(0.4f, 1f, 0.4f) : Color.white;
-        if (GUI.Button(new Rect(x, y, PanelW, BtnH),
-                noclip ? "NoClip  ON  [Space=up  LCtrl=down  LShift=3x]  (click to disable)"
-                       : "NoClip  OFF  (click to enable)"))
-            SlimeRancher2AP.Utils.NoClipManager.Toggle();
-        GUI.color = Color.white;
-        y += BtnH + Gap;
 
         y = SectionLabel(x, y, "DeathLink");
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Kill Player (DeathLink)"))
@@ -467,6 +463,126 @@ public class DebugPanel : MonoBehaviour
         y += BtnH + Gap;
 
         GUI.color = Color.white;
+    }
+
+    // Page 10: NoClip + Coordinate Teleport
+    private void DrawPageTeleport(float x, float y)
+    {
+        // ── NoClip toggle ────────────────────────────────────────────────────
+        y = SectionLabel(x, y, "Movement");
+        bool noclip = NoClipManager.IsActive;
+        GUI.color = noclip ? new Color(0.4f, 1f, 0.4f) : Color.white;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH),
+                noclip ? "NoClip  ON  [Space=up  LCtrl=down  LShift=3x]  (click to disable)"
+                       : "NoClip  OFF  (click to enable)"))
+            NoClipManager.Toggle();
+        GUI.color = Color.white;
+        y += BtnH + Gap;
+
+        // ── Current position readout ─────────────────────────────────────────
+        y = SectionLabel(x, y, "Coordinate Teleport");
+        try
+        {
+            var pos = GetMotor()?._transientPosition;
+            if (pos.HasValue)
+            {
+                GUI.color = new Color(0.6f, 1f, 0.6f);
+                GUI.Label(new Rect(x + 4, y, PanelW - 8, LabelH),
+                    $"Current:  X {pos.Value.x:F1}   Y {pos.Value.y:F1}   Z {pos.Value.z:F1}");
+                GUI.color = Color.white;
+            }
+        }
+        catch { /* SceneContext not ready */ }
+        y += LabelH + Gap;
+
+        if (!noclip)
+        {
+            GUI.color = new Color(1f, 0.75f, 0.4f);
+            GUI.Label(new Rect(x + 4, y, PanelW - 8, LabelH), "Enable NoClip above to use teleport.");
+            GUI.color = Color.white;
+            return;
+        }
+
+        // ── Coordinate step buttons ──────────────────────────────────────────
+        // GUI.TextField is stripped in this IL2CPP build; use ± buttons instead.
+        // "Fill from Current" seeds the values; step buttons fine-tune them.
+        // Step sizes: ±0.5 / ±5 / ±50 / ±500 — covers the full SR2 world range.
+        y = DrawCoordRow(x, y, "X", ref _tpX);
+        y = DrawCoordRow(x, y, "Y", ref _tpY);
+        y = DrawCoordRow(x, y, "Z", ref _tpZ);
+        y += 4;
+
+        // ── Action buttons ───────────────────────────────────────────────────
+        float half = (PanelW - Gap) / 2f;
+
+        GUI.color = new Color(0.4f, 1f, 0.4f);
+        if (GUI.Button(new Rect(x, y, half, BtnH), "Teleport"))
+        {
+            try
+            {
+                GetMotor()?.SetPosition(new Vector3(_tpX, _tpY, _tpZ));
+                Plugin.Instance.Log.LogInfo($"[AP] Teleport → ({_tpX:F2}, {_tpY:F2}, {_tpZ:F2})");
+            }
+            catch (System.Exception ex)
+            {
+                Plugin.Instance.Log.LogError($"[AP] Teleport failed: {ex.Message}");
+            }
+        }
+
+        GUI.color = new Color(0.7f, 0.7f, 1f);
+        if (GUI.Button(new Rect(x + half + Gap, y, half, BtnH), "Fill from Current"))
+        {
+            try
+            {
+                var pos = GetMotor()?._transientPosition;
+                if (pos.HasValue) { _tpX = pos.Value.x; _tpY = pos.Value.y; _tpZ = pos.Value.z; }
+            }
+            catch { /* SceneContext not ready */ }
+        }
+
+        GUI.color = Color.white;
+    }
+
+    /// <summary>
+    /// Draws a labelled coordinate row: current value label + four pairs of ± step buttons.
+    /// Step sizes: ±0.5, ±5, ±50, ±500. Returns the next Y position.
+    /// </summary>
+    private float DrawCoordRow(float x, float y, string label, ref float val)
+    {
+        // Value display
+        GUI.color = Color.white;
+        GUI.Label(new Rect(x, y, PanelW, LabelH), $"  {label}:  {val:F2}");
+        y += LabelH + 2;
+
+        // Six step buttons per row — three negative on the left, three positive on the right
+        float[] steps = { 0.5f, 5f, 50f, 500f };
+        float btnW = (PanelW - Gap * (steps.Length * 2 - 1)) / (steps.Length * 2);
+
+        float bx = x;
+        // Negative buttons (left → right: −500, −50, −5, −0.5)
+        for (int i = steps.Length - 1; i >= 0; i--)
+        {
+            GUI.color = new Color(1f, 0.5f, 0.5f);
+            if (GUI.Button(new Rect(bx, y, btnW, BtnH), $"−{steps[i]}")) val -= steps[i];
+            bx += btnW + Gap;
+        }
+        // Positive buttons (left → right: +0.5, +5, +50, +500)
+        for (int i = 0; i < steps.Length; i++)
+        {
+            GUI.color = new Color(0.5f, 1f, 0.5f);
+            if (GUI.Button(new Rect(bx, y, btnW, BtnH), $"+{steps[i]}")) val += steps[i];
+            bx += btnW + Gap;
+        }
+
+        GUI.color = Color.white;
+        return y + BtnH + Gap + 2;
+    }
+
+    /// <summary>Returns the player's <see cref="KinematicCharacterController.KinematicCharacterMotor"/>, or null if unavailable.</summary>
+    private static KinematicCharacterController.KinematicCharacterMotor? GetMotor()
+    {
+        var player = SceneContext.Instance?.Player;
+        return player?.GetComponent<Il2CppMonomiPark.SlimeRancher.Player.CharacterController.SRCharacterController>()?._motor;
     }
 
     // -------------------------------------------------------------------------

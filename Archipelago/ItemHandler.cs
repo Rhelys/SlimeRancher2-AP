@@ -31,6 +31,14 @@ public static class ItemHandler
     /// </summary>
     public static ActorUpgradeHandler? UpgradeHandler { get; set; }
 
+    /// <summary>
+    /// True while <c>ItemHandler.ApplyUpgrade</c> is actively calling
+    /// <c>ActorUpgradeHandler.ApplyUpgrade</c>. Read by <c>FabricatorUpgradeBlockPatch</c>
+    /// to distinguish AP-pipeline upgrade grants from Fabricator direct grants.
+    /// Fabricator grants are blocked; AP pipeline grants are allowed.
+    /// </summary>
+    internal static bool IsApplyingItem { get; private set; }
+
     // IdentifiableType names confirmed via AP-Dump log (GadgetDirector.RefineryTypeGroup).
     private static readonly string[] CommonPlorts =
     [
@@ -363,7 +371,13 @@ public static class ItemHandler
         // Read current level directly from the model (always matches game save state).
         // Fall back to _upgradeLevels for rapid successive calls within the same frame
         // before ApplyUpgrade has had a chance to update the model.
+        //
+        // IsApplyingItem is set true here so UpgradeModelGetLevelPatch (which overrides
+        // GetUpgradeLevel to return the AP checks-sent level for display) is suppressed
+        // for this read — we need the actual persisted model level to compute targetLevel.
+        IsApplyingItem = true;
         int modelLevel   = UpgradeHandler._model?.GetUpgradeLevel(upgradeDef) ?? -1;
+        IsApplyingItem = false;
         int cachedLevel  = _upgradeLevels.TryGetValue(upgradeName, out var lvl) ? lvl : -1;
         int currentLevel = System.Math.Max(modelLevel, cachedLevel);
         int maxLevel     = upgradeDef.LevelCount - 1;
@@ -376,6 +390,7 @@ public static class ItemHandler
             return;
         }
 
+        IsApplyingItem = true;
         try
         {
             UpgradeHandler.ApplyUpgrade(upgradeDef, targetLevel);
@@ -399,6 +414,10 @@ public static class ItemHandler
             Plugin.Instance.Log.LogWarning(
                 $"[AP] ApplyUpgrade threw (UI prefab not ready?) but model DID advance to {levelAfter} — " +
                 $"upgrade applied successfully. UI will refresh when the upgrade screen is opened. {ex.Message}");
+        }
+        finally
+        {
+            IsApplyingItem = false;
         }
 
         _upgradeLevels[upgradeName] = targetLevel; // update immediately; patch callback may fire late or not at all
