@@ -324,6 +324,106 @@ public static class ItemHandler
     public static void TrackUpgradeLevel(string upgradeName, int newLevel)
         => _upgradeLevels[upgradeName] = newLevel;
 
+    /// <summary>
+    /// Maps an AP item ID to the corresponding UpgradeDefinition asset name, or null if
+    /// the item is not an upgrade.  Extracted so both <see cref="ApplyUpgrade"/> and
+    /// <see cref="ValidateAndRepairUpgrades"/> share the same mapping without duplication.
+    /// </summary>
+    private static string? GetUpgradeName(long itemId) => itemId switch
+    {
+        ItemTable.ProgressiveHealthTank        => "HealthCapacity",
+        ItemTable.ProgressiveEnergyTank        => "EnergyCapacity",
+        ItemTable.ProgressiveExtraTank         => "AmmoSlots",
+        ItemTable.ProgressiveJetpack           => "Jetpack",
+        ItemTable.ProgressiveWaterTank         => "LiquidSlot",
+        ItemTable.ProgressiveDashBoots         => "RunEfficiency",
+        ItemTable.ProgressiveTankBooster       => "AmmoCapacity",
+        ItemTable.ProgressivePowerInjector     => "EnergyDelay",
+        ItemTable.ProgressiveRegenerator       => "EnergyRegen",
+        ItemTable.ProgressiveGoldenSureshot    => "GoldenSureshot",
+        ItemTable.ProgressiveShadowSureshot    => "ShadowSureshot",
+        ItemTable.ProgressiveTankGuard         => "TankGuard",
+        ItemTable.PulseWave         => "PulseWave",
+        ItemTable.ResourceHarvester => "ResourceNodeHarvester",
+        ItemTable.DroneArchiveKey   => "ArchiveKey",
+        _                           => null
+    };
+
+    /// <summary>
+    /// Compares the expected upgrade levels (computed from the AP session's item history up to
+    /// the saved watermark) against the actual SR2 model levels and applies any correction.
+    /// Handles the case where the SR2 save was behind the AP watermark — e.g. because the game
+    /// crashed before the autosave after items were applied.
+    ///
+    /// Safe to call repeatedly — skips each upgrade when the SR2 level already matches or
+    /// exceeds the expected level.  Must be called on the main thread after
+    /// <see cref="UpgradeHandler"/> is non-null (i.e. after the scene has loaded enough for the
+    /// upgrade handler to be constructed).
+    /// </summary>
+    public static void ValidateAndRepairUpgrades()
+    {
+        if (UpgradeHandler == null) return;
+
+        var session = Plugin.Instance.ApClient.Session;
+        if (session == null) return;
+
+        int watermark = Plugin.Instance.SaveManager.LastItemIndex;
+        var snapshot  = session.Items.AllItemsReceived;
+        if (snapshot == null || snapshot.Count == 0) return;
+
+        // Count expected absolute levels per upgrade type from applied snapshot items.
+        // "1 item received" → level 0; "2 items received" → level 1, etc.
+        var expectedLevels = new Dictionary<string, int>();
+        for (int i = 0; i <= watermark && i < snapshot.Count; i++)
+        {
+            var name = GetUpgradeName(snapshot[i].ItemId);
+            if (name == null) continue;
+            expectedLevels[name] = expectedLevels.GetValueOrDefault(name) + 1;
+        }
+
+        if (expectedLevels.Count == 0) return;
+
+        foreach (var kvp in expectedLevels)
+        {
+            var upgradeName = kvp.Key;
+            int targetLevel = kvp.Value - 1; // convert count → 0-based level index
+
+            var upgradeDef = Resources.FindObjectsOfTypeAll<UpgradeDefinition>()
+                                      .FirstOrDefault(d => d.name == upgradeName);
+            if (upgradeDef == null) continue;
+
+            IsApplyingItem = true;
+            int currentLevel = UpgradeHandler._model?.GetUpgradeLevel(upgradeDef) ?? -1;
+            IsApplyingItem = false;
+
+            if (currentLevel >= targetLevel) continue; // SR2 save is correct
+
+            Plugin.Instance.Log.LogInfo(
+                $"[AP] Upgrade repair: '{upgradeName}' SR2 level={currentLevel} < expected={targetLevel} — correcting");
+
+            IsApplyingItem = true;
+            try
+            {
+                UpgradeHandler.ApplyUpgrade(upgradeDef, targetLevel);
+                _upgradeLevels[upgradeName] = targetLevel;
+            }
+            catch (Exception ex)
+            {
+                int levelAfter = UpgradeHandler._model?.GetUpgradeLevel(upgradeDef) ?? -1;
+                if (levelAfter >= targetLevel)
+                    Plugin.Instance.Log.LogWarning(
+                        $"[AP] Upgrade repair threw (UI?) but model is at {levelAfter} — OK: {ex.Message}");
+                else
+                    Plugin.Instance.Log.LogWarning(
+                        $"[AP] Upgrade repair failed for '{upgradeName}' (wanted {targetLevel}, got {levelAfter}): {ex.Message}");
+            }
+            finally
+            {
+                IsApplyingItem = false;
+            }
+        }
+    }
+
     private static void ApplyUpgrade(Data.ItemInfo item, ApItemInfo? apItem, int itemIndex)
     {
         // ActorUpgradeHandler is not a MonoBehaviour — GetComponent always returns null.
@@ -336,26 +436,7 @@ public static class ItemHandler
             return;
         }
 
-        // Maps item ID → UpgradeDefinition.name (confirmed via AP-Dump log + APWORLD_DESIGN.md)
-        var upgradeName = item.Id switch
-        {
-            ItemTable.ProgressiveHealthTank        => "HealthCapacity",
-            ItemTable.ProgressiveEnergyTank        => "EnergyCapacity",
-            ItemTable.ProgressiveExtraTank         => "AmmoSlots",
-            ItemTable.ProgressiveJetpack           => "Jetpack",
-            ItemTable.ProgressiveWaterTank         => "LiquidSlot",
-            ItemTable.ProgressiveDashBoots         => "RunEfficiency",
-            ItemTable.ProgressiveTankBooster       => "AmmoCapacity",
-            ItemTable.ProgressivePowerInjector     => "EnergyDelay",
-            ItemTable.ProgressiveRegenerator       => "EnergyRegen",
-            ItemTable.ProgressiveGoldenSureshot    => "GoldenSureshot",
-            ItemTable.ProgressiveShadowSureshot    => "ShadowSureshot",
-            ItemTable.ProgressiveTankGuard         => "TankGuard",
-            ItemTable.PulseWave         => "PulseWave",
-            ItemTable.ResourceHarvester => "ResourceNodeHarvester",
-            ItemTable.DroneArchiveKey   => "ArchiveKey",
-            _                                      => (string?)null
-        };
+        var upgradeName = GetUpgradeName(item.Id);
         if (upgradeName == null) return;
 
         var upgradeDef = Resources.FindObjectsOfTypeAll<UpgradeDefinition>()
@@ -504,8 +585,46 @@ public static class ItemHandler
             return;
         }
 
-        director.AddBlueprint(gadgetDef, false);
-        director.AddItem(gadgetDef, 1); // GadgetDefinition : IdentifiableType
+        // Idempotency guard: if the blueprint is already unlocked the grant was already applied
+        // in a previous session (persisted in the SR2 save) or earlier in this replay.
+        // Skipping AddItem prevents duplicate units being added to the player's inventory when
+        // items are re-queued (e.g., RequestFullReplay on a new game from an existing AP slot).
+        if (director.IsBlueprintUnlocked(gadgetDef))
+        {
+            Plugin.Instance.Log.LogInfo($"[AP] Gadget '{gadgetName}' blueprint already unlocked — skipping");
+            return;
+        }
+
+        // AddBlueprint and AddItem can throw when their internal analytics event constructors
+        // try to read the player's location component before it is initialised (e.g. during
+        // scene load).  The actual blueprint/inventory update runs BEFORE the analytics call,
+        // so we catch, verify via IsBlueprintUnlocked, and suppress the cosmetic crash.
+        try
+        {
+            director.AddBlueprint(gadgetDef, false);
+        }
+        catch (Exception ex)
+        {
+            if (!director.IsBlueprintUnlocked(gadgetDef))
+            {
+                Plugin.Instance.Log.LogWarning(
+                    $"[AP] AddBlueprint threw and blueprint is still locked for '{gadgetName}' — grant failed: {ex.Message}");
+                return;
+            }
+            Plugin.Instance.Log.LogWarning(
+                $"[AP] AddBlueprint threw (analytics? player location not ready) but '{gadgetName}' IS unlocked — OK: {ex.Message}");
+        }
+
+        try
+        {
+            director.AddItem(gadgetDef, 1); // GadgetDefinition : IdentifiableType
+        }
+        catch (Exception ex)
+        {
+            Plugin.Instance.Log.LogWarning(
+                $"[AP] AddItem threw for '{gadgetName}' (analytics?): {ex.Message}");
+        }
+
         Plugin.Instance.Log.LogInfo($"[AP] Granted gadget: {gadgetName}");
     }
 
@@ -834,6 +953,57 @@ public static class TrapHandler
     }
 
     // -------------------------------------------------------------------------
+    // Trap rate-limiting
+    // -------------------------------------------------------------------------
+
+    // Scene-readiness tracking: set when Player first becomes non-null after a load.
+    // Traps are deferred until the grace period has elapsed AND the cooldown has expired.
+    private static bool  _sceneWasReady    = false;
+    private static float _sceneReadySince  = -1f;
+    private static float _lastTrapFiredAt  = -1f;
+
+    /// <summary>Seconds after scene load before any trap may fire.</summary>
+    private const float SceneGracePeriod = 10f;
+    /// <summary>Minimum seconds between consecutive trap fires.</summary>
+    private const float TrapMinInterval  = 30f;
+
+    /// <summary>
+    /// Returns true when it is safe to fire a trap (scene loaded, grace period passed,
+    /// cooldown expired).  Returns false + logs a message when the trap should be deferred.
+    /// </summary>
+    private static bool IsTrapAllowed(string trapName)
+    {
+        if (_sceneReadySince < 0f) return false; // scene not ready yet
+
+        float now = UnityEngine.Time.time;
+
+        float graceRemaining = (_sceneReadySince + SceneGracePeriod) - now;
+        if (graceRemaining > 0f)
+        {
+#if DEBUG
+            Plugin.Instance.Log.LogInfo(
+                $"[AP] Trap '{trapName}' deferred — {graceRemaining:F0}s of load grace period remaining");
+#endif
+            return false;
+        }
+
+        if (_lastTrapFiredAt >= 0f)
+        {
+            float cooldownRemaining = (_lastTrapFiredAt + TrapMinInterval) - now;
+            if (cooldownRemaining > 0f)
+            {
+#if DEBUG
+                Plugin.Instance.Log.LogInfo(
+                    $"[AP] Trap '{trapName}' deferred — {cooldownRemaining:F0}s of inter-trap cooldown remaining");
+#endif
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    // -------------------------------------------------------------------------
     // Weather trap state
     // -------------------------------------------------------------------------
 
@@ -854,16 +1024,33 @@ public static class TrapHandler
     // Public API
     // -------------------------------------------------------------------------
 
-    /// <summary>Called every frame from ApUpdateBehaviour to tick timed trap effects.</summary>
+    /// <summary>Called every frame from ApUpdateBehaviour to tick timed trap effects and track scene state.</summary>
     public static void Tick()
     {
+        // Scene-readiness tracking for trap rate limiting.
+        // The scene is "ready" once the Player object exists in the SceneContext.
+        bool sceneReady = SceneContext.Instance?.Player != null;
+        if (!sceneReady)
+        {
+            // Reset when leaving a loaded scene (e.g. returning to main menu)
+            _sceneWasReady   = false;
+            _sceneReadySince = -1f;
+        }
+        else if (!_sceneWasReady)
+        {
+            // First frame the scene became ready — start the grace period clock
+            _sceneWasReady   = true;
+            _sceneReadySince = UnityEngine.Time.time;
+            Plugin.Instance.Log.LogInfo(
+                $"[AP] TrapHandler: scene ready — trap grace period begins ({SceneGracePeriod}s)");
+        }
+
         if (_weatherResetAt < 0f) return;
 
         if (UnityEngine.Time.time >= _weatherResetAt)
         {
             ResetWeather();
             _weatherResetAt = -1f;
-            return;
         }
     }
 
@@ -890,9 +1077,17 @@ public static class TrapHandler
 
     // Helper: requeue the item so it retries next session (or next Update frame),
     // then return false to signal the watermark must NOT advance.
+    // Rate-limit reasons are suppressed in release builds to avoid per-frame log spam;
+    // genuine failure reasons (scene not ready, missing assets) are always logged.
     private static bool Requeue(ApItemInfo? apItem, int itemIndex, string reason)
     {
-        Plugin.Instance.Log.LogWarning($"[AP] Trap requeued — {reason} (will retry)");
+        bool isRateLimit = reason == "trap rate-limited";
+#if DEBUG
+        Plugin.Instance.Log.LogInfo($"[AP] Trap requeued — {reason} (will retry)");
+#else
+        if (!isRateLimit)
+            Plugin.Instance.Log.LogWarning($"[AP] Trap requeued — {reason} (will retry)");
+#endif
         if (apItem != null)
             Plugin.Instance.ApClient.RequeueItem(apItem, itemIndex);
         return false;
@@ -937,6 +1132,9 @@ public static class TrapHandler
 
     internal static bool ApplySlimeRingTrap(ApItemInfo? apItem, int itemIndex)
     {
+        if (!IsTrapAllowed("SlimeRing"))
+            return Requeue(apItem, itemIndex, "trap rate-limited");
+
         var playerGo = SceneContext.Instance?.Player;
         if (playerGo == null)
             return Requeue(apItem, itemIndex, "no Player in scene");
@@ -1015,6 +1213,7 @@ public static class TrapHandler
             if (go != null) spawned++;
         }
 
+        _lastTrapFiredAt = UnityEngine.Time.time;
         Plugin.Instance.Log.LogInfo($"[AP] SlimeRing: spawned {spawned} slimes around player");
         SlimeRancher2AP.UI.StatusHUD.Instance?.ShowNotification("Slime Ring!");
         return true;
@@ -1026,6 +1225,9 @@ public static class TrapHandler
 
     private static bool ApplyTarrSpawnTrap(ApItemInfo? apItem, int itemIndex)
     {
+        if (!IsTrapAllowed("TarrSpawn"))
+            return Requeue(apItem, itemIndex, "trap rate-limited");
+
         var playerGo = SceneContext.Instance?.Player;
         if (playerGo == null)
             return Requeue(apItem, itemIndex, "no Player in scene");
@@ -1076,6 +1278,7 @@ public static class TrapHandler
             if (go != null) spawned++;
         }
 
+        _lastTrapFiredAt = UnityEngine.Time.time;
         Plugin.Instance.Log.LogInfo($"[AP] TarrSpawnTrap: spawned {spawned} Tarr near player");
         SlimeRancher2AP.UI.StatusHUD.Instance?.ShowNotification("Trap: Tarr Incoming!");
         return true;
@@ -1087,6 +1290,9 @@ public static class TrapHandler
 
     private static bool ApplyWeatherTrap(ApItemInfo? apItem, int itemIndex)
     {
+        if (!IsTrapAllowed("WeatherChange"))
+            return Requeue(apItem, itemIndex, "trap rate-limited");
+
         var found = Resources.FindObjectsOfTypeAll<WeatherDirector>();
         if (found == null || found.Count == 0)
             return Requeue(apItem, itemIndex, "no WeatherDirector in scene");
@@ -1167,6 +1373,7 @@ public static class TrapHandler
             director.RunState(chosen.Cast<IWeatherState>(), null, immediate: false);
         }
 
+        _lastTrapFiredAt = UnityEngine.Time.time;
         string label = chosen.StateName ?? chosen.name;
         Plugin.Instance.Log.LogInfo($"[AP] WeatherTrap: started '{label}' on {found.Count} director(s) for {durationSeconds}s");
         SlimeRancher2AP.UI.StatusHUD.Instance?.ShowNotification($"Trap: {label} weather for {(int)durationSeconds}s!");
@@ -1237,6 +1444,9 @@ public static class TrapHandler
     /// </summary>
     private static bool ApplyTeleportTrap(ApItemInfo? apItem, int itemIndex)
     {
+        if (!IsTrapAllowed("Teleport"))
+            return Requeue(apItem, itemIndex, "trap rate-limited");
+
         var playerGo = SceneContext.Instance?.Player;
         if (playerGo == null)
             return Requeue(apItem, itemIndex, "no Player in scene");
@@ -1316,6 +1526,7 @@ public static class TrapHandler
                 $"[AP] TeleportTrap: sent to '{chosen.sg.ReferenceId}' via node '{chosen.dest.NodeId}'");
         }
 
+        _lastTrapFiredAt = UnityEngine.Time.time;
         SlimeRancher2AP.UI.StatusHUD.Instance?.ShowNotification("Trap: Teleported!");
         return true;
     }
@@ -1326,6 +1537,9 @@ public static class TrapHandler
 
     private static bool ApplySlimeRainTrap(ApItemInfo? apItem, int itemIndex)
     {
+        if (!IsTrapAllowed("TarrRain"))
+            return Requeue(apItem, itemIndex, "trap rate-limited");
+
         // Find the Slime Rain WeatherStateDefinition.
         var allStates = Resources.FindObjectsOfTypeAll<WeatherStateDefinition>();
         WeatherStateDefinition? slimeRainDef = null;
@@ -1416,6 +1630,7 @@ public static class TrapHandler
             director.RunState(slimeRainDef.Cast<IWeatherState>(), null, immediate: false);
         }
 
+        _lastTrapFiredAt = UnityEngine.Time.time;
         Plugin.Instance.Log.LogInfo(
             $"[AP] SlimeRainTrap: started Slime Rain (Tarr override) on {found.Count} director(s) for {durationSeconds}s");
         SlimeRancher2AP.UI.StatusHUD.Instance?.ShowNotification("Trap: Slime Rain!");

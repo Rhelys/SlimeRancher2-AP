@@ -47,17 +47,20 @@ internal static class NewGamePatch
         };
         SaveBindingManager.Save(slotIndex, binding);
 
-        // Reset the item watermark to -1 so that ALL AP items in the server's history
-        // are replayed and applied on the first load of this fresh save.
+        // Re-queue ALL items from the AP server snapshot for this fresh SR2 save.
         //
-        // Without this, if the AP slot has prior history (e.g. start items, manually
-        // sent items, or items from a previous SR2 run on the same AP slot), the
-        // sanity check in OnConnected would see watermark > server history and reset
-        // it to snapshot.Count-1 — treating those items as "already applied" even
-        // though this SR2 save has never received them.
-        Plugin.Instance.SaveManager.ForceLastItemIndex(-1);
+        // Connect() already ran when the player clicked "Connect" in the main menu.
+        // The replay loop in Connect() filtered out items at or below the saved watermark
+        // (which could be non-zero if this AP slot was played before on a different SR2 save).
+        // Those items are missing from the queue and would never be applied to the new game.
+        //
+        // RequestFullReplay() clears the queue, resets the watermark to -1, and re-enqueues
+        // everything from index 0 — except ephemerals already in _ephemeralSet (one-shot
+        // effects from a previous SR2 run on this AP slot are not refired).
+        // For a genuinely new AP slot, _ephemeralSet is empty, so all items replay.
+        Plugin.Instance.ApClient.RequestFullReplay();
         Plugin.Instance.Log.LogInfo(
-            $"[AP] NewGamePatch: watermark reset to -1 — all items will replay on first load.");
+            $"[AP] NewGamePatch: full replay requested — all items from AP snapshot will be applied to new save.");
 
         // NOTE: Icon injection via SetGameIconForNewGame is intentionally skipped.
         // Passing a transient GameIconDefinition with an unknown persistenceId causes

@@ -58,6 +58,16 @@ public class ArchipelagoClient
     // Volatile so the main thread always sees the latest write without a full lock.
     private volatile Action? _pendingMainThreadAction;
 
+    // Tracks the last pending-count value we logged so "Processing N item(s)" is only
+    // emitted when the count changes rather than every frame while traps are waiting.
+    private int _lastLoggedPendingCount;
+
+    // When true, ProcessItemQueue will run ValidateAndRepairUpgrades() once as soon as
+    // UpgradeHandler is non-null (i.e., the scene has loaded far enough).  Set on every
+    // connect so that if the SR2 save is behind the AP watermark (e.g. the game crashed
+    // before the autosave after items were applied), the correct levels are restored.
+    private volatile bool _pendingUpgradeValidation;
+
     /// <summary>
     /// Returns scout info for a location.  Checks the live cache first (online),
     /// then falls back to the persisted data from the last successful scout (offline).
@@ -193,6 +203,11 @@ public class ArchipelagoClient
                     Plugin.Instance.Log.LogInfo(
                         $"[AP] Connected as '{data.SlotName}' (slot {data.Slot}, seed {data.Seed})");
 
+                    // Schedule upgrade validation: once the scene and UpgradeHandler are ready,
+                    // ProcessItemQueue will call ValidateAndRepairUpgrades() to fix any discrepancy
+                    // between the SR2 save levels and what the AP server has delivered.
+                    _pendingUpgradeValidation = true;
+
                     // GoalHandler.Initialize(), WeatherPatch, and OnConnected touch Unity APIs — defer to main thread.
                     _pendingMainThreadAction = () =>
                     {
@@ -238,9 +253,11 @@ public class ArchipelagoClient
         WeatherPatch.OnDisconnected();
         RadiantSlimeSpawnRatePatch.OnDisconnected();
         GoldLuckySpawnRatePatch.OnDisconnected();
-        _receivedCount           = 0;
-        _snapshotCount           = 0;
-        _pendingMainThreadAction = null;
+        _receivedCount            = 0;
+        _snapshotCount            = 0;
+        _lastLoggedPendingCount   = 0;
+        _pendingMainThreadAction  = null;
+        _pendingUpgradeValidation = false;
         lock (_queueLock) { _itemQueue.Clear(); }
         // Reset the save-manager session pointer so HasActiveSession returns false.
         // Without this, a reconnect would see the previous session's _saveFile as
@@ -406,11 +423,29 @@ public class ArchipelagoClient
         SlimeRancher2AP.Utils.DebugTrace.Once("ProcessItemQueue.5 — exited lock");
 #endif
 
-        if (pending.Count > 0)
+        // Upgrade validation: runs once per connect, as soon as UpgradeHandler is available.
+        // Compares expected levels (from AP snapshot) against actual SR2 model levels and
+        // applies any correction — handles the case where SR2 was behind due to a crash.
+        if (_pendingUpgradeValidation && ItemHandler.UpgradeHandler != null)
+        {
+            _pendingUpgradeValidation = false;
+            ItemHandler.ValidateAndRepairUpgrades();
+        }
+
+        // Only log when the queue count changes — avoids spamming one line per frame while
+        // a trap is sitting in the queue waiting for its grace/cooldown period to expire.
+        if (pending.Count > 0 && pending.Count != _lastLoggedPendingCount)
+        {
+            _lastLoggedPendingCount = pending.Count;
             Plugin.Instance.Log.LogInfo(
                 $"[AP] Processing {pending.Count} queued item(s); " +
                 $"LastItemIndex={Plugin.Instance.SaveManager.LastItemIndex}, " +
                 $"snapshotCount={_snapshotCount}");
+        }
+        else if (pending.Count == 0)
+        {
+            _lastLoggedPendingCount = 0;
+        }
 
         foreach (var entry in pending)
         {
@@ -445,6 +480,53 @@ public class ArchipelagoClient
     public void RequeueItem(ItemInfo item, int index)
     {
         lock (_queueLock) { _itemQueue.Enqueue((item, index)); }
+    }
+
+    /// <summary>
+    /// Clears the item queue and re-enqueues every item in the server's AllItemsReceived
+    /// snapshot starting from index 0, then resets the watermark to -1.
+    ///
+    /// Used when the player starts a <b>new SR2 game</b> while connected to an AP slot that
+    /// already has history (e.g. start items, or a previously-played SR2 run on the same slot).
+    /// Without this, the watermark from the previous run prevents items 0..watermark from
+    /// being applied to the fresh SR2 save — the player would start with missing items.
+    ///
+    /// Ephemerals (filler, traps) that are already in <c>_ephemeralSet</c> are skipped to
+    /// avoid refiring one-shot effects from a previous run on the same AP slot.
+    /// For a genuinely new AP slot, <c>_ephemeralSet</c> is empty, so all items replay.
+    ///
+    /// Must be called on the main thread (from a Harmony Prefix/Postfix or game event).
+    /// </summary>
+    public void RequestFullReplay()
+    {
+        if (Session == null)
+        {
+            Plugin.Instance.Log.LogWarning("[AP] RequestFullReplay: no active session — skipped");
+            return;
+        }
+
+        Plugin.Instance.SaveManager.ForceLastItemIndex(-1);
+
+        var snapshot = Session.Items.AllItemsReceived.ToList();
+        int enqueued = 0;
+        lock (_queueLock)
+        {
+            _itemQueue.Clear();
+            for (int i = 0; i < snapshot.Count; i++)
+            {
+                // Skip ephemerals already applied in a previous SR2 run on this AP slot.
+                // Non-ephemerals (upgrades, gadgets, regions) are idempotent and always queued.
+                var itemInfo = Data.ItemTable.Get(snapshot[i].ItemId);
+                bool isEph = itemInfo?.Type is Data.ItemType.Filler or Data.ItemType.Trap;
+                if (isEph && Plugin.Instance.SaveManager.IsEphemeralApplied(i))
+                    continue;
+                _itemQueue.Enqueue((snapshot[i], i));
+                enqueued++;
+            }
+        }
+
+        Plugin.Instance.Log.LogInfo(
+            $"[AP] RequestFullReplay: {snapshot.Count} item(s) in history, {enqueued} queued for fresh SR2 save.");
     }
 
     // -------------------------------------------------------------------------
