@@ -258,6 +258,7 @@ public class ArchipelagoClient
         _lastLoggedPendingCount   = 0;
         _pendingMainThreadAction  = null;
         _pendingUpgradeValidation = false;
+        GateReturnEnforcer.Clear();
         lock (_queueLock) { _itemQueue.Clear(); }
         // Reset the save-manager session pointer so HasActiveSession returns false.
         // Without this, a reconnect would see the previous session's _saveFile as

@@ -942,11 +942,15 @@ public static class TrapHandler
     public static void TrackCurrentZone(string? sceneGroupRef)
     {
         if (sceneGroupRef == null || sceneGroupRef == _lastSeenGroupRef) return;
+        string? previousZone = _lastSeenGroupRef;
         _lastSeenGroupRef = sceneGroupRef;
         _visitedSceneGroupRefs.Add(sceneGroupRef);
         // Persist first visits so the teleport trap knows which zones are safe to send
         // the player to across sessions, not just within the current play session.
         Plugin.Instance.SaveManager.MarkZoneVisited(sceneGroupRef);
+        // Enforce gate checks: if the player returned from a gated zone without pressing
+        // the gate button, send them back. See GateReturnEnforcer for full details.
+        GateReturnEnforcer.OnZoneChanged(sceneGroupRef, previousZone);
 #if DEBUG
         Plugin.Instance.Log.LogInfo($"[AP] TrapHandler: zone visit recorded — '{sceneGroupRef}'");
 #endif
