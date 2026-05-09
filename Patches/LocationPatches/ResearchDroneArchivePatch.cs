@@ -1,4 +1,4 @@
-using HarmonyLib;
+﻿using HarmonyLib;
 using Il2CppMonomiPark.SlimeRancher.Input;
 using Il2CppMonomiPark.SlimeRancher.UI.ResearchDrone;
 using SlimeRancher2AP.Data;
@@ -35,7 +35,7 @@ internal static class ResearchDroneArchivePatch
         var mainName    = mainEntry?.name    ?? "(null main)";
         var archiveName = archiveEntry?.name ?? "(no archive)";
 
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             $"[AP-Drone] ToggleArchive: isInArchive={__instance.isInArchive}" +
             $"  main='{mainName}'  archive='{archiveName}'");
 
@@ -56,21 +56,21 @@ internal static class ResearchDroneArchivePatch
         // to the warning below, which is useful for discovery.
         if (!LocationTable.TryGetByEntryName(archiveName, out var info) || info is null)
         {
-            Plugin.Instance.Log.LogWarning(
+            Logger.Warning(
                 $"[AP-Drone] Unknown archive entry '{archiveName}' (main='{mainName}') " +
                 $"— add to LocationTable once IDs are allocated");
             return;
         }
 
         var alreadyChecked = Plugin.Instance.SaveManager.IsChecked(info.Id);
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             $"[AP-Drone] Archive lookup ok: '{info.Name}' " +
             $"(id={info.Id}  archive='{archiveName}'  alreadyChecked={alreadyChecked})");
 
         if (alreadyChecked)
             return;
 
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             $"[AP] Research Drone Archive check: '{info.Name}' " +
             $"(id={info.Id}  archive='{archiveName}'  main='{mainName}')");
 

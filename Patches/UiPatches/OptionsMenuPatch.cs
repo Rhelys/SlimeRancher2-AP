@@ -1,4 +1,4 @@
-using HarmonyLib;
+﻿using HarmonyLib;
 using Il2CppInterop.Runtime;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Il2CppMonomiPark.SlimeRancher.Options;
@@ -105,7 +105,7 @@ internal static class OptionsMenuInjectionPatch
         var holders = __instance.GetComponentsInChildren<CategoryTabViewHolder>(includeInactive: true);
         if (holders == null || OurCategoryIndex >= holders.Length)
         {
-            Plugin.Instance.Log.LogWarning(
+            Logger.Warning(
                 $"[AP] OptionsMenuPatch: expected holder at index {OurCategoryIndex} but only {holders?.Length ?? 0} found");
             return;
         }
@@ -134,7 +134,7 @@ internal static class OptionsMenuInjectionPatch
             ourHolder.icon.enabled        = true;
         }
 
-        Plugin.Instance.Log.LogInfo($"[AP] OptionsMenuPatch: Archipelago tab configured (holder index {OurCategoryIndex})");
+        Logger.Info($"[AP] OptionsMenuPatch: Archipelago tab configured (holder index {OurCategoryIndex})");
     }
 
     /// <summary>
@@ -157,7 +157,7 @@ internal static class OptionsMenuInjectionPatch
 
             if (itemsFieldPtr == IntPtr.Zero)
             {
-                Plugin.Instance.Log.LogWarning("[AP] OptionsMenuPatch: 'items' field not found on ListAsset parent — Archipelago tab will not appear.");
+                Logger.Warning("[AP] OptionsMenuPatch: 'items' field not found on ListAsset parent — Archipelago tab will not appear.");
                 return;
             }
 
@@ -170,7 +170,7 @@ internal static class OptionsMenuInjectionPatch
 
             if (listNativePtr == IntPtr.Zero)
             {
-                Plugin.Instance.Log.LogWarning("[AP] OptionsMenuPatch: config._items is null — cannot inject");
+                Logger.Warning("[AP] OptionsMenuPatch: config._items is null — cannot inject");
                 return;
             }
 
@@ -180,11 +180,11 @@ internal static class OptionsMenuInjectionPatch
             list.Add(cat);
             OurCategoryIndex = list.Count - 1;
 
-            Plugin.Instance.Log.LogInfo($"[AP] OptionsMenuPatch: Archipelago category injected at index {OurCategoryIndex} ({list.Count} total)");
+            Logger.Info($"[AP] OptionsMenuPatch: Archipelago category injected at index {OurCategoryIndex} ({list.Count} total)");
         }
         catch (Exception ex)
         {
-            Plugin.Instance.Log.LogError($"[AP] OptionsMenuPatch: Exception during category injection: {ex}");
+            Logger.Error($"[AP] OptionsMenuPatch: Exception during category injection: {ex}");
         }
     }
 
@@ -201,7 +201,7 @@ internal static class OptionsMenuInjectionPatch
             using var stream = asm.GetManifestResourceStream("SlimeRancher2-AP.logo.png");
             if (stream == null)
             {
-                Plugin.Instance.Log.LogWarning("[AP] Logo resource 'SlimeRancher2-AP.logo.png' not found — tab will have no icon.");
+                Logger.Warning("[AP] Logo resource 'SlimeRancher2-AP.logo.png' not found — tab will have no icon.");
                 return null;
             }
 
@@ -214,7 +214,7 @@ internal static class OptionsMenuInjectionPatch
             var rgba = DecodePngToRgba(bytes, out int w, out int h);
             if (rgba == null)
             {
-                Plugin.Instance.Log.LogWarning("[AP] Logo PNG decode failed.");
+                Logger.Warning("[AP] Logo PNG decode failed.");
                 return null;
             }
 
@@ -230,11 +230,11 @@ internal static class OptionsMenuInjectionPatch
                 tex.LoadRawTextureData(raw);
                 tex.Apply();
                 loaded = true;
-                Plugin.Instance.Log.LogInfo($"[AP] Logo loaded via LoadRawTextureData: {w}×{h}");
+                Logger.Info($"[AP] Logo loaded via LoadRawTextureData: {w}×{h}");
             }
             catch (Exception rawEx)
             {
-                Plugin.Instance.Log.LogWarning($"[AP] LoadRawTextureData unavailable ({rawEx.Message}) — trying SetPixels32");
+                Logger.Warning($"[AP] LoadRawTextureData unavailable ({rawEx.Message}) — trying SetPixels32");
             }
 
             // Attempt B: SetPixels32 — the game uses dynamic textures, so this is almost
@@ -249,17 +249,17 @@ internal static class OptionsMenuInjectionPatch
                     tex.SetPixels32(colors);
                     tex.Apply();
                     loaded = true;
-                    Plugin.Instance.Log.LogInfo($"[AP] Logo loaded via SetPixels32: {w}×{h}");
+                    Logger.Info($"[AP] Logo loaded via SetPixels32: {w}×{h}");
                 }
                 catch (Exception px32Ex)
                 {
-                    Plugin.Instance.Log.LogWarning($"[AP] SetPixels32 failed: {px32Ex.Message}");
+                    Logger.Warning($"[AP] SetPixels32 failed: {px32Ex.Message}");
                 }
             }
 
             if (!loaded)
             {
-                Plugin.Instance.Log.LogWarning("[AP] All logo-load attempts failed — tab will have no icon.");
+                Logger.Warning("[AP] All logo-load attempts failed — tab will have no icon.");
                 return null;
             }
 
@@ -267,7 +267,7 @@ internal static class OptionsMenuInjectionPatch
         }
         catch (Exception ex)
         {
-            Plugin.Instance.Log.LogError($"[AP] Logo load failed: {ex}");
+            Logger.Error($"[AP] Logo load failed: {ex}");
             return null;
         }
     }
@@ -294,7 +294,7 @@ internal static class OptionsMenuInjectionPatch
                 png[0] != 0x89 || png[1] != 0x50 || png[2] != 0x4E || png[3] != 0x47 ||
                 png[4] != 0x0D || png[5] != 0x0A || png[6] != 0x1A || png[7] != 0x0A)
             {
-                Plugin.Instance.Log.LogWarning("[AP] DecodePng: not a PNG file");
+                Logger.Warning("[AP] DecodePng: not a PNG file");
                 return null;
             }
 
@@ -325,13 +325,13 @@ internal static class OptionsMenuInjectionPatch
 
             if (w <= 0 || h <= 0 || bitDepth != 8)
             {
-                Plugin.Instance.Log.LogWarning($"[AP] DecodePng: unsupported format w={w} h={h} depth={bitDepth}");
+                Logger.Warning($"[AP] DecodePng: unsupported format w={w} h={h} depth={bitDepth}");
                 return null;
             }
             int channels = colorType == 6 ? 4 : colorType == 2 ? 3 : 0;
             if (channels == 0)
             {
-                Plugin.Instance.Log.LogWarning($"[AP] DecodePng: unsupported color type {colorType} (only RGB=2/RGBA=6 supported)");
+                Logger.Warning($"[AP] DecodePng: unsupported color type {colorType} (only RGB=2/RGBA=6 supported)");
                 return null;
             }
 
@@ -393,12 +393,12 @@ internal static class OptionsMenuInjectionPatch
 
             width  = w;
             height = h;
-            Plugin.Instance.Log.LogInfo($"[AP] DecodePng: decoded {w}×{h} ({channels}ch) PNG successfully");
+            Logger.Info($"[AP] DecodePng: decoded {w}×{h} ({channels}ch) PNG successfully");
             return rgba;
         }
         catch (Exception ex)
         {
-            Plugin.Instance.Log.LogWarning($"[AP] DecodePng: {ex.Message}");
+            Logger.Warning($"[AP] DecodePng: {ex.Message}");
             return null;
         }
     }
@@ -455,7 +455,7 @@ internal static class OptionsMenuTabSelectedPatch
         catch (Exception ex)
         {
             // Never let our code silently swallow other tabs — log and fall through.
-            Plugin.Instance.Log.LogError($"[AP] OptionsMenuTabSelectedPatch.Prefix: {ex.Message}");
+            Logger.Error($"[AP] OptionsMenuTabSelectedPatch.Prefix: {ex.Message}");
         }
 
         return true;
@@ -500,7 +500,7 @@ internal static class OptionsMenuSwapCategoryPatch
         }
         catch (Exception ex)
         {
-            Plugin.Instance.Log.LogError($"[AP] OptionsMenuSwapCategoryPatch.Prefix: {ex.Message}");
+            Logger.Error($"[AP] OptionsMenuSwapCategoryPatch.Prefix: {ex.Message}");
         }
 
         return true;

@@ -1,4 +1,4 @@
-using HarmonyLib;
+﻿using HarmonyLib;
 using Il2CppMonomiPark.SlimeRancher.UI.MainMenu;
 using SlimeRancher2AP.UI;
 
@@ -38,7 +38,7 @@ internal static class NewGameBlockPatch
         if (Plugin.Instance.ApClient.IsConnected) return true;
 
         // Blocked: show guidance and open connection dialog
-        Plugin.Instance.Log.LogWarning(
+        Logger.Warning(
             "[AP] New game blocked: not connected to Archipelago. " +
             "Connect first so the server can provide your randomized world data.");
 

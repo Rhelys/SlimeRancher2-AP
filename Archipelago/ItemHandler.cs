@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Archipelago.MultiClient.Net.Models;
 using Il2CppMonomiPark.SlimeRancher.DataModel;
 using Il2CppMonomiPark.SlimeRancher.Economy;
@@ -96,18 +96,18 @@ public static class ItemHandler
     {
         if (SceneContext.Instance == null)
         {
-            Plugin.Instance.Log.LogWarning("[AP-Debug] SceneContext not ready — load a save first");
+            Logger.Warning("[AP-Debug] SceneContext not ready — load a save first");
             return;
         }
 
         var item = ItemTable.Get(itemId);
         if (item == null)
         {
-            Plugin.Instance.Log.LogWarning($"[AP-Debug] Unknown item ID: {itemId}");
+            Logger.Warning($"[AP-Debug] Unknown item ID: {itemId}");
             return;
         }
 
-        Plugin.Instance.Log.LogInfo($"[AP-Debug] Granting item: {item.Name}");
+        Logger.Info($"[AP-Debug] Granting item: {item.Name}");
 
         switch (item.Type)
         {
@@ -140,7 +140,7 @@ public static class ItemHandler
         var item = ItemTable.Get(apItem.ItemId);
         if (item == null)
         {
-            Plugin.Instance.Log.LogWarning($"[AP] Unknown item ID: {apItem.ItemId}");
+            Logger.Warning($"[AP] Unknown item ID: {apItem.ItemId}");
             Plugin.Instance.SaveManager.UpdateLastItemIndex(itemIndex);
             return;
         }
@@ -150,7 +150,7 @@ public static class ItemHandler
         // reordered between versions).  We apply by ID (authoritative), but log a clear
         // warning so this isn't mistaken for a mod bug.
         if (apItem.ItemName != item.Name)
-            Plugin.Instance.Log.LogWarning(
+            Logger.Warning(
                 $"[AP] DATA PACKAGE MISMATCH — server says id={apItem.ItemId} is '{apItem.ItemName}', " +
                 $"but local table maps that ID to '{item.Name}'. " +
                 $"Regenerate the game on the AP server with the current apworld version to fix.");
@@ -163,14 +163,17 @@ public static class ItemHandler
         bool isEphemeral = item.Type is ItemType.Filler or ItemType.Trap;
         if (isEphemeral && Plugin.Instance.SaveManager.IsEphemeralApplied(itemIndex))
         {
-            Plugin.Instance.Log.LogInfo(
+            Logger.Info(
                 $"[AP] Skipping already-applied {item.Type.ToString().ToLowerInvariant()}: " +
                 $"{item.Name} (idx={itemIndex})");
             Plugin.Instance.SaveManager.UpdateLastItemIndex(itemIndex);
             return;
         }
 
-        Plugin.Instance.Log.LogInfo($"[AP] Applying item: {item.Name} (id={item.Id}, idx={itemIndex})");
+        // Traps log when they actually fire (or silently requeue in Release builds).
+        // Logging here would spam every frame while a trap waits in the queue.
+        if (item.Type != ItemType.Trap)
+            Logger.Info($"[AP] Applying item: {item.Name} (id={item.Id}, idx={itemIndex})");
 
         // Traps return false when they requeue for a later retry (scene/player not ready).
         // In that case we must NOT advance the watermark — the item will be replayed from
@@ -245,7 +248,7 @@ public static class ItemHandler
                 try { ready = door.ShouldUnlock(); } catch { /* guard */ }
                 if (!ready)
                 {
-                    Plugin.Instance.Log.LogInfo(
+                    Logger.Info(
                         "[AP] PB Slime Door found but ShouldUnlock()=false (not fully filled yet) — " +
                         "door will open once all plort slots are filled.");
                     pbFound = true;
@@ -254,9 +257,9 @@ public static class ItemHandler
                 try { door.ActivateOnUnlock(); }
                 catch (Exception ex)
                 {
-                    Plugin.Instance.Log.LogWarning($"[AP] PB ActivateOnUnlock threw: {ex.Message}");
+                    Logger.Warning($"[AP] PB ActivateOnUnlock threw: {ex.Message}");
                 }
-                Plugin.Instance.Log.LogInfo("[AP] Opened PB Slime Door via ActivateOnUnlock.");
+                Logger.Info("[AP] Opened PB Slime Door via ActivateOnUnlock.");
 
                 // Belt-and-suspenders: the Prefix on PuzzleSlotLockable.ActivateOnUnlock already
                 // sends this check, but call it here too in case the Prefix was blocked or the
@@ -268,7 +271,7 @@ public static class ItemHandler
                 break;
             }
             if (!pbFound)
-                Plugin.Instance.Log.LogWarning(
+                Logger.Warning(
                     "[AP] PB Slime Door not found in current scene — will open when player reaches it.");
             return;
         }
@@ -280,11 +283,11 @@ public static class ItemHandler
         // Prefix will pass through, opening the gate and sending the location check.
         if (!RegionTable.TryGetSwitch(item.Name, out var switchName))
         {
-            Plugin.Instance.Log.LogInfo($"[AP] Region '{item.Name}' unlocked — no switch mapping, nothing more to do.");
+            Logger.Info($"[AP] Region '{item.Name}' unlocked — no switch mapping, nothing more to do.");
             return;
         }
 
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             $"[AP] Region '{item.Name}' unlocked — press the gate button ('{switchName}') to open it.");
     }
 
@@ -398,7 +401,7 @@ public static class ItemHandler
 
             if (currentLevel >= targetLevel) continue; // SR2 save is correct
 
-            Plugin.Instance.Log.LogInfo(
+            Logger.Info(
                 $"[AP] Upgrade repair: '{upgradeName}' SR2 level={currentLevel} < expected={targetLevel} — correcting");
 
             IsApplyingItem = true;
@@ -411,10 +414,10 @@ public static class ItemHandler
             {
                 int levelAfter = UpgradeHandler._model?.GetUpgradeLevel(upgradeDef) ?? -1;
                 if (levelAfter >= targetLevel)
-                    Plugin.Instance.Log.LogWarning(
+                    Logger.Warning(
                         $"[AP] Upgrade repair threw (UI?) but model is at {levelAfter} — OK: {ex.Message}");
                 else
-                    Plugin.Instance.Log.LogWarning(
+                    Logger.Warning(
                         $"[AP] Upgrade repair failed for '{upgradeName}' (wanted {targetLevel}, got {levelAfter}): {ex.Message}");
             }
             finally
@@ -431,7 +434,7 @@ public static class ItemHandler
         // the first time the player's upgrade handler is constructed.
         if (UpgradeHandler == null)
         {
-            Plugin.Instance.Log.LogWarning("[AP] ActorUpgradeHandler not yet cached — requeuing upgrade");
+            Logger.Warning("[AP] ActorUpgradeHandler not yet cached — requeuing upgrade");
             if (apItem != null) Plugin.Instance.ApClient.RequeueItem(apItem, itemIndex);
             return;
         }
@@ -443,7 +446,7 @@ public static class ItemHandler
                                   .FirstOrDefault(d => d.name == upgradeName);
         if (upgradeDef == null)
         {
-            Plugin.Instance.Log.LogWarning($"[AP] UpgradeDefinition '{upgradeName}' not found");
+            Logger.Warning($"[AP] UpgradeDefinition '{upgradeName}' not found");
             return;
         }
 
@@ -466,7 +469,7 @@ public static class ItemHandler
 
         if (targetLevel > maxLevel)
         {
-            Plugin.Instance.Log.LogInfo($"[AP] Upgrade '{upgradeName}' already at max level ({maxLevel}) — skipping");
+            Logger.Info($"[AP] Upgrade '{upgradeName}' already at max level ({maxLevel}) — skipping");
             Notify($"Received: {item.Name} (already maxed)");
             return;
         }
@@ -486,13 +489,13 @@ public static class ItemHandler
             int levelAfter = UpgradeHandler._model?.GetUpgradeLevel(upgradeDef) ?? -1;
             if (levelAfter < targetLevel)
             {
-                Plugin.Instance.Log.LogWarning(
+                Logger.Warning(
                     $"[AP] ApplyUpgrade threw and model level did not advance " +
                     $"(wanted {targetLevel}, got {levelAfter}): {ex.Message} — requeuing");
                 if (apItem != null) Plugin.Instance.ApClient.RequeueItem(apItem, itemIndex);
                 return;
             }
-            Plugin.Instance.Log.LogWarning(
+            Logger.Warning(
                 $"[AP] ApplyUpgrade threw (UI prefab not ready?) but model DID advance to {levelAfter} — " +
                 $"upgrade applied successfully. UI will refresh when the upgrade screen is opened. {ex.Message}");
         }
@@ -502,7 +505,7 @@ public static class ItemHandler
         }
 
         _upgradeLevels[upgradeName] = targetLevel; // update immediately; patch callback may fire late or not at all
-        Plugin.Instance.Log.LogInfo($"[AP] Applied upgrade: {upgradeName} → level {targetLevel}/{maxLevel}");
+        Logger.Info($"[AP] Applied upgrade: {upgradeName} → level {targetLevel}/{maxLevel}");
         Notify($"Received: {item.Name}");
     }
 
@@ -555,7 +558,7 @@ public static class ItemHandler
             return;
         }
 
-        Plugin.Instance.Log.LogWarning($"[AP] Unhandled gadget item ID: {item.Id}");
+        Logger.Warning($"[AP] Unhandled gadget item ID: {item.Id}");
     }
 
     /// <summary>
@@ -581,7 +584,7 @@ public static class ItemHandler
                                  .FirstOrDefault(d => d.name == gadgetName);
         if (gadgetDef == null)
         {
-            Plugin.Instance.Log.LogWarning($"[AP] GadgetDefinition '{gadgetName}' not found in loaded assets");
+            Logger.Warning($"[AP] GadgetDefinition '{gadgetName}' not found in loaded assets");
             return;
         }
 
@@ -591,7 +594,7 @@ public static class ItemHandler
         // items are re-queued (e.g., RequestFullReplay on a new game from an existing AP slot).
         if (director.IsBlueprintUnlocked(gadgetDef))
         {
-            Plugin.Instance.Log.LogInfo($"[AP] Gadget '{gadgetName}' blueprint already unlocked — skipping");
+            Logger.Info($"[AP] Gadget '{gadgetName}' blueprint already unlocked — skipping");
             return;
         }
 
@@ -607,11 +610,11 @@ public static class ItemHandler
         {
             if (!director.IsBlueprintUnlocked(gadgetDef))
             {
-                Plugin.Instance.Log.LogWarning(
+                Logger.Warning(
                     $"[AP] AddBlueprint threw and blueprint is still locked for '{gadgetName}' — grant failed: {ex.Message}");
                 return;
             }
-            Plugin.Instance.Log.LogWarning(
+            Logger.Warning(
                 $"[AP] AddBlueprint threw (analytics? player location not ready) but '{gadgetName}' IS unlocked — OK: {ex.Message}");
         }
 
@@ -621,11 +624,11 @@ public static class ItemHandler
         }
         catch (Exception ex)
         {
-            Plugin.Instance.Log.LogWarning(
+            Logger.Warning(
                 $"[AP] AddItem threw for '{gadgetName}' (analytics?): {ex.Message}");
         }
 
-        Plugin.Instance.Log.LogInfo($"[AP] Granted gadget: {gadgetName}");
+        Logger.Info($"[AP] Granted gadget: {gadgetName}");
     }
 
     private static void ApplyFiller(Data.ItemInfo item, ApItemInfo? apItem, int itemIndex)
@@ -693,13 +696,13 @@ public static class ItemHandler
                             .FirstOrDefault(c => c.name == compName);
         if (comp == null)
         {
-            Plugin.Instance.Log.LogWarning($"[AP] UpgradeComponent asset '{compName}' not found — grant skipped");
+            Logger.Warning($"[AP] UpgradeComponent asset '{compName}' not found — grant skipped");
             return;
         }
 
         model.GainComponent(comp);
         Notify($"Received: {item.Name}");
-        Plugin.Instance.Log.LogInfo($"[AP] Granted upgrade component: {compName}");
+        Logger.Info($"[AP] Granted upgrade component: {compName}");
     }
 
     private static void ApplyNewbucks(Data.ItemInfo item, ApItemInfo? apItem, int itemIndex)
@@ -720,7 +723,7 @@ public static class ItemHandler
                                 .FirstOrDefault(c => c.name.Contains("Newbucks", StringComparison.OrdinalIgnoreCase));
         if (currency == null)
         {
-            Plugin.Instance.Log.LogWarning("[AP] Could not find Newbucks CurrencyDefinition — grant skipped");
+            Logger.Warning("[AP] Could not find Newbucks CurrencyDefinition — grant skipped");
             return;
         }
 
@@ -745,14 +748,14 @@ public static class ItemHandler
             var identType = allIdents.FirstOrDefault(t => t.name == typeName);
             if (identType == null)
             {
-                Plugin.Instance.Log.LogWarning($"[AP] Could not find IdentifiableType '{typeName}' — skipping this pick");
+                Logger.Warning($"[AP] Could not find IdentifiableType '{typeName}' — skipping this pick");
                 continue;
             }
             director.AddItem(identType, 1);
             totalAdded++;
         }
 
-        Plugin.Instance.Log.LogInfo($"[AP] Deposited {totalAdded} items from '{cacheName}' into refinery");
+        Logger.Info($"[AP] Deposited {totalAdded} items from '{cacheName}' into refinery");
         Notify($"Received: {cacheName} ({totalAdded} items) → Refinery");
     }
 
@@ -788,7 +791,7 @@ public static class ItemHandler
         var director = SceneContext.Instance?.GadgetDirector;
         if (director == null)
         {
-            Plugin.Instance.Log.LogWarning("[AP-Debug] GadgetDirector not available — load a save first");
+            Logger.Warning("[AP-Debug] GadgetDirector not available — load a save first");
             return;
         }
 
@@ -796,7 +799,7 @@ public static class ItemHandler
                            .FirstOrDefault(d => d.name == RadiantProjectorGadgetName);
         if (def == null)
         {
-            Plugin.Instance.Log.LogWarning(
+            Logger.Warning(
                 $"[AP-Debug] GadgetDefinition '{RadiantProjectorGadgetName}' not found");
             return;
         }
@@ -806,7 +809,7 @@ public static class ItemHandler
         // AddItem is intentionally NOT called here; pre-crafted unit counts don't persist for
         // this gadget type (the Fabricator crafting system tracks the inventory, not AddItem).
         director.AddBlueprint(def, false);
-        Plugin.Instance.Log.LogInfo($"[AP-Debug] Unlocked blueprint: '{def.name}' — craft units in the Fabricator");
+        Logger.Info($"[AP-Debug] Unlocked blueprint: '{def.name}' — craft units in the Fabricator");
     }
 
     /// <summary>
@@ -819,7 +822,7 @@ public static class ItemHandler
         var director = SceneContext.Instance?.GadgetDirector;
         if (director == null)
         {
-            Plugin.Instance.Log.LogWarning("[AP-Debug] GadgetDirector not available — load a save first");
+            Logger.Warning("[AP-Debug] GadgetDirector not available — load a save first");
             return;
         }
 
@@ -827,14 +830,14 @@ public static class ItemHandler
                            .FirstOrDefault(d => d.name == RadiantProjectorGadgetName);
         if (def == null)
         {
-            Plugin.Instance.Log.LogWarning(
+            Logger.Warning(
                 $"[AP-Debug] GadgetDefinition '{RadiantProjectorGadgetName}' not found");
             return;
         }
 
         director.AddBlueprint(def, false);
         director.AddItem(def, 1); // GadgetDefinition : IdentifiableType — adds one placeable unit
-        Plugin.Instance.Log.LogInfo($"[AP-Debug] Granted blueprint + 1 unit: '{def.name}'");
+        Logger.Info($"[AP-Debug] Granted blueprint + 1 unit: '{def.name}'");
     }
 
     /// <summary>
@@ -847,7 +850,7 @@ public static class ItemHandler
         var playerState = SceneContext.Instance?.PlayerState;
         if (playerState == null)
         {
-            Plugin.Instance.Log.LogWarning("[AP-Debug] PlayerState not available — load a save first");
+            Logger.Warning("[AP-Debug] PlayerState not available — load a save first");
             return;
         }
 
@@ -856,7 +859,7 @@ public static class ItemHandler
                                      t.name, typeName, System.StringComparison.OrdinalIgnoreCase));
         if (identType == null)
         {
-            Plugin.Instance.Log.LogWarning(
+            Logger.Warning(
                 $"[AP-Debug] IdentifiableType '{typeName}' not found — use Dump IdentifiableTypes (Misc page) to find the correct name");
             return;
         }
@@ -864,7 +867,7 @@ public static class ItemHandler
         var ammo = playerState.Ammo;
         if (ammo == null)
         {
-            Plugin.Instance.Log.LogWarning("[AP-Debug] PlayerState.Ammo not available");
+            Logger.Warning("[AP-Debug] PlayerState.Ammo not available");
             return;
         }
 
@@ -893,12 +896,12 @@ public static class ItemHandler
 
         if (granted > 0)
         {
-            Plugin.Instance.Log.LogInfo($"[AP-Debug] Placed {granted}x '{typeName}' into vacpack");
+            Logger.Info($"[AP-Debug] Placed {granted}x '{typeName}' into vacpack");
             SlimeRancher2AP.UI.StatusHUD.Instance?.ShowNotification($"Debug: {granted}x {typeName} → vacpack");
         }
         else
         {
-            Plugin.Instance.Log.LogWarning(
+            Logger.Warning(
                 "[AP-Debug] No free vacpack slots for this food type — move or discard current contents first");
         }
     }
@@ -936,6 +939,19 @@ public static class TrapHandler
         => _runtimeOpenRegions.Add(regionItemName);
 
     /// <summary>
+    /// Clears all deferred traps. Called on disconnect to prevent traps that were
+    /// waiting for cooldown from firing unexpectedly on the next session.
+    /// </summary>
+    public static void ClearDeferred()
+    {
+        if (_deferred.Count > 0)
+        {
+            Logger.Info($"[AP] TrapHandler: cleared {_deferred.Count} deferred trap(s) on disconnect");
+            _deferred.Clear();
+        }
+    }
+
+    /// <summary>
     /// Called every frame from <c>ApUpdateBehaviour.Update()</c>. Records the player's current
     /// zone so that teleport trap eligibility can be inferred from visited zones.
     /// </summary>
@@ -952,7 +968,7 @@ public static class TrapHandler
         // the gate button, send them back. See GateReturnEnforcer for full details.
         GateReturnEnforcer.OnZoneChanged(sceneGroupRef, previousZone);
 #if DEBUG
-        Plugin.Instance.Log.LogInfo($"[AP] TrapHandler: zone visit recorded — '{sceneGroupRef}'");
+        Logger.Info($"[AP] TrapHandler: zone visit recorded — '{sceneGroupRef}'");
 #endif
     }
 
@@ -965,6 +981,10 @@ public static class TrapHandler
     private static bool  _sceneWasReady    = false;
     private static float _sceneReadySince  = -1f;
     private static float _lastTrapFiredAt  = -1f;
+
+    // Rate-limited traps park here instead of cycling through _itemQueue every frame.
+    // Tick() promotes one entry to _itemQueue each time IsTrapAllowed() returns true.
+    private static readonly Queue<(ApItemInfo apItem, int itemIndex)> _deferred = new();
 
     /// <summary>Seconds after scene load before any trap may fire.</summary>
     private const float SceneGracePeriod = 10f;
@@ -985,7 +1005,7 @@ public static class TrapHandler
         if (graceRemaining > 0f)
         {
 #if DEBUG
-            Plugin.Instance.Log.LogInfo(
+            Logger.Info(
                 $"[AP] Trap '{trapName}' deferred — {graceRemaining:F0}s of load grace period remaining");
 #endif
             return false;
@@ -997,7 +1017,7 @@ public static class TrapHandler
             if (cooldownRemaining > 0f)
             {
 #if DEBUG
-                Plugin.Instance.Log.LogInfo(
+                Logger.Info(
                     $"[AP] Trap '{trapName}' deferred — {cooldownRemaining:F0}s of inter-trap cooldown remaining");
 #endif
                 return false;
@@ -1045,16 +1065,34 @@ public static class TrapHandler
             // First frame the scene became ready — start the grace period clock
             _sceneWasReady   = true;
             _sceneReadySince = UnityEngine.Time.time;
-            Plugin.Instance.Log.LogInfo(
+            Logger.Info(
                 $"[AP] TrapHandler: scene ready — trap grace period begins ({SceneGracePeriod}s)");
         }
 
-        if (_weatherResetAt < 0f) return;
-
-        if (UnityEngine.Time.time >= _weatherResetAt)
+        // Weather-trap expiry.
+        if (_weatherResetAt >= 0f && UnityEngine.Time.time >= _weatherResetAt)
         {
             ResetWeather();
             _weatherResetAt = -1f;
+        }
+
+        // Deferred trap promotion: when the rate-limit window has passed, move one trap back
+        // to the main item queue.  Only one per Tick() so consecutive traps remain separated
+        // by TrapMinInterval — the promoted trap fires, sets _lastTrapFiredAt, and restarts
+        // the inter-trap cooldown before the next deferred entry is promoted.
+        if (_deferred.Count > 0 && _sceneReadySince >= 0f)
+        {
+            float now        = UnityEngine.Time.time;
+            bool  graceOk    = now >= _sceneReadySince + SceneGracePeriod;
+            bool  cooldownOk = _lastTrapFiredAt < 0f || now >= _lastTrapFiredAt + TrapMinInterval;
+            if (graceOk && cooldownOk)
+            {
+                var (trapApItem, trapIndex) = _deferred.Dequeue();
+                Plugin.Instance.ApClient.RequeueItem(trapApItem, trapIndex);
+                Logger.Info(
+                    $"[AP] TrapHandler: promoted deferred trap to item queue " +
+                    $"(remaining deferred: {_deferred.Count})");
+            }
         }
     }
 
@@ -1074,26 +1112,44 @@ public static class TrapHandler
             case ItemTable.TrapWeatherChange: return ApplyWeatherTrap(apItem, itemIndex);
             case ItemTable.TrapTarrRain:      return ApplySlimeRainTrap(apItem, itemIndex);
             default:
-                Plugin.Instance.Log.LogInfo($"[AP] Trap received: id={trapItemId} (not yet implemented)");
+                Logger.Info($"[AP] Trap received: id={trapItemId} (not yet implemented)");
                 return true; // unimplemented traps do not retry
         }
     }
 
-    // Helper: requeue the item so it retries next session (or next Update frame),
-    // then return false to signal the watermark must NOT advance.
-    // Rate-limit reasons are suppressed in release builds to avoid per-frame log spam;
-    // genuine failure reasons (scene not ready, missing assets) are always logged.
+    // Helper: park the item for a later retry, then return false so the watermark does NOT advance.
+    //
+    // Rate-limited traps (grace period or inter-trap cooldown still active) are pushed into
+    // the _deferred queue.  Tick() promotes one deferred trap to _itemQueue per frame once
+    // IsTrapAllowed() returns true.  This replaces the old pattern of calling RequeueItem()
+    // for rate-limited traps, which caused a per-frame dequeue/requeue cycle (~2400 iterations
+    // for a 40 s cooldown at 60 fps and several thousand log lines per trap).
+    //
+    // Non-rate-limit failures (scene not ready, missing assets, etc.) still go straight back
+    // to _itemQueue via RequeueItem() for a quick retry on the next Update frame.
     private static bool Requeue(ApItemInfo? apItem, int itemIndex, string reason)
     {
         bool isRateLimit = reason == "trap rate-limited";
+        if (isRateLimit)
+        {
+            if (apItem != null)
+            {
+                _deferred.Enqueue((apItem, itemIndex));
+                Logger.Info(
+                    $"[AP] Trap deferred — cooldown/grace active " +
+                    $"(deferred queue depth: {_deferred.Count})");
+            }
+        }
+        else
+        {
 #if DEBUG
-        Plugin.Instance.Log.LogInfo($"[AP] Trap requeued — {reason} (will retry)");
+            Logger.Info($"[AP] Trap requeued — {reason} (will retry)");
 #else
-        if (!isRateLimit)
-            Plugin.Instance.Log.LogWarning($"[AP] Trap requeued — {reason} (will retry)");
+            Logger.Warning($"[AP] Trap requeued — {reason} (will retry)");
 #endif
-        if (apItem != null)
-            Plugin.Instance.ApClient.RequeueItem(apItem, itemIndex);
+            if (apItem != null)
+                Plugin.Instance.ApClient.RequeueItem(apItem, itemIndex);
+        }
         return false;
     }
 
@@ -1174,12 +1230,12 @@ public static class TrapHandler
 
         if (slimeTypes.Count == 0)
         {
-            Plugin.Instance.Log.LogWarning("[AP] SlimeRing: no valid slime IdentifiableTypes found — skipped");
+            Logger.Warning("[AP] SlimeRing: no valid slime IdentifiableTypes found — skipped");
             return true; // asset issue; don't retry
         }
 
 #if DEBUG
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             $"[AP] SlimeRing: pool={string.Join(", ", candidateNames)} ({slimeTypes.Count} resolved)");
 #endif
 
@@ -1218,7 +1274,7 @@ public static class TrapHandler
         }
 
         _lastTrapFiredAt = UnityEngine.Time.time;
-        Plugin.Instance.Log.LogInfo($"[AP] SlimeRing: spawned {spawned} slimes around player");
+        Logger.Info($"[AP] SlimeRing: spawned {spawned} slimes around player");
         SlimeRancher2AP.UI.StatusHUD.Instance?.ShowNotification("Slime Ring!");
         return true;
     }
@@ -1249,7 +1305,7 @@ public static class TrapHandler
 
         if (tarrType == null)
         {
-            Plugin.Instance.Log.LogWarning("[AP] TarrSpawnTrap: 'Tarr' IdentifiableType not found or has no prefab — skipped");
+            Logger.Warning("[AP] TarrSpawnTrap: 'Tarr' IdentifiableType not found or has no prefab — skipped");
             return true; // asset issue; don't retry
         }
 
@@ -1283,7 +1339,7 @@ public static class TrapHandler
         }
 
         _lastTrapFiredAt = UnityEngine.Time.time;
-        Plugin.Instance.Log.LogInfo($"[AP] TarrSpawnTrap: spawned {spawned} Tarr near player");
+        Logger.Info($"[AP] TarrSpawnTrap: spawned {spawned} Tarr near player");
         SlimeRancher2AP.UI.StatusHUD.Instance?.ShowNotification("Trap: Tarr Incoming!");
         return true;
     }
@@ -1306,7 +1362,7 @@ public static class TrapHandler
         var allStates = Resources.FindObjectsOfTypeAll<WeatherStateDefinition>();
         if (allStates == null || allStates.Count == 0)
         {
-            Plugin.Instance.Log.LogWarning("[AP] WeatherTrap: no WeatherStateDefinition assets found — trap skipped");
+            Logger.Warning("[AP] WeatherTrap: no WeatherStateDefinition assets found — trap skipped");
             return true; // asset issue; don't retry
         }
 
@@ -1317,7 +1373,7 @@ public static class TrapHandler
             if (i > 0) sb.Append(", ");
             sb.Append('\'').Append(allStates[i].StateName ?? allStates[i].name).Append('\'');
         }
-        Plugin.Instance.Log.LogInfo($"[AP] WeatherTrap: {allStates.Count} state(s) available: {sb}");
+        Logger.Info($"[AP] WeatherTrap: {allStates.Count} state(s) available: {sb}");
 
         // Only pick the most impactful weather states:
         // - "Heavy" variants (Thunder Heavy, Rain Heavy, Pollen Heavy)
@@ -1338,7 +1394,7 @@ public static class TrapHandler
 
         if (eligible.Count == 0)
         {
-            Plugin.Instance.Log.LogWarning("[AP] WeatherTrap: no eligible weather states after filtering — trap skipped");
+            Logger.Warning("[AP] WeatherTrap: no eligible weather states after filtering — trap skipped");
             return true; // filtering issue; don't retry
         }
 
@@ -1379,7 +1435,7 @@ public static class TrapHandler
 
         _lastTrapFiredAt = UnityEngine.Time.time;
         string label = chosen.StateName ?? chosen.name;
-        Plugin.Instance.Log.LogInfo($"[AP] WeatherTrap: started '{label}' on {found.Count} director(s) for {durationSeconds}s");
+        Logger.Info($"[AP] WeatherTrap: started '{label}' on {found.Count} director(s) for {durationSeconds}s");
         SlimeRancher2AP.UI.StatusHUD.Instance?.ShowNotification($"Trap: {label} weather for {(int)durationSeconds}s!");
         return true;
     }
@@ -1468,7 +1524,7 @@ public static class TrapHandler
         var eligible     = new System.Collections.Generic.List<(TrapTeleportDest dest, SceneGroup sg)>();
 
 #if DEBUG
-        Plugin.Instance.Log.LogInfo($"[AP] TeleportTrap: currentGroup='{currentGroup?.ReferenceId ?? "null"}', allGroups={allGroups.Count}");
+        Logger.Info($"[AP] TeleportTrap: currentGroup='{currentGroup?.ReferenceId ?? "null"}', allGroups={allGroups.Count}");
 #endif
         foreach (var dest in _trapDestinations)
         {
@@ -1486,7 +1542,7 @@ public static class TrapHandler
             if (!visited)
             {
 #if DEBUG
-                Plugin.Instance.Log.LogInfo(
+                Logger.Info(
                     $"[AP] TeleportTrap: dest='{dest.SceneGroupRef}' skipped — never visited");
 #endif
                 continue;
@@ -1498,18 +1554,18 @@ public static class TrapHandler
 
             if (sg == null)
             {
-                Plugin.Instance.Log.LogWarning($"[AP] TeleportTrap: SceneGroup '{dest.SceneGroupRef}' not found — skipped");
+                Logger.Warning($"[AP] TeleportTrap: SceneGroup '{dest.SceneGroupRef}' not found — skipped");
                 continue;
             }
 #if DEBUG
-            Plugin.Instance.Log.LogInfo($"[AP] TeleportTrap: dest='{dest.SceneGroupRef}' eligible (node='{dest.NodeId}')");
+            Logger.Info($"[AP] TeleportTrap: dest='{dest.SceneGroupRef}' eligible (node='{dest.NodeId}')");
 #endif
             eligible.Add((dest, sg));
         }
 
         if (eligible.Count == 0)
         {
-            Plugin.Instance.Log.LogWarning("[AP] TeleportTrap: no eligible destinations — skipped");
+            Logger.Warning("[AP] TeleportTrap: no eligible destinations — skipped");
             return true; // no destinations available; don't retry (player likely in menu)
         }
 
@@ -1521,12 +1577,12 @@ public static class TrapHandler
         if (string.IsNullOrEmpty(chosen.dest.NodeId))
         {
             network.Teleport_ResetPlayer(teleportable);
-            Plugin.Instance.Log.LogInfo("[AP] TeleportTrap: sent to home ranch via Teleport_ResetPlayer");
+            Logger.Info("[AP] TeleportTrap: sent to home ranch via Teleport_ResetPlayer");
         }
         else
         {
             network.TeleportToDestinationImpl(teleportable, chosen.dest.NodeId, chosen.sg, forceSceneTransition: true);
-            Plugin.Instance.Log.LogInfo(
+            Logger.Info(
                 $"[AP] TeleportTrap: sent to '{chosen.sg.ReferenceId}' via node '{chosen.dest.NodeId}'");
         }
 
@@ -1559,7 +1615,7 @@ public static class TrapHandler
 
         if (slimeRainDef == null)
         {
-            Plugin.Instance.Log.LogWarning("[AP] SlimeRainTrap: no 'Slime Rain' WeatherStateDefinition found — falling back to SlimeRing");
+            Logger.Warning("[AP] SlimeRainTrap: no 'Slime Rain' WeatherStateDefinition found — falling back to SlimeRing");
             return ApplySlimeRingTrap(apItem, itemIndex);
         }
 
@@ -1577,7 +1633,7 @@ public static class TrapHandler
 
         if (tarrType == null)
         {
-            Plugin.Instance.Log.LogWarning("[AP] SlimeRainTrap: 'Tarr' IdentifiableType not found — running normal Slime Rain weather instead");
+            Logger.Warning("[AP] SlimeRainTrap: 'Tarr' IdentifiableType not found — running normal Slime Rain weather instead");
         }
         else
         {
@@ -1592,13 +1648,13 @@ public static class TrapHandler
                 {
                     _savedSlimeRainActorTypes[activity] = activity.ActorType;
                     activity.ActorType = tarrType;
-                    Plugin.Instance.Log.LogInfo(
+                    Logger.Info(
                         $"[AP] SlimeRainTrap: overrode SpawnActorActivity ActorType '{_savedSlimeRainActorTypes[activity].name}' → 'Tarr'");
                 }
             }
 
             if (_savedSlimeRainActorTypes.Count == 0)
-                Plugin.Instance.Log.LogWarning("[AP] SlimeRainTrap: no SpawnActorActivity found in Slime Rain weather — Tarr override has no effect");
+                Logger.Warning("[AP] SlimeRainTrap: no SpawnActorActivity found in Slime Rain weather — Tarr override has no effect");
         }
 
         // Apply the weather to all directors (same logic as the Weather Change trap).
@@ -1635,7 +1691,7 @@ public static class TrapHandler
         }
 
         _lastTrapFiredAt = UnityEngine.Time.time;
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             $"[AP] SlimeRainTrap: started Slime Rain (Tarr override) on {found.Count} director(s) for {durationSeconds}s");
         SlimeRancher2AP.UI.StatusHUD.Instance?.ShowNotification("Trap: Slime Rain!");
         return true;
@@ -1672,6 +1728,6 @@ public static class TrapHandler
         // Restore any SpawnActorActivity overrides made by the Slime Rain trap.
         RestoreSlimeRainActorTypes();
 
-        Plugin.Instance.Log.LogInfo($"[AP] WeatherTrap: stopped '{label}', natural weather cycle resumed");
+        Logger.Info($"[AP] WeatherTrap: stopped '{label}', natural weather cycle resumed");
     }
 }

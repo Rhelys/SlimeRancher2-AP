@@ -1,4 +1,4 @@
-using HarmonyLib;
+﻿using HarmonyLib;
 using Il2CppMonomiPark.SlimeRancher;
 using SlimeRancher2AP.Data;
 using SlimeRancher2AP.Utils;
@@ -61,11 +61,11 @@ internal static class PlortDepositorPatch
 
         var posKey = WorldUtils.PositionKey(__instance.gameObject);
 
-        Plugin.Instance.Log.LogInfo($"[AP] Shadow Plort Door filled: posKey='{posKey}'");
+        Logger.Info($"[AP] Shadow Plort Door filled: posKey='{posKey}'");
 
         if (!LocationTable.TryGetByObjectName(posKey, out var info) || info == null)
         {
-            Plugin.Instance.Log.LogWarning(
+            Logger.Warning(
                 $"[AP] Unknown Shadow Plort Door at posKey='{posKey}' — add to LocationTable");
             return;
         }

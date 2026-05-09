@@ -1,4 +1,4 @@
-using HarmonyLib;
+﻿using HarmonyLib;
 using Il2CppMonomiPark.SlimeRancher;
 using Il2CppMonomiPark.SlimeRancher.UI.Map;
 using SlimeRancher2AP.Data;
@@ -33,7 +33,7 @@ internal static class MapNodePatch
         var posKey = WorldUtils.PositionKey(__instance.gameObject);
         if (!LocationTable.TryGetByObjectName(posKey, out var info) || info == null)
         {
-            Plugin.Instance.Log.LogWarning($"[AP] Unknown MapNode at key '{posKey}' (go='{__instance.gameObject.name}') — run AP-Dump and add to LocationTable");
+            Logger.Warning($"[AP] Unknown MapNode at key '{posKey}' (go='{__instance.gameObject.name}') — run AP-Dump and add to LocationTable");
             return;
         }
 

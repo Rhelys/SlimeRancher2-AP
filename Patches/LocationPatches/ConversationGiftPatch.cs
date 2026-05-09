@@ -1,4 +1,4 @@
-using HarmonyLib;
+﻿using HarmonyLib;
 using Il2CppMonomiPark.SlimeRancher.Dialogue.CommStation;
 using Il2CppMonomiPark.SlimeRancher.UI.CommStation;
 using SlimeRancher2AP.Data;
@@ -40,7 +40,7 @@ internal static class ConversationActiveTrackerPatch
         var fixedConv = conversation.TryCast<FixedConversation>();
         ActiveConversationDebugName = fixedConv?.GetDebugName();
 
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             $"[AP-Conv] Conversation started: '{ActiveConversationDebugName}'" +
             $"  (cast {(fixedConv == null ? "FAILED — not FixedConversation" : "ok")}");
     }
@@ -101,7 +101,7 @@ internal static class ConversationPageGiftBlueprintPatch
 
         if (ConversationActiveTrackerPatch.ShouldSuppressGift())
         {
-            Plugin.Instance.Log.LogInfo(
+            Logger.Info(
                 $"[AP-Conv] GiftBlueprint suppressed (AP will deliver item): " +
                 $"gadget='{__instance.gadget?.name}'  " +
                 $"conv='{ConversationActiveTrackerPatch.ActiveConversationDebugName}'");
@@ -123,13 +123,13 @@ internal static class ConversationPageGiftBlueprintPatch
 
         if (__state)
         {
-            Plugin.Instance.Log.LogDebug(
+            Logger.Debug(
                 $"[AP-Conv] GiftBlueprint (already unlocked, skipping): " +
                 $"gadget='{gadgetName}'  event='{eventName}'  debug='{debugStr}'");
             return;
         }
 
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             $"[AP-Conv] GiftBlueprint (granted in-game): " +
             $"gadget='{gadgetName}'  event='{eventName}'  debug='{debugStr}'");
     }
@@ -155,7 +155,7 @@ internal static class ConversationPageGiftGadgetPatch
     {
         if (ConversationActiveTrackerPatch.ShouldSuppressGift())
         {
-            Plugin.Instance.Log.LogInfo(
+            Logger.Info(
                 $"[AP-Conv] GiftGadget suppressed (AP will deliver item): " +
                 $"gadget='{__instance.gadget?.name}'  " +
                 $"conv='{ConversationActiveTrackerPatch.ActiveConversationDebugName}'");
@@ -171,7 +171,7 @@ internal static class ConversationPageGiftGadgetPatch
         if (__instance.gadget == null) return;
         if (ConversationActiveTrackerPatch.ShouldSuppressGift()) return;
 
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             $"[AP-Conv] GiftGadget (granted in-game): gadget='{__instance.gadget.name}'");
     }
 }
@@ -192,7 +192,7 @@ internal static class ConversationPageGiftUpgradeComponentPatch
     {
         if (ConversationActiveTrackerPatch.ShouldSuppressGift())
         {
-            Plugin.Instance.Log.LogInfo(
+            Logger.Info(
                 $"[AP-Conv] GiftUpgradeComponent suppressed (AP will deliver item): " +
                 $"component='{__instance.upgradeComponent?.name}'  " +
                 $"conv='{ConversationActiveTrackerPatch.ActiveConversationDebugName}'");
@@ -208,7 +208,7 @@ internal static class ConversationPageGiftUpgradeComponentPatch
         if (ConversationActiveTrackerPatch.ShouldSuppressGift()) return;
 
         var compName = __instance.upgradeComponent?.name ?? "(null)";
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             $"[AP-Conv] GiftUpgradeComponent (granted in-game): component='{compName}'");
     }
 }

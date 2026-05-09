@@ -31,7 +31,7 @@ public class Plugin : BasePlugin
     {
         Instance = this;
 
-        Log.LogInfo($"{PluginInfo.NAME} v{PluginInfo.VERSION} loading...");
+        Logger.Info($"{PluginInfo.NAME} v{PluginInfo.VERSION} loading...");
 
         _modEnabledEntry = Config.Bind("Mod", "Enabled", true,
             "Set to false to disable all Archipelago logic and play vanilla SR2.");
@@ -57,7 +57,7 @@ public class Plugin : BasePlugin
         // Apply all Harmony patches discovered by attribute scan
         new Harmony(PluginInfo.GUID).PatchAll(typeof(Plugin).Assembly);
 
-        Log.LogInfo($"All patches applied. Mod is {(ModEnabled ? "ENABLED" : "DISABLED — vanilla mode")}. Awaiting Archipelago connection.");
+        Logger.Info($"All patches applied. Mod is {(ModEnabled ? "ENABLED" : "DISABLED — vanilla mode")}. Awaiting Archipelago connection.");
     }
 
     // -------------------------------------------------------------------------
@@ -74,7 +74,7 @@ public class Plugin : BasePlugin
         if (_modEnabledEntry != null)
             _modEnabledEntry.Value = value;
         Config.Save();
-        Log.LogInfo($"[AP] Mod {(value ? "ENABLED" : "DISABLED — vanilla mode")}");
+        Logger.Info($"[AP] Mod {(value ? "ENABLED" : "DISABLED — vanilla mode")}");
     }
 }
 

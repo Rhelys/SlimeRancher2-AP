@@ -1,4 +1,4 @@
-using HarmonyLib;
+﻿using HarmonyLib;
 using Il2CppMonomiPark.SlimeRancher;
 using SlimeRancher2AP.Data;
 
@@ -36,7 +36,7 @@ internal static class GordoPatch
 
         if (!LocationTable.TryGetByObjectName(gordoName, out var info) || info == null)
         {
-            Plugin.Instance.Log.LogWarning($"[AP] Unknown static Gordo: '{gordoName}' (scene='{sceneName}') — add to LocationTable");
+            Logger.Warning($"[AP] Unknown static Gordo: '{gordoName}' (scene='{sceneName}') — add to LocationTable");
             return;
         }
 

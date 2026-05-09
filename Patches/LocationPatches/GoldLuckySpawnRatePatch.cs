@@ -1,4 +1,4 @@
-using HarmonyLib;
+﻿using HarmonyLib;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -107,7 +107,7 @@ internal static class GoldLuckySpawnRatePatch
 
         if (scaled > 0)
         {
-            Plugin.Instance.Log.LogInfo(
+            Logger.Info(
                 $"[AP-GoldLucky] Applied {multiplier}× weight multiplier to {scaled} " +
                 $"Gold/Lucky member(s) across {spawners.Count} spawner(s)");
             _applied = true;

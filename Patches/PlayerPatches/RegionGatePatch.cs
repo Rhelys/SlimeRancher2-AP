@@ -1,4 +1,4 @@
-using HarmonyLib;
+﻿using HarmonyLib;
 using Il2CppMonomiPark.SlimeRancher.World;
 using SlimeRancher2AP.Archipelago;
 using SlimeRancher2AP.Data;
@@ -70,7 +70,7 @@ internal static class RegionGateActivatePatch
         if (RegionTable.TryGetLocationId(switchName, out var locationId))
             Plugin.Instance.ApClient.SendCheck(locationId);
 
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             $"[AP] Blocked gate Activate: '{switchName}' ('{regionName}' not yet received) — button left enabled.");
         return false;
     }
@@ -116,7 +116,7 @@ internal static class RegionGatePatch
         string dbgScene;
         try { var sc = __instance.gameObject.scene; dbgScene = sc.IsValid() ? (sc.name ?? "") : "?"; }
         catch { dbgScene = "?"; }
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             $"[AP-Gate] {teleMode} mode — DOWN switch: '{switchName}' scene='{dbgScene}' " +
             $"tracked={RegionTable.TryGetRegionForSwitch(switchName, out _)}");
 
@@ -126,7 +126,7 @@ internal static class RegionGatePatch
         // Allow the gate to open only if the access item has been received.
         if (Plugin.Instance.SaveManager.IsRegionUnlocked(regionName)) return true;
 
-        Plugin.Instance.Log.LogInfo($"[AP] Blocked gate SetStateForAll: '{switchName}' ('{regionName}' not yet received)");
+        Logger.Info($"[AP] Blocked gate SetStateForAll: '{switchName}' ('{regionName}' not yet received)");
         return false;
     }
 
@@ -193,7 +193,7 @@ internal static class InvisibleSwitchPatch
         }
         catch { return; }  // guard against partially-initialized objects during scene load
 
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             $"[AP-Gate] InvisibleSwitch DOWN: name='{switchName}'  scene='{sceneName}'");
 
         GoalHandler.OnSwitchOpened(switchName, sceneName);

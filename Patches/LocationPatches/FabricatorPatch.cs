@@ -1,4 +1,4 @@
-using HarmonyLib;
+﻿using HarmonyLib;
 using Il2CppMonomiPark.SlimeRancher.DataModel;
 using Il2CppMonomiPark.SlimeRancher.UI.Fabricator;
 using SlimeRancher2AP.Archipelago;
@@ -73,7 +73,7 @@ internal static class FabricatorPatch
         var crafts = LocationTable.GetFabricatorCrafts(upgradeName);
         if (crafts.Count == 0)
         {
-            Plugin.Instance.Log.LogWarning($"[AP] Fabricator: unknown upgrade '{upgradeName}' — add to LocationTable");
+            Logger.Warning($"[AP] Fabricator: unknown upgrade '{upgradeName}' — add to LocationTable");
             CraftingUpgradeName = null;
             return;
         }
@@ -84,7 +84,7 @@ internal static class FabricatorPatch
             var next = crafts.FirstOrDefault(l => !Plugin.Instance.SaveManager.IsChecked(l.Id));
             if (next == null)
             {
-                Plugin.Instance.Log.LogInfo($"[AP] Fabricator: all {crafts.Count} checks for '{upgradeName}' already sent");
+                Logger.Info($"[AP] Fabricator: all {crafts.Count} checks for '{upgradeName}' already sent");
                 break;
             }
             Plugin.Instance.ApClient.SendCheck(next.Id);

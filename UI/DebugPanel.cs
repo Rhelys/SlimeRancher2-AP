@@ -1,4 +1,4 @@
-#if DEBUG
+﻿#if DEBUG
 using SlimeRancher2AP.Archipelago;
 using SlimeRancher2AP.Data;
 using SlimeRancher2AP.Utils;
@@ -116,7 +116,7 @@ public class DebugPanel : MonoBehaviour
         }
         catch (System.Exception ex)
         {
-            Plugin.Instance.Log.LogError($"[AP] DebugPanel.OnGUI exception: {ex}");
+            Logger.Error($"[AP] DebugPanel.OnGUI exception: {ex}");
         }
     }
 
@@ -521,11 +521,11 @@ public class DebugPanel : MonoBehaviour
             try
             {
                 GetMotor()?.SetPosition(new Vector3(_tpX, _tpY, _tpZ));
-                Plugin.Instance.Log.LogInfo($"[AP] Teleport → ({_tpX:F2}, {_tpY:F2}, {_tpZ:F2})");
+                Logger.Info($"[AP] Teleport → ({_tpX:F2}, {_tpY:F2}, {_tpZ:F2})");
             }
             catch (System.Exception ex)
             {
-                Plugin.Instance.Log.LogError($"[AP] Teleport failed: {ex.Message}");
+                Logger.Error($"[AP] Teleport failed: {ex.Message}");
             }
         }
 

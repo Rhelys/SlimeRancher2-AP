@@ -1,4 +1,4 @@
-using HarmonyLib;
+﻿using HarmonyLib;
 using Il2CppMonomiPark.SlimeRancher.Weather;
 using Il2CppMonomiPark.SlimeRancher.World;
 using UnityEngine;
@@ -139,7 +139,7 @@ internal static class WeatherPatch
         reg.ForecastHourIntervalLow  = _origIntervalLow  * factor;
         reg.ForecastHourIntervalHigh = _origIntervalHigh * factor;
 
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             $"[AP-Weather] Frequency ×{multiplier}: forecast interval now " +
             $"[{reg.ForecastHourIntervalLow:F4}, {reg.ForecastHourIntervalHigh:F4}] game-hrs");
     }
@@ -196,7 +196,7 @@ internal static class WeatherPatch
 
         if (heavyDef == null)
         {
-            Plugin.Instance.Log.LogWarning(
+            Logger.Warning(
                 $"[AP-Weather] ForceHeavy: no Heavy state found for '{toName}' (from '{fromName}')");
             return;
         }

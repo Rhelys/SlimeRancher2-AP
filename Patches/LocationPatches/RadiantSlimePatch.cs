@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using HarmonyLib;
 using Il2CppMonomiPark.SlimeRancher.Slime;
 using UnityEngine;
@@ -53,17 +53,17 @@ internal static class ForceRadiantSpawnPatch
                     if (kvp.Key?.name == id.name) { bag = kvp.Value; break; }
 
             if (bag != null)
-                Plugin.Instance.Log.LogInfo(
+                Logger.Info(
                     $"[AP-Bag] POST Draw: slime='{id!.name}' " +
                     $"idx={bag.CurrentIndex} radiantAt={bag.RadiantSpawnIndex} size={bag.Size} " +
                     $"→ radiant={__result}");
             else
-                Plugin.Instance.Log.LogInfo(
+                Logger.Info(
                     $"[AP-Bag] POST Draw: slime='{id?.name ?? "null"}' bag=null → radiant={__result}");
         }
         catch (Exception ex)
         {
-            Plugin.Instance.Log.LogWarning($"[AP-Bag] bag state read threw: {ex.Message}");
+            Logger.Warning($"[AP-Bag] bag state read threw: {ex.Message}");
         }
 #endif
         if (RadiantDebugFlags.ForceRadiantSpawn)
@@ -196,7 +196,7 @@ internal static class RadiantSlimeSpawnRatePatch
                     scaled++;
                 }
 
-                Plugin.Instance.Log.LogInfo(
+                Logger.Info(
                     $"[AP-Radiant] Scaled {scaled} bag config(s): size ÷{multiplier} " +
                     $"→ radiant spawns {multiplier}× more frequent");
                 appliedAny = true;
@@ -245,7 +245,7 @@ internal static class RadiantSlimeSpawnRatePatch
                 seeded++;
             }
 
-            Plugin.Instance.Log.LogInfo(
+            Logger.Info(
                 $"[AP-Radiant] Pre-seeded {seeded} slime bag(s) into RadiantShuffleBags " +
                 $"(already had {liveBags.Count - seeded})");
             _livebagsSeeded = true;

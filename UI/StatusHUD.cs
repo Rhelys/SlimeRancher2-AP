@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace SlimeRancher2AP.UI;
 
@@ -104,7 +104,7 @@ public class StatusHUD : MonoBehaviour
         }
         catch (System.Exception ex)
         {
-            Plugin.Instance.Log.LogError($"[AP] StatusHUD.OnGUI exception: {ex}");
+            Logger.Error($"[AP] StatusHUD.OnGUI exception: {ex}");
         }
         finally
         {

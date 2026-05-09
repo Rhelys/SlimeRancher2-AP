@@ -1,4 +1,4 @@
-using HarmonyLib;
+﻿using HarmonyLib;
 using Il2CppMonomiPark.SlimeRancher;
 using Il2CppMonomiPark.SlimeRancher.UI;
 using Il2CppMonomiPark.SlimeRancher.World;
@@ -58,7 +58,7 @@ internal static class TreasurePodUIInteractablePatch
         var posKey = WorldUtils.PositionKey(pod.gameObject);
         if (!LocationTable.TryGetByObjectName(posKey, out var info) || info == null)
         {
-            Plugin.Instance.Log.LogWarning(
+            Logger.Warning(
                 $"[AP] Unknown TreasurePod at key '{posKey}' (go='{pod.gameObject.name}') — run AP-Dump and add to LocationTable");
             return;   // unknown pod — fall back to vanilla so the player isn't stuck
         }
@@ -95,7 +95,7 @@ internal static class TreasurePodActivatePatch
         var posKey = WorldUtils.PositionKey(__instance.gameObject);
         if (!LocationTable.TryGetByObjectName(posKey, out var info) || info == null)
         {
-            Plugin.Instance.Log.LogWarning(
+            Logger.Warning(
                 $"[AP] Unknown ghostly drone node at key '{posKey}' (go='{__instance.gameObject.name}')");
             return true;
         }

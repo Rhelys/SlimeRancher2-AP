@@ -1,4 +1,4 @@
-using HarmonyLib;
+﻿using HarmonyLib;
 using Il2CppMonomiPark.SlimeRancher.DataModel;
 using SlimeRancher2AP.Archipelago;
 using SlimeRancher2AP.Data;
@@ -90,7 +90,7 @@ internal static class ActorUpgradeHandlerCachePatch
 #endif
         if (ItemHandler.UpgradeHandler != null) return; // already cached
         ItemHandler.UpgradeHandler = __instance;
-        Plugin.Instance.Log.LogInfo("[AP] ActorUpgradeHandler cached via CheckUpgradePropertiesAreAvailable Postfix");
+        Logger.Info("[AP] ActorUpgradeHandler cached via CheckUpgradePropertiesAreAvailable Postfix");
     }
 }
 

@@ -1,4 +1,4 @@
-using HarmonyLib;
+﻿using HarmonyLib;
 using Il2CppMonomiPark.SlimeRancher.Pedia;
 using SlimeRancher2AP.Data;
 
@@ -85,7 +85,7 @@ internal static class SlimepediaIdentTypePatch
         var entry = __instance.GetEntry(identifiableType);
         if (entry == null)
         {
-            Plugin.Instance.Log.LogDebug(
+            Logger.Debug(
                 $"[AP-Pedia] Unlock(IdentType) fired for '{identifiableType?.name}' but GetEntry returned null");
             return;
         }
@@ -107,7 +107,7 @@ file static class SlimepediaPatchHelper
 
         if (!LocationTable.TryGetByEntryName(entryName, out var loc) || loc == null)
         {
-            Plugin.Instance.Log.LogDebug(
+            Logger.Debug(
                 $"[AP-Pedia] Unmapped entry unlocked: '{entryName}'");
             return;
         }
@@ -121,7 +121,7 @@ file static class SlimepediaPatchHelper
         };
         if (!enabled) return;
 
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             $"[AP-Pedia] Check: '{loc.Name}' (id={loc.Id}  entry='{entryName}')");
         Plugin.Instance.ApClient?.SendCheck(loc.Id);
     }

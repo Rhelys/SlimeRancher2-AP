@@ -1,4 +1,4 @@
-using Il2CppInterop.Runtime;
+﻿using Il2CppInterop.Runtime;
 using Il2CppInterop.Runtime.Attributes;
 using Il2CppMonomiPark.SlimeRancher.UI.Options;
 using SlimeRancher2AP.Archipelago;
@@ -45,7 +45,7 @@ public class ConnectionUI : MonoBehaviour
 
     /// <summary>No-op overload kept for legacy call sites (e.g. NewGameBlockPatch).</summary>
     public void Show() =>
-        Plugin.Instance.Log.LogInfo("[AP] ConnectionUI.Show() — use Options > Archipelago to connect");
+        Logger.Info("[AP] ConnectionUI.Show() — use Options > Archipelago to connect");
 
     /// <summary>
     /// Called when the Archipelago tab is selected.
@@ -117,7 +117,7 @@ public class ConnectionUI : MonoBehaviour
             if (bgImg != null)
                 nativeBgColor = bgImg.color;
 
-            Plugin.Instance.Log.LogInfo("[AP] ConnectionUI: sampled native options button style");
+            Logger.Info("[AP] ConnectionUI: sampled native options button style");
         }
 
         // Grab a font from any existing TMP element in the scene so text renders.

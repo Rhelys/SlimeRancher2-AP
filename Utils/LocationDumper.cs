@@ -1,4 +1,4 @@
-#if DEBUG
+﻿#if DEBUG
 using Il2CppInterop.Runtime;
 using Il2CppMonomiPark.SlimeRancher;
 using Il2CppMonomiPark.SlimeRancher.Dialogue.CommStation;
@@ -1079,7 +1079,7 @@ public static class LocationDumper
         // Drive our own Harmony Postfix flag — more reliable than DEBUG_ForceRadiantSpawn
         // on the director, which appears not to be read by the shipping native code.
         Patches.LocationPatches.RadiantDebugFlags.ForceRadiantSpawn = enabled;
-        Plugin.Instance.Log.LogInfo($"[AP-Debug] SetForceRadiantSpawn: ForceRadiantSpawn = {enabled}");
+        Logger.Info($"[AP-Debug] SetForceRadiantSpawn: ForceRadiantSpawn = {enabled}");
     }
 
     // -------------------------------------------------------------------------
@@ -2254,11 +2254,11 @@ public static class LocationDumper
         try
         {
             System.IO.File.Delete(jsonPath);
-            Plugin.Instance.Log.LogInfo($"[AP-Export] Cleared {jsonPath}");
+            Logger.Info($"[AP-Export] Cleared {jsonPath}");
         }
         catch (Exception ex)
         {
-            Plugin.Instance.Log.LogWarning($"[AP-Export] Could not clear file: {ex.Message}");
+            Logger.Warning($"[AP-Export] Could not clear file: {ex.Message}");
         }
     }
 

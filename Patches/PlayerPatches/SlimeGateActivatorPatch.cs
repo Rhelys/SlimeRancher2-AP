@@ -1,4 +1,4 @@
-using HarmonyLib;
+﻿using HarmonyLib;
 using Il2CppMonomiPark.SlimeRancher;
 using Il2CppMonomiPark.World;
 using SlimeRancher2AP.Archipelago;
@@ -40,7 +40,7 @@ internal static class SlimeGateActivatorPatch
         }
         catch { return; }
 
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             $"[AP-SlimeGate] Activate: activator='{activatorName}' gateDoor='{gateDoorName}' " +
             $"scene='{sceneName}' posKey='{posKey}'");
 
@@ -100,7 +100,7 @@ internal static class AccessDoorOpenPatch
         }
         catch { return; }
 
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             $"[AP-Gate] AccessDoor OPEN (restore): name='{doorName}'  scene='{sceneName}'");
     }
 

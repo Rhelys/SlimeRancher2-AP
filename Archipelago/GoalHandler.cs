@@ -1,4 +1,4 @@
-using Il2CppMonomiPark.SlimeRancher;
+﻿using Il2CppMonomiPark.SlimeRancher;
 using Il2CppMonomiPark.SlimeRancher.DataModel;
 using Il2CppMonomiPark.SlimeRancher.Economy;
 using Il2CppMonomiPark.SlimeRancher.Pedia;
@@ -108,7 +108,7 @@ public static class GoalHandler
         if (slotData.Goal == "newbucks")
             TryCacheNewbucksDef();
 
-        Plugin.Instance.Log.LogInfo($"[AP] GoalHandler initialized for goal '{slotData.Goal}'");
+        Logger.Info($"[AP] GoalHandler initialized for goal '{slotData.Goal}'");
     }
 
     // -------------------------------------------------------------------------
@@ -159,7 +159,7 @@ public static class GoalHandler
         {
             if (_openedLabyrinthSwitches.Add(key))  // Add() returns false if already present
             {
-                Plugin.Instance.Log.LogInfo(
+                Logger.Info(
                     $"[AP] Labyrinth gate opened: '{key}' ({_openedLabyrinthSwitches.Count}/2)");
                 CheckLabyrinthComplete();
             }
@@ -188,14 +188,14 @@ public static class GoalHandler
         // prismacore_enter: PRE_FIGHT is set when the player first enters the room.
         if (goal == "prismacore_enter" && state == CoreRoomController.CoreRoomState.PRE_FIGHT)
         {
-            Plugin.Instance.Log.LogInfo("[AP] Prismacore entered (PRE_FIGHT state)");
+            Logger.Info("[AP] Prismacore entered (PRE_FIGHT state)");
             NotifyGoalComplete();
         }
 
         // prismacore_stabilize: POST_FIGHT is set after the core is stabilized.
         if (goal == "prismacore_stabilize" && state == CoreRoomController.CoreRoomState.POST_FIGHT)
         {
-            Plugin.Instance.Log.LogInfo("[AP] Prismacore stabilized (POST_FIGHT state)");
+            Logger.Info("[AP] Prismacore stabilized (POST_FIGHT state)");
             NotifyGoalComplete();
         }
     }
@@ -218,10 +218,10 @@ public static class GoalHandler
         // PlayerStateAddCurrencyPatch accumulates all positive AddCurrency calls into
         // ApSaveManager.NewbucksEarned, which persists across sessions.
         long earned = Plugin.Instance.SaveManager.NewbucksEarned;
-        // Plugin.Instance.Log.LogInfo($"[AP] Newbucks check: earned={earned:N0} / target={_newbucksGoalAmount:N0}");
+        // Logger.Info($"[AP] Newbucks check: earned={earned:N0} / target={_newbucksGoalAmount:N0}");
         if (earned >= _newbucksGoalAmount)
         {
-            Plugin.Instance.Log.LogInfo(
+            Logger.Info(
                 $"[AP] Newbucks goal met: {earned:N0} earned >= {_newbucksGoalAmount:N0} target");
             NotifyGoalComplete();
         }
@@ -285,7 +285,7 @@ public static class GoalHandler
 
         if (slimesUnlocked && resourcesUnlocked)
         {
-            Plugin.Instance.Log.LogInfo(
+            Logger.Info(
                 "[AP] Slimepedia goal met: all Slimes and Resources entries unlocked");
             NotifyGoalComplete();
         }
@@ -324,7 +324,7 @@ public static class GoalHandler
         if (def != null)
         {
             _newbucksDef = def;
-            Plugin.Instance.Log.LogInfo(
+            Logger.Info(
                 $"[AP] Newbucks currency cached: name='{def.name}' PersistenceId={def.PersistenceId}, " +
                 $"goal target={_newbucksGoalAmount:N0}");
         }
@@ -341,7 +341,7 @@ public static class GoalHandler
     {
         if (_goalAchieved) return;
         _goalAchieved = true;
-        Plugin.Instance.Log.LogInfo("[AP] Goal complete!");
+        Logger.Info("[AP] Goal complete!");
         Plugin.Instance.ApClient.SetGoalComplete();
     }
 
@@ -360,7 +360,7 @@ public static class GoalHandler
         var saveManager = Plugin.Instance.SaveManager;
         if (!saveManager.HasActiveSession)
         {
-            Plugin.Instance.Log.LogWarning("[AP-Debug] No active AP session — load a save first");
+            Logger.Warning("[AP-Debug] No active AP session — load a save first");
             return;
         }
 
@@ -369,12 +369,12 @@ public static class GoalHandler
         if (_newbucksGoalAmount > current)
         {
             saveManager.AccumulateNewbucks((int)(_newbucksGoalAmount - current));
-            Plugin.Instance.Log.LogInfo(
+            Logger.Info(
                 $"[AP-Debug] Set NewbucksEarned to {_newbucksGoalAmount:N0} (was {current:N0})");
         }
         else
         {
-            Plugin.Instance.Log.LogInfo(
+            Logger.Info(
                 $"[AP-Debug] NewbucksEarned already {current:N0} >= {_newbucksGoalAmount:N0} — use Force Check");
         }
     }
@@ -391,7 +391,7 @@ public static class GoalHandler
             case "newbucks":   CheckNewbucksGoal();   break;
             case "slimepedia": CheckSlimepediaGoal(); break;
             default:
-                Plugin.Instance.Log.LogInfo($"[AP-Debug] DebugForceCheck: goal '{goal}' is event-based, use Sim buttons");
+                Logger.Info($"[AP-Debug] DebugForceCheck: goal '{goal}' is event-based, use Sim buttons");
                 break;
         }
     }
@@ -409,7 +409,7 @@ public static class GoalHandler
     /// </summary>
     public static void DebugSimLabyrinth()
     {
-        Plugin.Instance.Log.LogInfo("[AP-Debug] Simulating both Labyrinth gate opens");
+        Logger.Info("[AP-Debug] Simulating both Labyrinth gate opens");
 
         // Strand: WorldStatePrimarySwitch
         {

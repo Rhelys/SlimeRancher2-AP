@@ -1,4 +1,4 @@
-using BepInEx.Configuration;
+﻿using BepInEx.Configuration;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -104,7 +104,7 @@ public class ApSaveManager
         // received items to be skipped as "already applied".
         if (HasActiveSession)
         {
-            Plugin.Instance.Log.LogInfo(
+            Logger.Info(
                 $"[AP] PreloadLastItemIndex: skipped — session already active (seed={seed} slot={slotName})");
             return;
         }
@@ -122,12 +122,12 @@ public class ApSaveManager
             var entry    = tempFile.Bind("Progress", "LastItemIndex", -1,
                 "Index of last applied item (dedup key for reconnect)");
             _lastItemIdx = entry.Value;
-            Plugin.Instance.Log.LogInfo(
+            Logger.Info(
                 $"[AP] PreloadLastItemIndex: seed={seed} slot={slotName} → LastItemIndex={_lastItemIdx}");
         }
         catch (Exception ex)
         {
-            Plugin.Instance.Log.LogWarning(
+            Logger.Warning(
                 $"[AP] PreloadLastItemIndex failed for seed={seed} slot={slotName}: {ex.Message}");
         }
     }
@@ -219,11 +219,11 @@ public class ApSaveManager
         _scoutData.Clear();
         LoadScoutFile();
 
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             $"[AP] Save file: {Path.GetFileName(_saveFile.ConfigFilePath)} — " +
             $"LastItemIndex on disk={_lastItemIndex.Value}, " +
             $"EphemeralIndices on disk='{_appliedEphemeralIndices!.Value}'");
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             $"[AP] Save loaded: {_checkedSet.Count} locations checked, " +
             $"last item index {_lastItemIdx}, {_regionSet.Count} regions unlocked, " +
             $"{_scoutData.Count} scout entries cached.");
@@ -248,7 +248,7 @@ public class ApSaveManager
     {
         if (_saveFile == null) return;
         bool added = _regionSet.Add(name);
-        Plugin.Instance.Log.LogInfo($"[AP] UnlockRegion: '{name}' — {(added ? "newly unlocked" : "already unlocked")}");
+        Logger.Info($"[AP] UnlockRegion: '{name}' — {(added ? "newly unlocked" : "already unlocked")}");
         if (!added) return;
         _unlockedRegions!.Value = string.Join(",", _regionSet);
         _saveFile.Save();
@@ -265,7 +265,7 @@ public class ApSaveManager
         if (_saveFile == null) return;              // no open save file — in-memory only
         _visitedZones!.Value = string.Join(",", _visitedZoneSet);
         _saveFile.Save();
-        Plugin.Instance.Log.LogInfo($"[AP] Zone visited (first time): '{sgRef}'");
+        Logger.Info($"[AP] Zone visited (first time): '{sgRef}'");
     }
 
     public void UpdateLastItemIndex(int idx)
@@ -341,11 +341,11 @@ public class ApSaveManager
         try
         {
             File.WriteAllText(_scoutFilePath, JsonSerializer.Serialize(_scoutData, JsonOpts));
-            Plugin.Instance.Log.LogInfo($"[AP] Scout data saved: {_scoutData.Count} entries.");
+            Logger.Info($"[AP] Scout data saved: {_scoutData.Count} entries.");
         }
         catch (Exception ex)
         {
-            Plugin.Instance.Log.LogWarning($"[AP] Could not persist scout data: {ex.Message}");
+            Logger.Warning($"[AP] Could not persist scout data: {ex.Message}");
         }
     }
 
@@ -374,11 +374,11 @@ public class ApSaveManager
         try
         {
             File.Delete(path);
-            Plugin.Instance.Log.LogInfo($"[AP] Deleted AP {label}: {Path.GetFileName(path)}");
+            Logger.Info($"[AP] Deleted AP {label}: {Path.GetFileName(path)}");
         }
         catch (Exception ex)
         {
-            Plugin.Instance.Log.LogWarning(
+            Logger.Warning(
                 $"[AP] Could not delete AP {label} '{Path.GetFileName(path)}': {ex.Message}");
         }
     }
@@ -394,7 +394,7 @@ public class ApSaveManager
         }
         catch (Exception ex)
         {
-            Plugin.Instance.Log.LogWarning($"[AP] Could not load scout data: {ex.Message}");
+            Logger.Warning($"[AP] Could not load scout data: {ex.Message}");
         }
     }
 }

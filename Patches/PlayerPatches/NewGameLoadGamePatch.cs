@@ -1,4 +1,4 @@
-using HarmonyLib;
+﻿using HarmonyLib;
 using Il2CppMonomiPark.SlimeRancher;
 using Il2CppMonomiPark.SlimeRancher.DataModel;
 using SlimeRancher2AP.Archipelago;
@@ -59,7 +59,7 @@ internal static class NewGamePatch
         // effects from a previous SR2 run on this AP slot are not refired).
         // For a genuinely new AP slot, _ephemeralSet is empty, so all items replay.
         Plugin.Instance.ApClient.RequestFullReplay();
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             $"[AP] NewGamePatch: full replay requested — all items from AP snapshot will be applied to new save.");
 
         // NOTE: Icon injection via SetGameIconForNewGame is intentionally skipped.
@@ -106,7 +106,7 @@ internal static class LoadGamePatch
         var binding = SaveBindingManager.Load(slotIndex);
         if (binding == null) return;   // vanilla save — nothing to do
 
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             $"[AP] LoadGamePatch: slot {slotIndex} ({__0.GameName}) has AP binding " +
             $"(seed={binding.Seed}, slot={binding.Slot}) — auto-connecting...");
 
@@ -114,7 +114,7 @@ internal static class LoadGamePatch
         if (Plugin.Instance.ApClient.IsConnected &&
             Plugin.Instance.ApClient.Session?.RoomState.Seed == binding.Seed)
         {
-            Plugin.Instance.Log.LogInfo("[AP] LoadGamePatch: already connected to correct AP session.");
+            Logger.Info("[AP] LoadGamePatch: already connected to correct AP session.");
             return;
         }
 
@@ -131,7 +131,7 @@ internal static class LoadGamePatch
         // The preload is also immediately nullified by Disconnect()→ResetSession() inside
         // Connect(), so it serves no purpose when a session is already running.
         bool activeSession = Plugin.Instance.SaveManager.HasActiveSession;
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             $"[AP] LoadGamePatch: HasActiveSession={activeSession} watermark={Plugin.Instance.SaveManager.LastItemIndex}");
         if (!activeSession &&
             !string.IsNullOrEmpty(binding.Seed) && !string.IsNullOrEmpty(binding.Slot))
@@ -166,7 +166,7 @@ internal static class LoadGamePatch
         }
         catch (Exception ex)
         {
-            Plugin.Instance.Log.LogWarning(
+            Logger.Warning(
                 $"[AP] LoadGamePatch: could not resolve slot index for '{gameName}' — {ex.Message}");
             return -1;
         }
@@ -195,7 +195,7 @@ internal static class SessionEndedPatch
         if (!Plugin.Instance.ModEnabled) return;
         if (!Plugin.Instance.ApClient.IsConnected) return;
 
-        Plugin.Instance.Log.LogInfo("[AP] SessionEndedPatch: Save and Quit detected — disconnecting from AP server.");
+        Logger.Info("[AP] SessionEndedPatch: Save and Quit detected — disconnecting from AP server.");
         Plugin.Instance.ApClient.Disconnect();
     }
 }
@@ -238,7 +238,7 @@ internal static class DeleteGamePatch
         if (binding != null && !string.IsNullOrEmpty(binding.Seed) && !string.IsNullOrEmpty(binding.Slot))
         {
             ApSaveManager.DeleteSaveData(binding.Seed, binding.Slot);
-            Plugin.Instance.Log.LogInfo(
+            Logger.Info(
                 $"[AP] Cleaned up AP save data for slot {slotIndex} (seed={binding.Seed}, slot={binding.Slot})");
         }
     }

@@ -1,4 +1,4 @@
-using HarmonyLib;
+﻿using HarmonyLib;
 using Il2CppMonomiPark.SlimeRancher.Dialogue.CommStation;
 using SlimeRancher2AP.Data;
 
@@ -48,7 +48,7 @@ internal static class ConversationRecordedPatch
 
         // Always log at Info so we can see the conversation name and hasBeenPlayed state.
         var debugName = __instance.GetDebugName() ?? "";
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             $"[AP-Conv] RecordPlayed: debug='{debugName}'  hasBeenPlayed(before)={__state}");
 
         if (__state) return; // already played — re-read, not a first completion
@@ -63,7 +63,7 @@ internal static class ConversationRecordedPatch
         {
             // Conversation not in the table — either intentionally excluded (GiftPrefab,
             // ViktorNoName, etc.) or a newly added conversation not yet mapped.
-            Plugin.Instance.Log.LogInfo(
+            Logger.Info(
                 $"[AP-Conv] Unmapped conversation completed: '{debugName}'");
             return;
         }
@@ -71,12 +71,12 @@ internal static class ConversationRecordedPatch
         if (!LocationTable.IsConversationIncluded(loc.Type, mode))
         {
             // In the location table but excluded by the current mode setting.
-            Plugin.Instance.Log.LogInfo(
+            Logger.Info(
                 $"[AP-Conv] Conversation excluded by mode={mode}: '{debugName}' (type={loc.Type})");
             return;
         }
 
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             $"[AP-Conv] Check: '{loc.Name}' (id={loc.Id}  debug='{debugName}'  mode={mode})");
 
         Plugin.Instance.ApClient?.SendCheck(loc.Id);

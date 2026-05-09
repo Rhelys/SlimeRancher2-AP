@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace SlimeRancher2AP.SaveData;
@@ -50,7 +50,7 @@ public static class SaveBindingManager
         }
         catch (Exception ex)
         {
-            Plugin.Instance.Log.LogWarning(
+            Logger.Warning(
                 $"[AP] SaveBinding: could not read slot {slotIndex} binding — {ex.Message}");
             return null;
         }
@@ -65,12 +65,12 @@ public static class SaveBindingManager
         try
         {
             File.WriteAllText(path, JsonSerializer.Serialize(binding, JsonOpts));
-            Plugin.Instance.Log.LogInfo(
+            Logger.Info(
                 $"[AP] SaveBinding: wrote slot {slotIndex} binding (seed={binding.Seed}, slot={binding.Slot})");
         }
         catch (Exception ex)
         {
-            Plugin.Instance.Log.LogError(
+            Logger.Error(
                 $"[AP] SaveBinding: could not write slot {slotIndex} binding — {ex.Message}");
         }
     }
@@ -85,7 +85,7 @@ public static class SaveBindingManager
         if (File.Exists(path))
         {
             File.Delete(path);
-            Plugin.Instance.Log.LogInfo($"[AP] SaveBinding: deleted slot {slotIndex} binding");
+            Logger.Info($"[AP] SaveBinding: deleted slot {slotIndex} binding");
         }
     }
 }

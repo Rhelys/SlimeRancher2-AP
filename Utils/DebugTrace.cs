@@ -1,4 +1,4 @@
-#if DEBUG
+﻿#if DEBUG
 namespace SlimeRancher2AP.Utils;
 
 /// <summary>
@@ -23,7 +23,7 @@ internal static class DebugTrace
     public static void Once(string tag)
     {
         if (_seen.Add(tag))
-            Plugin.Instance.Log.LogInfo($"[TRACE] {tag}");
+            Logger.Info($"[TRACE] {tag}");
     }
 
     /// <summary>
@@ -31,14 +31,14 @@ internal static class DebugTrace
     /// Use for low-frequency methods (e.g. treasure pod activate, gordo pop).
     /// </summary>
     public static void All(string tag)
-        => Plugin.Instance.Log.LogInfo($"[TRACE] {tag}");
+        => Logger.Info($"[TRACE] {tag}");
 
     /// <summary>
     /// Logs a numbered step within a method (always, not deduplicated).
     /// tag format: "MethodName.step N — description"
     /// </summary>
     public static void Step(string tag)
-        => Plugin.Instance.Log.LogInfo($"[TRACE]   {tag}");
+        => Logger.Info($"[TRACE]   {tag}");
 
     /// <summary>Clears the seen-once set (e.g. call from GoalHandler.Initialize on reconnect).</summary>
     public static void Reset() => _seen.Clear();

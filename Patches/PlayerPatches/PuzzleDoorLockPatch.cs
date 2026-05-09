@@ -1,4 +1,4 @@
-using HarmonyLib;
+﻿using HarmonyLib;
 using Il2CppMonomiPark.SlimeRancher;
 using SlimeRancher2AP.Archipelago;
 using SlimeRancher2AP.Data;
@@ -47,12 +47,12 @@ internal static class PuzzleSlotLockableActivatePatch
             bool unlocked = Plugin.Instance.SaveManager.IsRegionUnlocked(RegionTable.PBRegionItemName);
             if (!unlocked)
             {
-                Plugin.Instance.Log.LogInfo(
+                Logger.Info(
                     $"[AP] Blocked PB Slime Door — '{RegionTable.PBRegionItemName}' not yet received.");
                 return false;
             }
 
-            Plugin.Instance.Log.LogInfo("[AP] PB Slime Door — access confirmed, opening.");
+            Logger.Info("[AP] PB Slime Door — access confirmed, opening.");
             return true;
         }
 
@@ -63,7 +63,7 @@ internal static class PuzzleSlotLockableActivatePatch
                 && locInfo!.Type == LocationType.PuzzleDoor)
             {
                 Plugin.Instance.ApClient.SendCheck(locInfo.Id);
-                Plugin.Instance.Log.LogInfo(
+                Logger.Info(
                     $"[AP] Puzzle Door check: '{locInfo.Name}' (id={locInfo.Id}) posKey='{posKey}'");
             }
         }
@@ -99,7 +99,7 @@ internal static class PuzzleDoorLockPatch
         }
         catch { return; }
 
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             $"[AP-Gate] PuzzleDoorLock unlocked: name='{objectName}'  scene='{sceneName}'");
 
         GoalHandler.OnSwitchOpened(objectName, sceneName);
@@ -129,7 +129,7 @@ internal static class PuzzleGateActivatorPatch
         }
         catch { return; }
 
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             $"[AP-Gate] PuzzleGateActivator activated: name='{objectName}'  scene='{sceneName}'");
 
         GoalHandler.OnSwitchOpened(objectName, sceneName);
@@ -165,7 +165,7 @@ internal static class PuzzleSlotLockableNotifyPatch
         }
         catch { return; }
 
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             $"[AP-PuzzleDoor] NotifySlotChanged (unlocked): name='{objectName}' " +
             $"scene='{sceneName}' posKey='{posKey}'");
 
@@ -198,7 +198,7 @@ internal static class PuzzleSlotLockableSendAnalyticsPatch
         }
         catch { return; }
 
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             $"[AP-PuzzleDoor] SendAnalytics (CONFIRMED UNLOCK): lockTag='{lockTag}' " +
             $"name='{objectName}' scene='{sceneName}' posKey='{posKey}'");
     }

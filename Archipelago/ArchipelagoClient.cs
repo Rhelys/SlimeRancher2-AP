@@ -1,4 +1,4 @@
-using Archipelago.MultiClient.Net;
+﻿using Archipelago.MultiClient.Net;
 using Archipelago.MultiClient.Net.BounceFeatures.DeathLink;
 using Archipelago.MultiClient.Net.Enums;
 using Archipelago.MultiClient.Net.Helpers;
@@ -96,10 +96,10 @@ public class ArchipelagoClient
                 // Wire up socket error / close handlers before login.
                 // ItemReceived is registered AFTER login (see below) — not before.
                 Session.Socket.ErrorReceived += (ex, msg) =>
-                    Plugin.Instance.Log.LogError($"[AP] Socket error: {msg} — {ex?.Message}");
+                    Logger.Error($"[AP] Socket error: {msg} — {ex?.Message}");
                 Session.Socket.SocketClosed += reason =>
                 {
-                    Plugin.Instance.Log.LogWarning($"[AP] Disconnected: {reason}");
+                    Logger.Warning($"[AP] Disconnected: {reason}");
                     OnDisconnected?.Invoke();
                 };
 
@@ -121,7 +121,7 @@ public class ArchipelagoClient
                     data.SaveSeedToConfig(Plugin.Instance.Config);
 
                     SlotData = SlotData.Parse(success.SlotData);
-                    Plugin.Instance.Log.LogInfo(
+                    Logger.Info(
                         $"[AP] SlotData: goal='{SlotData.Goal}' region_access_mode='{SlotData.RegionAccessMode}' " +
                         $"conversation_checks='{SlotData.ConversationChecks}' " +
                         $"weather_freq_mult={SlotData.WeatherFrequencyMultiplier} force_heavy={SlotData.ForceHeavyWeather} " +
@@ -150,7 +150,7 @@ public class ArchipelagoClient
                     var snapshot = Session.Items.AllItemsReceived.ToList();
                     int savedWatermark = Plugin.Instance.SaveManager.LastItemIndex;
 
-                    Plugin.Instance.Log.LogInfo(
+                    Logger.Info(
                         $"[AP] Reconnect state: savedWatermark={savedWatermark}, " +
                         $"snapshot.Count={snapshot.Count} — " +
                         $"expect {System.Math.Max(0, snapshot.Count - (savedWatermark + 1))} item(s) to replay");
@@ -168,7 +168,7 @@ public class ArchipelagoClient
                     // be duplicated in the edge case but that is preferable to missing items.
                     if (savedWatermark >= snapshot.Count)
                     {
-                        Plugin.Instance.Log.LogWarning(
+                        Logger.Warning(
                             $"[AP] Watermark ({savedWatermark}) exceeds server history ({snapshot.Count} item(s)) — " +
                             $"resetting to -1 and replaying all {snapshot.Count} item(s).");
                         Plugin.Instance.SaveManager.ForceLastItemIndex(-1);
@@ -186,7 +186,7 @@ public class ArchipelagoClient
                     }
                     _receivedCount = snapshot.Count;
                     _snapshotCount = snapshot.Count; // live-item boundary: idx >= this means freshly generated
-                    Plugin.Instance.Log.LogInfo(
+                    Logger.Info(
                         $"[AP] Historical replay: {snapshot.Count} item(s) in history, " +
                         $"watermark={savedWatermark}, {enqueued} new item(s) queued.");
 
@@ -200,7 +200,7 @@ public class ArchipelagoClient
                     var capturedSession = Session;
                     _ = ScoutAllLocationsAsync(capturedSession);
 
-                    Plugin.Instance.Log.LogInfo(
+                    Logger.Info(
                         $"[AP] Connected as '{data.SlotName}' (slot {data.Slot}, seed {data.Seed})");
 
                     // Schedule upgrade validation: once the scene and UpgradeHandler are ready,
@@ -219,7 +219,7 @@ public class ArchipelagoClient
                 else if (result is LoginFailure failure)
                 {
                     var errors = string.Join(", ", failure.Errors);
-                    Plugin.Instance.Log.LogError($"[AP] Login failed: {errors}");
+                    Logger.Error($"[AP] Login failed: {errors}");
                     // OnConnectionFailed also touches UI — defer to main thread.
                     _pendingMainThreadAction = () => OnConnectionFailed?.Invoke(errors);
                     Session = null;
@@ -227,7 +227,7 @@ public class ArchipelagoClient
             }
             catch (Exception ex)
             {
-                Plugin.Instance.Log.LogError($"[AP] Connection exception: {ex.Message}");
+                Logger.Error($"[AP] Connection exception: {ex.Message}");
                 OnConnectionFailed?.Invoke(ex.Message);
                 Session = null;
             }
@@ -259,12 +259,13 @@ public class ArchipelagoClient
         _pendingMainThreadAction  = null;
         _pendingUpgradeValidation = false;
         GateReturnEnforcer.Clear();
+        TrapHandler.ClearDeferred();
         lock (_queueLock) { _itemQueue.Clear(); }
         // Reset the save-manager session pointer so HasActiveSession returns false.
         // Without this, a reconnect would see the previous session's _saveFile as
         // still valid and process items before the new OnConnected completes.
         Plugin.Instance.SaveManager.ResetSession();
-        Plugin.Instance.Log.LogInfo("[AP] Disconnected.");
+        Logger.Info("[AP] Disconnected.");
     }
 
     // -------------------------------------------------------------------------
@@ -305,11 +306,11 @@ public class ArchipelagoClient
             }
 
             Plugin.Instance.SaveManager.UpdateAndSaveScoutData(persisted);
-            Plugin.Instance.Log.LogInfo($"[AP] Scouted {result.Count} location(s).");
+            Logger.Info($"[AP] Scouted {result.Count} location(s).");
         }
         catch (Exception ex)
         {
-            Plugin.Instance.Log.LogWarning($"[AP] Scout failed: {ex.Message}");
+            Logger.Warning($"[AP] Scout failed: {ex.Message}");
         }
     }
 
@@ -331,11 +332,11 @@ public class ArchipelagoClient
         try
         {
             Session.Locations.CompleteLocationChecks(pending.ToArray());
-            Plugin.Instance.Log.LogInfo($"[AP] Flushed {pending.Count} location check(s) to server.");
+            Logger.Info($"[AP] Flushed {pending.Count} location check(s) to server.");
         }
         catch (Exception ex)
         {
-            Plugin.Instance.Log.LogWarning($"[AP] Flush failed: {ex.Message}");
+            Logger.Warning($"[AP] Flush failed: {ex.Message}");
         }
     }
 
@@ -363,12 +364,12 @@ public class ArchipelagoClient
         if (isLiveItem || idx > watermark)
         {
             lock (_queueLock) { _itemQueue.Enqueue((item, idx)); }
-            Plugin.Instance.Log.LogInfo(
+            Logger.Info(
                 $"[AP] Queued item: {item.ItemName} (id={item.ItemId}, idx={idx}, watermark={watermark}, live={isLiveItem})");
         }
         else
         {
-            Plugin.Instance.Log.LogInfo(
+            Logger.Info(
                 $"[AP] Skipped item (already applied): {item.ItemName} (id={item.ItemId}, idx={idx}, watermark={watermark})");
         }
     }
@@ -438,7 +439,7 @@ public class ArchipelagoClient
         if (pending.Count > 0 && pending.Count != _lastLoggedPendingCount)
         {
             _lastLoggedPendingCount = pending.Count;
-            Plugin.Instance.Log.LogInfo(
+            Logger.Info(
                 $"[AP] Processing {pending.Count} queued item(s); " +
                 $"LastItemIndex={Plugin.Instance.SaveManager.LastItemIndex}, " +
                 $"snapshotCount={_snapshotCount}");
@@ -465,7 +466,7 @@ public class ArchipelagoClient
             bool isLiveItem = (entry.index >= _snapshotCount);
             if (!isLiveItem && entry.index <= Plugin.Instance.SaveManager.LastItemIndex)
             {
-                Plugin.Instance.Log.LogInfo(
+                Logger.Info(
                     $"[AP] Skipped item (secondary dedup): {entry.item.ItemName} (id={entry.item.ItemId}, idx={entry.index}, watermark={Plugin.Instance.SaveManager.LastItemIndex})");
                 continue;
             }
@@ -502,7 +503,7 @@ public class ArchipelagoClient
     {
         if (Session == null)
         {
-            Plugin.Instance.Log.LogWarning("[AP] RequestFullReplay: no active session — skipped");
+            Logger.Warning("[AP] RequestFullReplay: no active session — skipped");
             return;
         }
 
@@ -526,7 +527,7 @@ public class ArchipelagoClient
             }
         }
 
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             $"[AP] RequestFullReplay: {snapshot.Count} item(s) in history, {enqueued} queued for fresh SR2 save.");
     }
 
@@ -553,11 +554,11 @@ public class ArchipelagoClient
         {
             Session!.Locations.CompleteLocationChecks(locationId);
             var name = Session.Locations.GetLocationNameFromId(locationId);
-            Plugin.Instance.Log.LogInfo($"[AP] Checked: {name} ({locationId})");
+            Logger.Info($"[AP] Checked: {name} ({locationId})");
         }
         else
         {
-            Plugin.Instance.Log.LogInfo($"[AP] Checked (offline): {locationId}");
+            Logger.Info($"[AP] Checked (offline): {locationId}");
         }
     }
 
@@ -611,6 +612,6 @@ public class ArchipelagoClient
     {
         if (!IsConnected) return;
         Session!.SetGoalAchieved();
-        Plugin.Instance.Log.LogInfo("[AP] Goal achieved!");
+        Logger.Info("[AP] Goal achieved!");
     }
 }

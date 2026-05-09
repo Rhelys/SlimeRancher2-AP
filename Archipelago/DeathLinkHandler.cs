@@ -1,4 +1,4 @@
-using Archipelago.MultiClient.Net;
+﻿using Archipelago.MultiClient.Net;
 using Archipelago.MultiClient.Net.BounceFeatures.DeathLink;
 using UnityEngine;
 
@@ -40,12 +40,12 @@ public class DeathLinkHandler
         if (_isSendingDeath) return;
         var message = cause ?? $"{_playerName} was consumed by the slimes.";
         _service.SendDeathLink(new DeathLink(_playerName, message));
-        Plugin.Instance.Log.LogInfo($"[AP] DeathLink sent: {message}");
+        Logger.Info($"[AP] DeathLink sent: {message}");
     }
 
     private void OnDeathReceived(DeathLink death)
     {
-        Plugin.Instance.Log.LogInfo($"[AP] DeathLink received from {death.Source}: {death.Cause}");
+        Logger.Info($"[AP] DeathLink received from {death.Source}: {death.Cause}");
         _pendingDeaths.Enqueue(death);
     }
 
@@ -66,7 +66,7 @@ public class DeathLinkHandler
         else
         {
             // Fallback: set health to 0 if the component isn't found
-            Plugin.Instance.Log.LogWarning("[AP] PlayerDeathHandler component not found — falling back to SetHealth(0)");
+            Logger.Warning("[AP] PlayerDeathHandler component not found — falling back to SetHealth(0)");
             SceneContext.Instance?.PlayerState?.SetHealth(0);
         }
     }
@@ -78,7 +78,7 @@ public class DeathLinkHandler
         var player = SceneContext.Instance?.Player?.gameObject;
         if (player == null) return;
 
-        Plugin.Instance.Log.LogInfo($"[AP] Applying DeathLink from {death.Source}");
+        Logger.Info($"[AP] Applying DeathLink from {death.Source}");
 
         // Set the guard BEFORE killing the player so that PlayerDeathPatch.Prefix fires
         // during OnDeath() and sees _isSendingDeath = true, blocking the echo signal.

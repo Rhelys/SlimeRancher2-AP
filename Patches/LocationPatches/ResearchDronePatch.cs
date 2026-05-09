@@ -1,4 +1,4 @@
-using HarmonyLib;
+﻿using HarmonyLib;
 using Il2CppMonomiPark.SlimeRancher.Dialogue.ResearchDrone;
 using Il2CppMonomiPark.SlimeRancher.World.ResearchDrone;
 using SlimeRancher2AP.Data;
@@ -37,17 +37,17 @@ internal static class ResearchDronePatch
         _archiveScanDone = true;
 
         var allEntries = Resources.FindObjectsOfTypeAll<ResearchDroneEntry>();
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             $"[AP-Drone] Archive scan: found {allEntries.Count} ResearchDroneEntry assets");
 
         foreach (var e in allEntries)
         {
             var archiveName = e.archivedEntry?.name;
             if (!string.IsNullOrEmpty(archiveName))
-                Plugin.Instance.Log.LogInfo(
+                Logger.Info(
                     $"[AP-Drone]   HAS archive: '{e.name}' → '{archiveName}'");
             else
-                Plugin.Instance.Log.LogDebug(
+                Logger.Debug(
                     $"[AP-Drone]   no archive:  '{e.name}'");
         }
     }
@@ -63,27 +63,27 @@ internal static class ResearchDronePatch
         var controller = __instance._researchDroneController;
         if (controller == null)
         {
-            Plugin.Instance.Log.LogWarning("[AP] ResearchDrone: _researchDroneController is null");
+            Logger.Warning("[AP] ResearchDrone: _researchDroneController is null");
             return;
         }
 
         var entry = controller.ResearchDroneEntry;
         if (entry == null)
         {
-            Plugin.Instance.Log.LogWarning("[AP] ResearchDrone: ResearchDroneEntry is null");
+            Logger.Warning("[AP] ResearchDrone: ResearchDroneEntry is null");
             return;
         }
 
         var entryName = entry.name;
         if (string.IsNullOrEmpty(entryName))
         {
-            Plugin.Instance.Log.LogWarning("[AP] ResearchDrone: ResearchDroneEntry.name is null/empty");
+            Logger.Warning("[AP] ResearchDrone: ResearchDroneEntry.name is null/empty");
             return;
         }
 
         // Always log the entry name + archive name for in-game validation.
         var archiveEntryName = entry.archivedEntry?.name ?? "(none)";
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             $"[AP-Drone] OnInteract: entry='{entryName}'  archive='{archiveEntryName}'");
 
         // Run the one-shot full scan so all entries are visible in the log.
@@ -91,19 +91,19 @@ internal static class ResearchDronePatch
 
         if (!LocationTable.TryGetByEntryName(entryName, out var info) || info is null)
         {
-            Plugin.Instance.Log.LogWarning(
+            Logger.Warning(
                 $"[AP] Unknown ResearchDrone entry '{entryName}' — add to LocationTable");
             return;
         }
 
         var alreadyChecked = Plugin.Instance.SaveManager.IsChecked(info.Id);
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             $"[AP-Drone] Lookup ok: '{info.Name}' (id={info.Id}  entry='{entryName}'  alreadyChecked={alreadyChecked})");
 
         if (alreadyChecked)
             return;
 
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             $"[AP] Research Drone check: '{info.Name}' (id={info.Id}  entry='{entryName}')");
 
         Plugin.Instance.ApClient?.SendCheck(info.Id);

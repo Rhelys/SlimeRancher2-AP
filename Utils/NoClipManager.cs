@@ -1,4 +1,4 @@
-#if DEBUG
+﻿#if DEBUG
 using Il2CppMonomiPark.KFC;
 using Il2CppMonomiPark.SlimeRancher.Player.CharacterController;
 using KinematicCharacterController;
@@ -48,13 +48,13 @@ public static class NoClipManager
         var cc = GetCC();
         if (cc == null)
         {
-            Plugin.Instance.Log.LogWarning("[AP] NoClip: SRCharacterController not found — load a save first");
+            Logger.Warning("[AP] NoClip: SRCharacterController not found — load a save first");
             return;
         }
         var motor = cc._motor;
         if (motor == null)
         {
-            Plugin.Instance.Log.LogWarning("[AP] NoClip: KinematicCharacterMotor not found");
+            Logger.Warning("[AP] NoClip: KinematicCharacterMotor not found");
             return;
         }
 
@@ -73,7 +73,7 @@ public static class NoClipManager
         motor.BaseVelocity = new Vector3(v.x, 0f, v.z);
 
         IsActive = true;
-        Plugin.Instance.Log.LogInfo("[AP] NoClip enabled");
+        Logger.Info("[AP] NoClip enabled");
     }
 
     public static void Disable()
@@ -102,7 +102,7 @@ public static class NoClipManager
         }
 
         IsActive = false;
-        Plugin.Instance.Log.LogInfo("[AP] NoClip disabled");
+        Logger.Info("[AP] NoClip disabled");
     }
 
     public static void Toggle()
