@@ -1,4 +1,4 @@
-using Il2CppMonomiPark.SlimeRancher.World.Teleportation;
+﻿using Il2CppMonomiPark.SlimeRancher.World.Teleportation;
 using SlimeRancher2AP.Data;
 using UnityEngine;
 
@@ -81,7 +81,7 @@ public static class GateReturnEnforcer
         _returnLocId = locId;
         _returnAt    = Time.time + ReturnDelay;
 
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             $"[AP] GateReturnEnforcer: '{previousZone}' → '{newZone}' " +
             $"without gate check {locId} — resetting to Rainbow Fields in {ReturnDelay}s");
 
@@ -97,7 +97,7 @@ public static class GateReturnEnforcer
         // Re-check: gate button may have been pressed during the delay window.
         if (Plugin.Instance.SaveManager.IsChecked(_returnLocId))
         {
-            Plugin.Instance.Log.LogInfo(
+            Logger.Info(
                 "[AP] GateReturnEnforcer: gate check sent during delay — cancelling reset");
             ClearPending();
             return;
@@ -116,7 +116,7 @@ public static class GateReturnEnforcer
 
         if (teleportable == null || network == null)
         {
-            Plugin.Instance.Log.LogWarning(
+            Logger.Warning(
                 "[AP] GateReturnEnforcer: TeleportablePlayer or TeleportNetwork not found — cancelling");
             ClearPending();
             return;
@@ -124,7 +124,7 @@ public static class GateReturnEnforcer
 
         network.Teleport_ResetPlayer(teleportable);
 
-        Plugin.Instance.Log.LogInfo(
+        Logger.Info(
             "[AP] GateReturnEnforcer: reset player to Rainbow Fields spawn");
         ClearPending();
     }

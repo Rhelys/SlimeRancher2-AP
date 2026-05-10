@@ -34,7 +34,7 @@ public class DebugPanel : MonoBehaviour
     private const float LabelH  = 20;
     private const int   Pages   = 11;
 
-    // Teleport page — coordinate state (floats; adjusted with ± step buttons)
+    // Teleport page — coordinate state (floats; adjusted with ± step buttons or clipboard paste)
     private float _tpX = 0f;
     private float _tpY = 0f;
     private float _tpZ = 0f;
@@ -503,10 +503,26 @@ public class DebugPanel : MonoBehaviour
             return;
         }
 
-        // ── Coordinate step buttons ──────────────────────────────────────────
-        // GUI.TextField is stripped in this IL2CPP build; use ± buttons instead.
-        // "Fill from Current" seeds the values; step buttons fine-tune them.
+        // ── Coordinate input ─────────────────────────────────────────────────
+        // "Paste X Y Z" parses three floats from the clipboard — accepts formats like:
+        //   -452.3, 12.1, 890.0   |   (-452.3, 12.1, 890.0)   |   Pos: (-452.3, 12.1, 890.0)
+        // Per-axis "Paste" buttons paste a single float from the clipboard.
+        // ± step buttons fine-tune the current value.
         // Step sizes: ±0.5 / ±5 / ±50 / ±500 — covers the full SR2 world range.
+        GUI.color = new Color(0.8f, 0.8f, 1f);
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Paste X Y Z from Clipboard"))
+        {
+            if (TryParseThreeFloats(GUIUtility.systemCopyBuffer, out float px, out float py, out float pz))
+            {
+                _tpX = px; _tpY = py; _tpZ = pz;
+                Logger.Info($"[AP] TeleportPage: pasted X={px:F2} Y={py:F2} Z={pz:F2}");
+            }
+            else
+                Logger.Warning($"[AP] TeleportPage: clipboard '{GUIUtility.systemCopyBuffer}' could not be parsed as X Y Z");
+        }
+        GUI.color = Color.white;
+        y += BtnH + Gap;
+
         y = DrawCoordRow(x, y, "X", ref _tpX);
         y = DrawCoordRow(x, y, "Y", ref _tpY);
         y = DrawCoordRow(x, y, "Z", ref _tpZ);
@@ -544,29 +560,45 @@ public class DebugPanel : MonoBehaviour
     }
 
     /// <summary>
-    /// Draws a labelled coordinate row: current value label + four pairs of ± step buttons.
+    /// Draws a labelled coordinate row: current value + Paste button + four pairs of ± step buttons.
+    /// "Paste" reads a single float from the clipboard (GUI.TextField is stripped in IL2CPP).
     /// Step sizes: ±0.5, ±5, ±50, ±500. Returns the next Y position.
     /// </summary>
     private float DrawCoordRow(float x, float y, string label, ref float val)
     {
-        // Value display
+        var ci = System.Globalization.CultureInfo.InvariantCulture;
+        var ns = System.Globalization.NumberStyles.Float |
+                 System.Globalization.NumberStyles.AllowLeadingSign;
+
+        // Value label + per-axis Paste button on the same row
         GUI.color = Color.white;
-        GUI.Label(new Rect(x, y, PanelW, LabelH), $"  {label}:  {val:F2}");
+        const float pasteW = 52f;
+        GUI.Label(new Rect(x, y, PanelW - pasteW - Gap, LabelH),
+            $"  {label}:  {val.ToString("F2", ci)}");
+
+        GUI.color = new Color(0.8f, 0.8f, 1f);
+        if (GUI.Button(new Rect(x + PanelW - pasteW, y, pasteW, LabelH), $"Paste {label}"))
+        {
+            var clip = GUIUtility.systemCopyBuffer?.Trim();
+            if (!string.IsNullOrEmpty(clip) && float.TryParse(clip, ns, ci, out float parsed))
+                val = parsed;
+            else
+                Logger.Warning($"[AP] TeleportPage: clipboard '{clip}' is not a valid float for {label}");
+        }
+        GUI.color = Color.white;
         y += LabelH + 2;
 
-        // Six step buttons per row — three negative on the left, three positive on the right
+        // ± step buttons — four negative on the left, four positive on the right
         float[] steps = { 0.5f, 5f, 50f, 500f };
         float btnW = (PanelW - Gap * (steps.Length * 2 - 1)) / (steps.Length * 2);
-
         float bx = x;
-        // Negative buttons (left → right: −500, −50, −5, −0.5)
+
         for (int i = steps.Length - 1; i >= 0; i--)
         {
             GUI.color = new Color(1f, 0.5f, 0.5f);
             if (GUI.Button(new Rect(bx, y, btnW, BtnH), $"−{steps[i]}")) val -= steps[i];
             bx += btnW + Gap;
         }
-        // Positive buttons (left → right: +0.5, +5, +50, +500)
         for (int i = 0; i < steps.Length; i++)
         {
             GUI.color = new Color(0.5f, 1f, 0.5f);
@@ -576,6 +608,29 @@ public class DebugPanel : MonoBehaviour
 
         GUI.color = Color.white;
         return y + BtnH + Gap + 2;
+    }
+
+    /// <summary>
+    /// Tries to extract three floats from a clipboard string.
+    /// Handles formats: "x, y, z"  |  "(x, y, z)"  |  "Pos: (x, y, z)"
+    /// </summary>
+    private static bool TryParseThreeFloats(string? s, out float a, out float b, out float c)
+    {
+        a = b = c = 0f;
+        if (string.IsNullOrWhiteSpace(s)) return false;
+
+        // Strip common decorators
+        s = s.Replace("Pos:", "").Replace("(", "").Replace(")", "").Trim();
+
+        var parts = s.Split(new[] { ',', ' ' }, System.StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length < 3) return false;
+
+        var ci = System.Globalization.CultureInfo.InvariantCulture;
+        var ns = System.Globalization.NumberStyles.Float |
+                 System.Globalization.NumberStyles.AllowLeadingSign;
+        return float.TryParse(parts[0], ns, ci, out a)
+            && float.TryParse(parts[1], ns, ci, out b)
+            && float.TryParse(parts[2], ns, ci, out c);
     }
 
     /// <summary>Returns the player's <see cref="KinematicCharacterController.KinematicCharacterMotor"/>, or null if unavailable.</summary>

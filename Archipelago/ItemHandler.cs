@@ -171,22 +171,38 @@ public static class ItemHandler
         }
 
         // Traps log when they actually fire (or silently requeue in Release builds).
-        // Logging here would spam every frame while a trap waits in the queue.
-        if (item.Type != ItemType.Trap)
+        // Filler and UpgradeComponent also log inside their apply methods.
+        // Logging here would spam every frame while a rate-limited item waits.
+        if (item.Type is not ItemType.Trap and not ItemType.Filler and not ItemType.UpgradeComponent)
             Logger.Info($"[AP] Applying item: {item.Name} (id={item.Id}, idx={itemIndex})");
 
-        // Traps return false when they requeue for a later retry (scene/player not ready).
-        // In that case we must NOT advance the watermark — the item will be replayed from
-        // the server on the next reconnect (or retried from _itemQueue this session).
+        // All Apply* helpers return true when the item was applied successfully and
+        // false when it was requeued for a later retry (scene/player not ready, or trap
+        // rate-limited).  When false, we must NOT advance the watermark — the item will
+        // be replayed from _itemQueue this session (or from the server snapshot on reconnect).
         bool advanceWatermark = true;
 
         switch (item.Type)
         {
-            case ItemType.RegionAccess: ApplyRegionAccess(item);              break;
-            case ItemType.Upgrade:      ApplyUpgrade(item, apItem, itemIndex); break;
-            case ItemType.Gadget:       ApplyGadget(item, apItem, itemIndex);  break;
-            case ItemType.Filler:           ApplyFiller(item, apItem, itemIndex);           break;
-            case ItemType.UpgradeComponent: ApplyUpgradeComponent(item, apItem, itemIndex); break;
+            case ItemType.RegionAccess:
+                ApplyRegionAccess(item);   // always succeeds — writes config, never requeues
+                break;
+            case ItemType.Upgrade:
+                if (!ApplyUpgrade(item, apItem, itemIndex))
+                    advanceWatermark = false;
+                break;
+            case ItemType.Gadget:
+                if (!ApplyGadget(item, apItem, itemIndex))
+                    advanceWatermark = false;
+                break;
+            case ItemType.Filler:
+                if (!ApplyFiller(item, apItem, itemIndex))
+                    advanceWatermark = false;
+                break;
+            case ItemType.UpgradeComponent:
+                if (!ApplyUpgradeComponent(item, apItem, itemIndex))
+                    advanceWatermark = false;
+                break;
             case ItemType.Trap:
                 if (!ApplyTrap(item, apItem, itemIndex))
                     advanceWatermark = false;
@@ -427,7 +443,7 @@ public static class ItemHandler
         }
     }
 
-    private static void ApplyUpgrade(Data.ItemInfo item, ApItemInfo? apItem, int itemIndex)
+    private static bool ApplyUpgrade(Data.ItemInfo item, ApItemInfo? apItem, int itemIndex)
     {
         // ActorUpgradeHandler is not a MonoBehaviour — GetComponent always returns null.
         // Instead we use UpgradeHandler, which is populated by ActorUpgradeHandlerCtorPatch
@@ -436,18 +452,18 @@ public static class ItemHandler
         {
             Logger.Warning("[AP] ActorUpgradeHandler not yet cached — requeuing upgrade");
             if (apItem != null) Plugin.Instance.ApClient.RequeueItem(apItem, itemIndex);
-            return;
+            return false;
         }
 
         var upgradeName = GetUpgradeName(item.Id);
-        if (upgradeName == null) return;
+        if (upgradeName == null) return true; // unknown upgrade ID — don't retry
 
         var upgradeDef = Resources.FindObjectsOfTypeAll<UpgradeDefinition>()
                                   .FirstOrDefault(d => d.name == upgradeName);
         if (upgradeDef == null)
         {
             Logger.Warning($"[AP] UpgradeDefinition '{upgradeName}' not found");
-            return;
+            return true; // asset issue — retrying won't help
         }
 
         // ApplyUpgrade takes an ABSOLUTE level (not a delta).
@@ -471,7 +487,7 @@ public static class ItemHandler
         {
             Logger.Info($"[AP] Upgrade '{upgradeName}' already at max level ({maxLevel}) — skipping");
             Notify($"Received: {item.Name} (already maxed)");
-            return;
+            return true;
         }
 
         IsApplyingItem = true;
@@ -493,7 +509,7 @@ public static class ItemHandler
                     $"[AP] ApplyUpgrade threw and model level did not advance " +
                     $"(wanted {targetLevel}, got {levelAfter}): {ex.Message} — requeuing");
                 if (apItem != null) Plugin.Instance.ApClient.RequeueItem(apItem, itemIndex);
-                return;
+                return false;
             }
             Logger.Warning(
                 $"[AP] ApplyUpgrade threw (UI prefab not ready?) but model DID advance to {levelAfter} — " +
@@ -507,6 +523,7 @@ public static class ItemHandler
         _upgradeLevels[upgradeName] = targetLevel; // update immediately; patch callback may fire late or not at all
         Logger.Info($"[AP] Applied upgrade: {upgradeName} → level {targetLevel}/{maxLevel}");
         Notify($"Received: {item.Name}");
+        return true;
     }
 
     // Simple 1:1 grants: AP item ID → GadgetDefinition.name (from DumpGadgets).
@@ -544,10 +561,15 @@ public static class ItemHandler
         [ItemTable.RadiantProjectorBlueprint] = "EnergyBeamNode",
     };
 
-    private static void ApplyGadget(Data.ItemInfo item, ApItemInfo? apItem, int itemIndex)
+    private static bool ApplyGadget(Data.ItemInfo item, ApItemInfo? apItem, int itemIndex)
     {
         var gadgetDirector = SceneContext.Instance.GadgetDirector;
-        if (gadgetDirector == null) return;
+        if (gadgetDirector == null)
+        {
+            // GadgetDirector is unavailable (scene loading) — requeue for retry.
+            if (apItem != null) Plugin.Instance.ApClient.RequeueItem(apItem, itemIndex);
+            return false;
+        }
 
         // Simple 1:1 gadget grant (covers zone teleporters, home teleporters, warp depots,
         // functional gadgets, and the Radiant Projector Blueprint via SimpleGadgets lookup)
@@ -555,10 +577,11 @@ public static class ItemHandler
         {
             GrantSingleGadget(gadgetDirector, gadgetName);
             Notify($"Received: {item.Name}");
-            return;
+            return true;
         }
 
         Logger.Warning($"[AP] Unhandled gadget item ID: {item.Id}");
+        return true; // unknown gadget — don't retry
     }
 
     /// <summary>
@@ -631,21 +654,23 @@ public static class ItemHandler
         Logger.Info($"[AP] Granted gadget: {gadgetName}");
     }
 
-    private static void ApplyFiller(Data.ItemInfo item, ApItemInfo? apItem, int itemIndex)
+    /// <returns>
+    /// <c>true</c> if the item was applied (watermark should advance);
+    /// <c>false</c> if it was requeued (do NOT advance watermark).
+    /// </returns>
+    private static bool ApplyFiller(Data.ItemInfo item, ApItemInfo? apItem, int itemIndex)
     {
+        Logger.Info($"[AP] Applying filler: {item.Name} (id={item.Id}, idx={itemIndex})");
+
         // Newbucks — grant directly to player wallet
         if (item.Id is ItemTable.Newbucks250 or ItemTable.Newbucks500 or ItemTable.Newbucks1000)
-        {
-            ApplyNewbucks(item, apItem, itemIndex);
-            return;
-        }
+            return ApplyNewbucks(item, apItem, itemIndex);
 
-        // Slime Ring — spawns common slimes in a ring around the player
+        // Slime Ring — spawns common slimes in a ring around the player.
+        // Uses trap rate-limiting internally; propagate its success/failure to the caller
+        // so the watermark is not advanced when Slime Ring is deferred.
         if (item.Id == ItemTable.SlimeRing)
-        {
-            TrapHandler.ApplySlimeRingTrap(apItem, itemIndex);
-            return;
-        }
+            return TrapHandler.ApplySlimeRingTrap(apItem, itemIndex);
 
         // Plort/craft caches — deposit a random assortment of 10 items into the refinery
         var pool = item.Id switch
@@ -662,7 +687,10 @@ public static class ItemHandler
             _                                     => (string[]?)null
         };
         if (pool != null)
-            ApplyRefineryCache(pool, item.Name, count: 10, apItem, itemIndex);
+            return ApplyRefineryCache(pool, item.Name, count: 10, apItem, itemIndex);
+
+        Logger.Warning($"[AP] Unhandled filler item ID: {item.Id}");
+        return true; // unknown filler — don't retry
     }
 
     // Map ItemTable ID → UpgradeComponent asset name.
@@ -682,14 +710,15 @@ public static class ItemHandler
         { ItemTable.RegenModule,          "RegenComponent"           },  // EnergyRegen[lvl0–1]
     };
 
-    private static void ApplyUpgradeComponent(Data.ItemInfo item, ApItemInfo? apItem, int itemIndex)
+    private static bool ApplyUpgradeComponent(Data.ItemInfo item, ApItemInfo? apItem, int itemIndex)
     {
-        if (!_upgradeComponentNames.TryGetValue(item.Id, out var compName)) return;
+        if (!_upgradeComponentNames.TryGetValue(item.Id, out var compName))
+            return true; // unknown component ID — don't retry
 
         if (!SceneContextUtility.TryGetUpgradeComponentsModel(out var model) || model == null)
         {
             if (apItem != null) Plugin.Instance.ApClient.RequeueItem(apItem, itemIndex);
-            return;
+            return false;
         }
 
         var comp = Resources.FindObjectsOfTypeAll<UpgradeComponent>()
@@ -697,18 +726,24 @@ public static class ItemHandler
         if (comp == null)
         {
             Logger.Warning($"[AP] UpgradeComponent asset '{compName}' not found — grant skipped");
-            return;
+            return true; // asset issue — retrying won't help
         }
 
+        Logger.Info($"[AP] Applying component: {item.Name} (id={item.Id}, idx={itemIndex})");
         model.GainComponent(comp);
         Notify($"Received: {item.Name}");
         Logger.Info($"[AP] Granted upgrade component: {compName}");
+        return true;
     }
 
-    private static void ApplyNewbucks(Data.ItemInfo item, ApItemInfo? apItem, int itemIndex)
+    private static bool ApplyNewbucks(Data.ItemInfo item, ApItemInfo? apItem, int itemIndex)
     {
         var playerState = SceneContext.Instance?.PlayerState;
-        if (playerState == null) { if (apItem != null) Plugin.Instance.ApClient.RequeueItem(apItem, itemIndex); return; }
+        if (playerState == null)
+        {
+            if (apItem != null) Plugin.Instance.ApClient.RequeueItem(apItem, itemIndex);
+            return false;
+        }
 
         var amount = item.Id switch
         {
@@ -717,25 +752,30 @@ public static class ItemHandler
             ItemTable.Newbucks1000 => 1000,
             _                      => 0
         };
-        if (amount <= 0) return;
+        if (amount <= 0) return true; // unknown denomination — don't retry
 
         var currency = Resources.FindObjectsOfTypeAll<CurrencyDefinition>()
                                 .FirstOrDefault(c => c.name.Contains("Newbucks", StringComparison.OrdinalIgnoreCase));
         if (currency == null)
         {
             Logger.Warning("[AP] Could not find Newbucks CurrencyDefinition — grant skipped");
-            return;
+            return true; // asset issue — retrying won't help
         }
 
         playerState.AddCurrency(currency.Cast<ICurrency>(), amount);
         Notify($"Received: {amount} Newbucks");
+        return true;
     }
 
-    private static void ApplyRefineryCache(string[] pool, string cacheName, int count,
+    private static bool ApplyRefineryCache(string[] pool, string cacheName, int count,
                                              ApItemInfo? apItem, int itemIndex)
     {
         var director = SceneContext.Instance?.GadgetDirector;
-        if (director == null) { if (apItem != null) Plugin.Instance.ApClient.RequeueItem(apItem, itemIndex); return; }
+        if (director == null)
+        {
+            if (apItem != null) Plugin.Instance.ApClient.RequeueItem(apItem, itemIndex);
+            return false;
+        }
 
         // Pre-fetch all IdentifiableType assets once to avoid repeated FindObjectsOfTypeAll calls.
         var allIdents = Resources.FindObjectsOfTypeAll<IdentifiableType>();
@@ -757,6 +797,7 @@ public static class ItemHandler
 
         Logger.Info($"[AP] Deposited {totalAdded} items from '{cacheName}' into refinery");
         Notify($"Received: {cacheName} ({totalAdded} items) → Refinery");
+        return true;
     }
 
     /// <returns>
