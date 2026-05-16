@@ -96,7 +96,6 @@ public static class GoalHandler
         _goalAchieved = false;
         _tickCounter  = 0;
         _openedLabyrinthSwitches.Clear();
-        Patches.PlayerPatches.AccessDoorOpenPatch.Reset();
 
         var slotData = Plugin.Instance.ApClient.SlotData;
         if (slotData == null) return;
@@ -121,22 +120,13 @@ public static class GoalHandler
 
         if (++_tickCounter < TickInterval) return;
         _tickCounter = 0;
-#if DEBUG
-        SlimeRancher2AP.Utils.DebugTrace.Once("GoalHandler.Tick — past throttle (first check)");
-#endif
 
         var goal = Plugin.Instance.ApClient.SlotData?.Goal;
-#if DEBUG
-        SlimeRancher2AP.Utils.DebugTrace.Once($"GoalHandler.Tick — goal='{goal}'");
-#endif
         switch (goal)
         {
             case "newbucks":    CheckNewbucksGoal();    break;
             case "slimepedia":  CheckSlimepediaGoal();  break;
         }
-#if DEBUG
-        SlimeRancher2AP.Utils.DebugTrace.Once("GoalHandler.Tick — goal check complete");
-#endif
     }
 
     // -------------------------------------------------------------------------

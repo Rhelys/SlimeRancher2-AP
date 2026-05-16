@@ -56,11 +56,23 @@ internal static class PuzzleSlotLockableActivatePatch
             return true;
         }
 
-        // ── Case 2: Other puzzle doors ────────────────────────────────────────────
-        if (Plugin.Instance.ApClient.SlotData?.RandomizePuzzleDoors == true)
+        // ── Cases 2 & 3: Lookup by posKey — Shadow Plort doors and randomized puzzle doors ──
+        if (LocationTable.TryGetByObjectName(posKey, out var locInfo) && locInfo != null)
         {
-            if (LocationTable.TryGetByObjectName(posKey, out var locInfo)
-                && locInfo!.Type == LocationType.PuzzleDoor)
+            // Case 2: Shadow Plort doors (Grey Labyrinth) — always send check when opened.
+            // Detection moved here from PlortDepositorPatch (PlortDepositor.OnTriggerEnter)
+            // because PlortDepositor moved to root namespace in the 5/13 update and its
+            // physics-callback prologue changed, crashing the trampoline on scene load.
+            if (locInfo.Type == LocationType.ShadowPlortDoor)
+            {
+                Plugin.Instance.ApClient.SendCheck(locInfo.Id);
+                Logger.Info(
+                    $"[AP] Shadow Plort Door check: '{locInfo.Name}' (id={locInfo.Id}) posKey='{posKey}'");
+            }
+
+            // Case 3: Other puzzle doors (when randomized).
+            else if (Plugin.Instance.ApClient.SlotData?.RandomizePuzzleDoors == true
+                     && locInfo.Type == LocationType.PuzzleDoor)
             {
                 Plugin.Instance.ApClient.SendCheck(locInfo.Id);
                 Logger.Info(
@@ -72,134 +84,9 @@ internal static class PuzzleSlotLockableActivatePatch
     }
 }
 
-/// <summary>
-/// Forwards PuzzleDoorLock unlock events to GoalHandler for labyrinth_open detection.
-/// Accesses scene/object names defensively to avoid IL2CPP crashes during scene loading.
-/// </summary>
-[HarmonyPatch(typeof(PuzzleDoorLock), nameof(PuzzleDoorLock.NotifySlotChanged))]
-internal static class PuzzleDoorLockPatch
-{
-    private static void Postfix(PuzzleDoorLock __instance)
-    {
-#if DEBUG
-        SlimeRancher2AP.Utils.DebugTrace.Once("PuzzleDoorLockPatch.Postfix — first entry");
-#endif
-        if (!Plugin.Instance.ModEnabled) return;
-
-        bool shouldUnlock = false;
-        try { shouldUnlock = __instance.ShouldUnlock(); } catch { return; }
-        if (!shouldUnlock) return;
-
-        string objectName, sceneName;
-        try
-        {
-            objectName = __instance.gameObject.name;
-            var scene  = __instance.gameObject.scene;
-            sceneName  = scene.IsValid() ? (scene.name ?? "") : "";
-        }
-        catch { return; }
-
-        Logger.Info(
-            $"[AP-Gate] PuzzleDoorLock unlocked: name='{objectName}'  scene='{sceneName}'");
-
-        GoalHandler.OnSwitchOpened(objectName, sceneName);
-    }
-}
-
-/// <summary>
-/// Forwards PuzzleGateActivator activation events to GoalHandler for labyrinth_open detection.
-/// Accesses scene/object names defensively to avoid IL2CPP crashes during scene loading.
-/// </summary>
-[HarmonyPatch(typeof(PuzzleGateActivator), nameof(PuzzleGateActivator.TryToActivate))]
-internal static class PuzzleGateActivatorPatch
-{
-    private static void Postfix(PuzzleGateActivator __instance)
-    {
-#if DEBUG
-        SlimeRancher2AP.Utils.DebugTrace.Once("PuzzleGateActivatorPatch.Postfix — first entry");
-#endif
-        if (!Plugin.Instance.ModEnabled) return;
-
-        string objectName, sceneName;
-        try
-        {
-            objectName = __instance.gameObject.name;
-            var scene  = __instance.gameObject.scene;
-            sceneName  = scene.IsValid() ? (scene.name ?? "") : "";
-        }
-        catch { return; }
-
-        Logger.Info(
-            $"[AP-Gate] PuzzleGateActivator activated: name='{objectName}'  scene='{sceneName}'");
-
-        GoalHandler.OnSwitchOpened(objectName, sceneName);
-    }
-}
-
-/// <summary>
-/// Catches PuzzleSlotLockable (base class) NotifySlotChanged — covers puzzle doors that are
-/// plain PuzzleSlotLockable instances rather than PuzzleDoorLock subclass instances
-/// (e.g. the Powderfall Bluffs slime door). Same ShouldUnlock() guard as PuzzleDoorLockPatch.
-/// </summary>
-[HarmonyPatch(typeof(PuzzleSlotLockable), nameof(PuzzleSlotLockable.NotifySlotChanged))]
-internal static class PuzzleSlotLockableNotifyPatch
-{
-    private static void Postfix(PuzzleSlotLockable __instance)
-    {
-#if DEBUG
-        DebugTrace.Once("PuzzleSlotLockableNotifyPatch.Postfix — first entry");
-#endif
-        if (!Plugin.Instance.ModEnabled) return;
-
-        bool shouldUnlock = false;
-        try { shouldUnlock = __instance.ShouldUnlock(); } catch { return; }
-        if (!shouldUnlock) return;
-
-        string objectName, sceneName, posKey;
-        try
-        {
-            objectName = __instance.gameObject?.name ?? "null";
-            var scene  = __instance.gameObject!.scene;
-            sceneName  = scene.IsValid() ? (scene.name ?? "") : "";
-            posKey     = WorldUtils.PositionKey(__instance.gameObject!);
-        }
-        catch { return; }
-
-        Logger.Info(
-            $"[AP-PuzzleDoor] NotifySlotChanged (unlocked): name='{objectName}' " +
-            $"scene='{sceneName}' posKey='{posKey}'");
-
-        GoalHandler.OnSwitchOpened(objectName, sceneName);
-    }
-}
-
-/// <summary>
-/// Backstop: catches the analytics event that fires whenever any PuzzleSlotLockable
-/// fully unlocks (PuzzleLockOpened_V1). Logs lockTag + posKey for identification.
-/// This fires even if ActivateOnUnlock / NotifySlotChanged patches miss the door.
-/// </summary>
-[HarmonyPatch(typeof(PuzzleSlotLockable), "SendAnalyticsEvents")]
-internal static class PuzzleSlotLockableSendAnalyticsPatch
-{
-    private static void Postfix(PuzzleSlotLockable __instance, string lockTag)
-    {
-#if DEBUG
-        DebugTrace.Once("PuzzleSlotLockableSendAnalyticsPatch.Postfix — first entry");
-#endif
-        if (!Plugin.Instance.ModEnabled) return;
-
-        string objectName, sceneName, posKey;
-        try
-        {
-            objectName = __instance.gameObject?.name ?? "null";
-            var scene  = __instance.gameObject!.scene;
-            sceneName  = scene.IsValid() ? (scene.name ?? "") : "";
-            posKey     = WorldUtils.PositionKey(__instance.gameObject!);
-        }
-        catch { return; }
-
-        Logger.Info(
-            $"[AP-PuzzleDoor] SendAnalytics (CONFIRMED UNLOCK): lockTag='{lockTag}' " +
-            $"name='{objectName}' scene='{sceneName}' posKey='{posKey}'");
-    }
-}
+// NOTE (2026-05-15, v0.4.4): PuzzleDoorLockPatch, PuzzleGateActivatorPatch,
+// PuzzleSlotLockableNotifyPatch, and PuzzleSlotLockableSendAnalyticsPatch were removed.
+// These classes (PuzzleDoorLock, PuzzleGateActivator, PuzzleSlotLockable) moved to the
+// root namespace in the 5/13/2026 game update and their native method prologues changed,
+// causing HarmonyX trampoline crashes. The labyrinth_open goal is fully detected by
+// InvisibleSwitchPatch (WorldStateInvisibleSwitch.SetStateForAll) in RegionGatePatch.cs.

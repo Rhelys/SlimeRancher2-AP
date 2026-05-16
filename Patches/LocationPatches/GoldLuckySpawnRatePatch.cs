@@ -47,6 +47,11 @@ internal static class GoldLuckySpawnRatePatch
     // never from an already-scaled value (prevents double-scaling on reconnect).
     private static readonly Dictionary<(int, int, int), float> _origWeights = new();
 
+    // Last-known zone ref used to detect zone transitions so we can scale spawners in
+    // new scenes without patching DirectedActorSpawner.Start() (which crashed after the
+    // 5/13 game update changed its native prologue).
+    private static string? _lastZoneRef = null;
+
     private static readonly string[] TargetKeywords = { "Gold", "Lucky" };
 
     /// <summary>
@@ -57,8 +62,27 @@ internal static class GoldLuckySpawnRatePatch
     /// </summary>
     internal static void TryApplyIfNeeded()
     {
-        if (_applied) return;
         if (!Plugin.Instance.ModEnabled) return;
+
+        // Detect zone transitions and reset so new scene's spawners get their weights scaled.
+        // This replaces the removed DirectedActorSpawner.Start() Postfix (which crashed after
+        // the 5/13 game update changed Start()'s native prologue).
+        string? currentZone = null;
+        try
+        {
+            var player = SceneContext.Instance?.Player;
+            var tp = player?.GetComponent<TeleportablePlayer>();
+            currentZone = tp?.SceneGroup?.ReferenceId;
+        }
+        catch { /* SceneContext not ready — skip zone check this frame */ }
+
+        if (currentZone != _lastZoneRef)
+        {
+            _lastZoneRef = currentZone;
+            _applied = false; // new zone → new spawner instances → re-scan next frame
+        }
+
+        if (_applied) return;
 
         var slotData = Plugin.Instance.ApClient?.SlotData;
         if (slotData == null) return; // not connected yet
@@ -151,18 +175,6 @@ internal static class GoldLuckySpawnRatePatch
 
         _origWeights.Clear();
         _applied = false;
-    }
-
-    /// <summary>
-    /// Secondary trigger: fires when a <c>DirectedActorSpawner</c> initializes (e.g. on zone
-    /// transition after connection is already established). Resets <c>_applied</c> so the next
-    /// <c>TryApplyIfNeeded()</c> call in Update scans and scales the new spawner.
-    /// </summary>
-    [HarmonyPatch(typeof(DirectedActorSpawner), "Start")]
-    [HarmonyPostfix]
-    private static void StartPostfix(DirectedActorSpawner __instance)
-    {
-        _applied = false;
-        TryApplyIfNeeded();
+        _lastZoneRef = null; // force zone re-check on reconnect
     }
 }

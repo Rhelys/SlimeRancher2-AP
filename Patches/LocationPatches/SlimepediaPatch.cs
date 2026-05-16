@@ -10,7 +10,7 @@ namespace SlimeRancher2AP.Patches.LocationPatches;
 /// Two overloads of <c>PediaDirector.Unlock</c> exist with SEPARATE native implementations:
 /// <list type="bullet">
 ///   <item>
-///     <c>Unlock(PediaEntry, bool)</c> — CallerCount(12), returns <c>bool</c> (true = newly
+///     <c>Unlock(PediaEntry, bool)</c> — CallerCount(14), returns <c>bool</c> (true = newly
 ///     unlocked). Used for slime entries discovered from world interaction. Patched below in
 ///     <see cref="SlimepediaPatch"/> via the <c>__result</c> guard.
 ///   </item>
@@ -29,11 +29,35 @@ namespace SlimeRancher2AP.Patches.LocationPatches;
 /// Active for <c>SlimepediaEntry</c> locations when <c>SlotData.RandomizeSlimepedia</c> is true,
 /// and for <c>SlimepediaResourceEntry</c> locations when <c>SlotData.RandomizeSlimepediaResources</c>
 /// is true. Both flags are checked independently per entry type.
+///
+/// <para>
+/// <b>Trampoline note:</b> After the 5/13/2026 game update, <c>PediaDirector</c> moved to the
+/// root namespace. The native <c>Unlock(PediaEntry)</c> body calls
+/// <c>PediaUnlockedAnalyticsEvent..ctor</c>, which can throw a <c>NullReferenceException</c>
+/// when the analytics service or a field on the entry is not yet initialised. Without our
+/// Harmony trampoline, IL2CPP's native exception handling swallows this silently. With the
+/// trampoline in place the exception propagates through the managed boundary and appears in
+/// error logs. The <c>[HarmonyFinalizer]</c> below suppresses it, matching the game's
+/// vanilla behaviour, and the null-guard <c>Prefix</c> short-circuits the entire call when
+/// <c>entry</c> itself is null.
+/// </para>
 /// </summary>
 [HarmonyPatch(typeof(PediaDirector), nameof(PediaDirector.Unlock),
     new System.Type[] { typeof(PediaEntry), typeof(bool) })]
 internal static class SlimepediaPatch
 {
+    /// <summary>
+    /// Short-circuit when <c>entry</c> is null — the original method would NRE anyway.
+    /// Returning <c>false</c> causes Harmony to skip the original and return the default
+    /// <c>__result</c> of <c>false</c> (not newly unlocked), which is correct.
+    /// </summary>
+    private static bool Prefix(PediaEntry entry)
+    {
+        if (entry != null) return true; // normal path
+        Logger.Warning("[AP-Pedia] Unlock(PediaEntry, bool) called with null entry — skipping to prevent NRE");
+        return false;
+    }
+
     private static void Postfix(bool __result, PediaEntry entry)
     {
         if (!Plugin.Instance.ModEnabled) return;
@@ -45,6 +69,22 @@ internal static class SlimepediaPatch
         if (!slotData.RandomizeSlimepedia && !slotData.RandomizeSlimepediaResources) return;
 
         SlimepediaPatchHelper.SendCheckForEntry(entry.name, slotData);
+    }
+
+    /// <summary>
+    /// Suppress exceptions thrown inside the native <c>PediaDirector.Unlock(PediaEntry)</c>
+    /// body (e.g. NRE from <c>PediaUnlockedAnalyticsEvent..ctor</c>). These are pre-existing
+    /// game bugs that IL2CPP handles silently in vanilla; our trampoline would otherwise make
+    /// them visible as error-log entries. Returning <c>null</c> suppresses the exception.
+    /// </summary>
+    [HarmonyFinalizer]
+    private static System.Exception? Finalizer(System.Exception? __exception)
+    {
+        if (__exception != null)
+            Logger.Warning(
+                $"[AP-Pedia] Suppressed exception in PediaDirector.Unlock(PediaEntry): " +
+                $"{__exception.GetType().Name}: {__exception.Message}");
+        return null;
     }
 }
 

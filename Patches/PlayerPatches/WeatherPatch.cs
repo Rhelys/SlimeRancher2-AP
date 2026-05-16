@@ -108,22 +108,6 @@ internal static class WeatherPatch
     /// <summary>Called on disconnect so a reconnect with a different multiplier re-applies.</summary>
     internal static void OnDisconnected() => _multiplierApplied = false;
 
-    [HarmonyPostfix]
-    [HarmonyPatch(typeof(WeatherRegistry), nameof(WeatherRegistry.Awake))]
-    static void RegistryAwakePostfix(WeatherRegistry __instance)
-    {
-        if (!Plugin.Instance.ModEnabled) return;
-
-        // Always refresh originals from a freshly-awoken instance.
-        _origIntervalLow  = __instance.ForecastHourIntervalLow;
-        _origIntervalHigh = __instance.ForecastHourIntervalHigh;
-
-        var slotData = Plugin.Instance.ApClient?.SlotData;
-        if (slotData == null) return; // normal on first game start — OnSlotDataReceived handles it
-
-        ApplyMultiplierToRegistry(__instance, slotData.WeatherFrequencyMultiplier);
-    }
-
     private static void CacheOriginalsIfNeeded(WeatherRegistry reg)
     {
         if (_origIntervalLow > 0f) return; // already cached
@@ -143,6 +127,15 @@ internal static class WeatherPatch
             $"[AP-Weather] Frequency ×{multiplier}: forecast interval now " +
             $"[{reg.ForecastHourIntervalLow:F4}, {reg.ForecastHourIntervalHigh:F4}] game-hrs");
     }
+
+    // NOTE (2026-05-16, v0.4.4): WeatherRegistry.Awake Postfix was removed.
+    // Awake() is CallerCount(0) — Unity calls it natively. Its prologue changed in the
+    // 5/13/2026 game update, causing a HarmonyX trampoline crash on scene load, identical
+    // to the pattern seen with DirectedActorSpawner.Start, RadiantSlimeDirector.Start, etc.
+    // TryApplyIfNeeded() polls every Update frame and already covers the same use case
+    // (applies the multiplier the first frame a live WeatherRegistry is findable after connect).
+    // The WeatherRegistry is a persistent SceneContext singleton that is not recreated on scene
+    // reloads, so the "new registry after connection" edge case does not actually occur.
 
     // ─────────────────────────────────────────────────────────────────────────
     // Force Heavy Weather

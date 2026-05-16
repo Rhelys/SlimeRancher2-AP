@@ -40,33 +40,52 @@ namespace SlimeRancher2AP.Patches.PlayerPatches;
 // SR2's WorldStatePrimarySwitch.Activate() sets _switchEnabled = false before
 // calling SetStateForAll. Blocking at SetStateForAll (too late) leaves the button
 // dead. Blocking here keeps _switchEnabled untouched — the button stays pressable.
+//
+// NOTE (2026-05-15, v0.4.4): RegionGatePatch (WorldStatePrimarySwitch.SetStateForAll)
+// was removed because SetStateForAll's native prologue changed in the 5/13/2026 game
+// update, causing a HarmonyX trampoline crash. The Postfix logic (send check, grant
+// teleporter, GoalHandler) now lives here in RegionGateActivatePatch, which patches
+// Activate() — a method whose prologue is unchanged. __state passes a signal from
+// Prefix to Postfix indicating the gate is actually opening this call.
 // ─────────────────────────────────────────────────────────────────────────────
 [HarmonyPatch(typeof(WorldStatePrimarySwitch), "Activate")]
 internal static class RegionGateActivatePatch
 {
-    private static bool Prefix(WorldStatePrimarySwitch __instance)
+    private static bool Prefix(WorldStatePrimarySwitch __instance, out bool __state)
     {
 #if DEBUG
         SlimeRancher2AP.Utils.DebugTrace.Once("RegionGateActivatePatch.Prefix — first entry");
 #endif
+        __state = false;
+
         if (!Plugin.Instance.ApClient.IsConnected) return true;
 
         var teleMode = Plugin.Instance.ApClient.SlotData?.RegionAccessMode ?? "vanilla";
-        if (teleMode == "vanilla") return true;   // vanilla: never block at this level
+
+        if (teleMode == "vanilla")
+        {
+            // Vanilla: all gates open freely; Postfix will grant the zone teleporter.
+            __state = true;
+            return true;
+        }
 
         string switchName;
         try { switchName = __instance.gameObject.name; }
         catch { return true; }
 
-        if (!RegionTable.TryGetRegionForSwitch(switchName, out var regionName)) return true;
+        if (!RegionTable.TryGetRegionForSwitch(switchName, out var regionName))
+            return true; // untracked switch — let it through, no side-effects needed
 
-        // Region already unlocked — let Activate() run. SetStateForAll will fire, pass
-        // through the Prefix there, and the Postfix will send the location check.
-        if (Plugin.Instance.SaveManager.IsRegionUnlocked(regionName)) return true;
+        if (Plugin.Instance.SaveManager.IsRegionUnlocked(regionName))
+        {
+            // Region unlocked — gate is opening; signal Postfix to send check + GoalHandler.
+            __state = true;
+            return true;
+        }
 
-        // Region locked: send the check and block Activate() entirely.
-        // Because Activate() never runs, _switchEnabled is not cleared and the button
-        // stays live so the player can press it again after the access item arrives.
+        // Region locked: send the check and block Activate() entirely so the button stays live.
+        // Because Activate() never runs, _switchEnabled is not cleared and the player can press
+        // the button again after the access item arrives.
         if (RegionTable.TryGetLocationId(switchName, out var locationId))
             Plugin.Instance.ApClient.SendCheck(locationId);
 
@@ -74,69 +93,13 @@ internal static class RegionGateActivatePatch
             $"[AP] Blocked gate Activate: '{switchName}' ('{regionName}' not yet received) — button left enabled.");
         return false;
     }
-}
 
-// ─────────────────────────────────────────────────────────────────────────────
-// RegionGatePatch — guards SetStateForAll for all callers (Activate second press,
-// scene-state restoration, etc.) and handles post-open side effects.
-// ─────────────────────────────────────────────────────────────────────────────
-[HarmonyPatch(typeof(WorldStatePrimarySwitch), nameof(WorldStatePrimarySwitch.SetStateForAll))]
-internal static class RegionGatePatch
-{
-    private static bool Prefix(WorldStatePrimarySwitch __instance, SwitchHandler.State state,
-                                out bool __state)
+    private static void Postfix(WorldStatePrimarySwitch __instance, bool __state)
     {
 #if DEBUG
-        SlimeRancher2AP.Utils.DebugTrace.Once("RegionGatePatch.Prefix — first entry");
+        SlimeRancher2AP.Utils.DebugTrace.Once("RegionGateActivatePatch.Postfix — first entry");
 #endif
-        __state = false; // Postfix: don't auto-grant unless we set this true below
-
-        // Allow vanilla behaviour when not connected to Archipelago
-        if (!Plugin.Instance.ApClient.IsConnected) return true;
-
-        // Only intercept opening (DOWN) — always allow closing
-        if (state != SwitchHandler.State.DOWN) return true;
-
-        var teleMode = Plugin.Instance.ApClient.SlotData?.RegionAccessMode ?? "vanilla";
-
-        // Vanilla mode: regions are not AP items — never block, let Postfix grant teleporter
-        if (teleMode == "vanilla")
-        {
-            __state = true;
-            return true;
-        }
-
-        // Locations / bundled mode: gate only the tracked AP region gates.
-        // Any switch NOT in RegionTable (e.g. vanilla puzzle gates) passes through.
-        // gameObject.name can crash on partially-initialised IL2CPP objects — guard it.
-        string switchName;
-        try { switchName = __instance.gameObject.name; }
-        catch { return true; }
-
-        string dbgScene;
-        try { var sc = __instance.gameObject.scene; dbgScene = sc.IsValid() ? (sc.name ?? "") : "?"; }
-        catch { dbgScene = "?"; }
-        Logger.Info(
-            $"[AP-Gate] {teleMode} mode — DOWN switch: '{switchName}' scene='{dbgScene}' " +
-            $"tracked={RegionTable.TryGetRegionForSwitch(switchName, out _)}");
-
-        if (!RegionTable.TryGetRegionForSwitch(switchName, out var regionName))
-            return true;   // not a tracked region gate — never block
-
-        // Allow the gate to open only if the access item has been received.
-        if (Plugin.Instance.SaveManager.IsRegionUnlocked(regionName)) return true;
-
-        Logger.Info($"[AP] Blocked gate SetStateForAll: '{switchName}' ('{regionName}' not yet received)");
-        return false;
-    }
-
-    private static void Postfix(WorldStatePrimarySwitch __instance, SwitchHandler.State state,
-                                 bool __state)
-    {
-#if DEBUG
-        SlimeRancher2AP.Utils.DebugTrace.Once("RegionGatePatch.Postfix — first entry");
-#endif
-        if (state != SwitchHandler.State.DOWN) return;
+        if (!__state) return;
 
         string switchName, sceneName;
         try
@@ -147,7 +110,7 @@ internal static class RegionGatePatch
         }
         catch { return; }
 
-        // Track gate as open for this session (used by teleport trap eligibility check).
+        // Track gate as open for teleport trap eligibility.
         if (RegionTable.TryGetRegionForSwitch(switchName, out var regionItemName))
             TrapHandler.MarkRegionOpen(regionItemName);
 
@@ -159,11 +122,11 @@ internal static class RegionGatePatch
         if (teleMode != "vanilla" && RegionTable.TryGetLocationId(switchName, out var locId))
             Plugin.Instance.ApClient.SendCheck(locId);
 
-        // Vanilla mode: grant the zone teleporter for this region
-        if (__state)
+        // Vanilla mode: grant the zone teleporter for this region.
+        if (teleMode == "vanilla")
             ItemHandler.TryGrantRegionTeleporterForSwitch(switchName);
 
-        // Goal detection: notify GoalHandler of every switch opening (mode-independent)
+        // Goal detection (mode-independent).
         GoalHandler.OnSwitchOpened(switchName, sceneName);
     }
 }
