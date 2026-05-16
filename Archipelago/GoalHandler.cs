@@ -96,7 +96,6 @@ public static class GoalHandler
         _goalAchieved = false;
         _tickCounter  = 0;
         _openedLabyrinthSwitches.Clear();
-        Patches.PlayerPatches.AccessDoorOpenPatch.Reset();
 
         var slotData = Plugin.Instance.ApClient.SlotData;
         if (slotData == null) return;

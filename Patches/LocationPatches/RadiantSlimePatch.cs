@@ -1,5 +1,6 @@
 ﻿using System;
 using HarmonyLib;
+using Il2CppMonomiPark.SlimeRancher.SceneManagement;
 using Il2CppMonomiPark.SlimeRancher.Slime;
 using UnityEngine;
 
@@ -38,7 +39,7 @@ internal static class RadiantDebugFlags
 internal static class ForceRadiantSpawnPatch
 {
     private static void Postfix(ref bool __result, IdentifiableType id,
-        RadiantSlimeDirector __instance)
+        SceneGroup sceneGroup, RadiantSlimeDirector __instance)
     {
 #if DEBUG
         // Log bag state by looking up the slime in RadiantShuffleBags.
@@ -134,6 +135,10 @@ internal static class RadiantSlimeSpawnRatePatch
     // never from an already-scaled value (prevents double-scaling on reconnect).
     private static int[]? _origBagSizes = null;
 
+    // Last-known zone ref used to detect zone transitions so we can re-seed live bags
+    // for each new scene's RadiantSlimeDirector without patching RadiantSlimeDirector.Start().
+    private static string? _lastZoneRef = null;
+
     /// <summary>
     /// Called every Update frame from <c>Plugin.cs</c>.
     /// Runs in two stages that may succeed on different frames:
@@ -150,8 +155,29 @@ internal static class RadiantSlimeSpawnRatePatch
     /// </summary>
     internal static void TryApplyIfNeeded()
     {
-        if (_bagSizesScaled && _livebagsSeeded) return;
         if (!Plugin.Instance.ModEnabled) return;
+
+        // Detect zone transitions so we re-seed live bags for each new scene's director.
+        // This replaces the removed RadiantSlimeDirector.Start() Postfix (which crashed after
+        // the 5/13 game update changed Start()'s native prologue).
+        string? currentZone = null;
+        try
+        {
+            var player = SceneContext.Instance?.Player;
+            var tp = player?.GetComponent<TeleportablePlayer>();
+            currentZone = tp?.SceneGroup?.ReferenceId;
+        }
+        catch { /* SceneContext not ready — skip zone check this frame */ }
+
+        if (currentZone != _lastZoneRef)
+        {
+            _lastZoneRef = currentZone;
+            // New zone → new RadiantSlimeDirector → must re-seed its live bags.
+            if (_bagSizesScaled && _livebagsSeeded)
+                _livebagsSeeded = false;
+        }
+
+        if (_bagSizesScaled && _livebagsSeeded) return;
 
         var slotData = Plugin.Instance.ApClient?.SlotData;
         if (slotData == null) return; // not connected yet — retry next frame
@@ -257,19 +283,6 @@ internal static class RadiantSlimeSpawnRatePatch
     {
         _bagSizesScaled = false;
         _livebagsSeeded = false;
-    }
-
-    // Secondary trigger: fires when a director wakes after connection is already established
-    // (e.g. a late scene load or zone transition that creates a new director instance).
-    // Re-seeds live bags for the new director without re-scaling the already-patched config.
-    [HarmonyPatch(typeof(RadiantSlimeDirector), "Start")]
-    [HarmonyPostfix]
-    private static void StartPostfix(RadiantSlimeDirector __instance)
-    {
-        // Config scaling is already done (_bagSizesScaled=true). Reset only the live-bag
-        // seed flag so the new director's model gets seeded on the next Update frame.
-        if (_bagSizesScaled && _livebagsSeeded)
-            _livebagsSeeded = false;
-        TryApplyIfNeeded();
+        _lastZoneRef = null; // force zone re-check on reconnect
     }
 }
