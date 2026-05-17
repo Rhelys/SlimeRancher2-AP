@@ -40,11 +40,17 @@ public class ApSaveManager
     private ConfigEntry<string>? _visitedZones;
     private ConfigEntry<long>?   _newbucksEarned;
     private ConfigEntry<string>? _appliedEphemeralIndices;
+    private ConfigEntry<string>? _deferredTrapIndices;
 
     private readonly HashSet<long>   _checkedSet      = new();
     private readonly HashSet<string> _regionSet       = new();
     private readonly HashSet<string> _visitedZoneSet  = new();
     private readonly HashSet<int>    _ephemeralSet    = new();
+    // Indices of trap items that have been rate-limited into TrapHandler._deferred but have
+    // not yet fired.  Persisted so that if the game disconnects while a trap is deferred
+    // (and the watermark has already advanced past its index), the trap is re-queued on the
+    // next session reconnect and fires before normal item processing continues.
+    private readonly HashSet<int>    _deferredSet     = new();
     // volatile: _lastItemIdx and _sessionActive are written on the background thread
     // (OnConnected / ResetSession) and read on the main thread (LoadGamePatch) and the
     // network-callback thread (OnItemReceived). Without volatile the JIT / CPU is free to
@@ -102,16 +108,42 @@ public class ApSaveManager
         // Overwriting it here (e.g. when LoadGamePatch fires for a different save slot
         // while a session is live) would corrupt the in-memory watermark and cause newly
         // received items to be skipped as "already applied".
-        if (HasActiveSession)
-        {
-            Logger.Info(
-                $"[AP] PreloadLastItemIndex: skipped — session already active (seed={seed} slot={slotName})");
-            return;
-        }
-
         var safeSlot  = string.Concat(slotName.Split(Path.GetInvalidFileNameChars()));
         var dir       = Path.Combine(BepInEx.Paths.ConfigPath, "SlimeRancher2-AP");
         var cfgPath   = Path.Combine(dir, $"AP_{seed}_{safeSlot}.cfg");
+
+        if (HasActiveSession)
+        {
+            // Read what the file says so we can log it — but do NOT apply it.
+            // If this ever shows a value that matches the mysterious 9009 jump, the culprit is
+            // PreloadLastItemIndex being called mid-session by LoadGamePatch or similar.
+            if (File.Exists(cfgPath))
+            {
+                try
+                {
+                    var peekFile  = new ConfigFile(cfgPath, false);
+                    var peekEntry = peekFile.Bind("Progress", "LastItemIndex", -1,
+                        "Index of last applied item (dedup key for reconnect)");
+                    Logger.Info(
+                        $"[AP] PreloadLastItemIndex: skipped — session already active " +
+                        $"(seed={seed} slot={slotName}, file says {peekEntry.Value}, " +
+                        $"current _lastItemIdx={_lastItemIdx})");
+                }
+                catch
+                {
+                    Logger.Info(
+                        $"[AP] PreloadLastItemIndex: skipped — session already active " +
+                        $"(seed={seed} slot={slotName}, could not peek file, current _lastItemIdx={_lastItemIdx})");
+                }
+            }
+            else
+            {
+                Logger.Info(
+                    $"[AP] PreloadLastItemIndex: skipped — session already active " +
+                    $"(seed={seed} slot={slotName}, file does not exist)");
+            }
+            return;
+        }
 
         if (!File.Exists(cfgPath)) return;
 
@@ -154,6 +186,7 @@ public class ApSaveManager
         _visitedZones            = null;
         _newbucksEarned          = null;
         _appliedEphemeralIndices = null;
+        _deferredTrapIndices     = null;
         _lastItemIdx             = -1;
         // Keep _checkedSet, _regionSet, _visitedZoneSet, _scoutData in memory —
         // they'll be re-loaded from the correct file by the next OnConnected call.
@@ -191,6 +224,9 @@ public class ApSaveManager
             "Cumulative newbucks earned this AP run (tracked via PlayerState.AddCurrency)");
         _appliedEphemeralIndices = _saveFile.Bind("Progress", "AppliedEphemeralIndices", "",
             "Comma-separated item indices of filler/trap items already applied — never re-applied on replay");
+        _deferredTrapIndices     = _saveFile.Bind("Progress", "DeferredTrapIndices", "",
+            "Comma-separated item indices of traps that are rate-limited and pending fire. " +
+            "Re-queued on reconnect if the watermark has already advanced past their index.");
 
         // Deserialize checked locations
         _checkedSet.Clear();
@@ -212,8 +248,14 @@ public class ApSaveManager
         foreach (var s in (_appliedEphemeralIndices.Value ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries))
             if (int.TryParse(s, out var idx)) _ephemeralSet.Add(idx);
 
+        // Deserialize pending deferred trap indices
+        _deferredSet.Clear();
+        foreach (var s in (_deferredTrapIndices.Value ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries))
+            if (int.TryParse(s, out var idx)) _deferredSet.Add(idx);
+
         _lastItemIdx        = _lastItemIndex.Value;
         _newbucksEarnedVal  = _newbucksEarned.Value;
+        Logger.Info($"[AP] OnConnected: _lastItemIdx loaded from disk = {_lastItemIdx}");
 
         // Load persisted scout data (may not exist on first connect)
         _scoutData.Clear();
@@ -222,7 +264,8 @@ public class ApSaveManager
         Logger.Info(
             $"[AP] Save file: {Path.GetFileName(_saveFile.ConfigFilePath)} — " +
             $"LastItemIndex on disk={_lastItemIndex.Value}, " +
-            $"EphemeralIndices on disk='{_appliedEphemeralIndices!.Value}'");
+            $"EphemeralIndices on disk='{_appliedEphemeralIndices!.Value}', " +
+            $"DeferredTraps on disk='{_deferredTrapIndices!.Value}'");
         Logger.Info(
             $"[AP] Save loaded: {_checkedSet.Count} locations checked, " +
             $"last item index {_lastItemIdx}, {_regionSet.Count} regions unlocked, " +
@@ -270,7 +313,22 @@ public class ApSaveManager
 
     public void UpdateLastItemIndex(int idx)
     {
-        if (_saveFile == null || idx <= _lastItemIdx) return;
+        if (_saveFile == null)
+        {
+            Logger.Warning($"[AP] UpdateLastItemIndex({idx}) SKIPPED — no save file open");
+            return;
+        }
+        if (idx <= _lastItemIdx)
+        {
+            // Log when the new index is suspiciously far below the current watermark —
+            // this should only happen by a few units at most during normal operation.
+            if (_lastItemIdx - idx > 100)
+                Logger.Warning(
+                    $"[AP] UpdateLastItemIndex({idx}) SKIPPED — current watermark={_lastItemIdx} " +
+                    $"(gap={_lastItemIdx - idx}, possible watermark corruption)");
+            return;
+        }
+        Logger.Info($"[AP] UpdateLastItemIndex: {_lastItemIdx} → {idx}");
         _lastItemIdx           = idx;
         _lastItemIndex!.Value  = idx;
         _saveFile.Save();
@@ -294,6 +352,39 @@ public class ApSaveManager
         _saveFile.Save();
     }
 
+    // -------------------------------------------------------------------------
+    // Deferred trap persistence
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Returns the set of trap item indices that are currently rate-limited in the deferred
+    /// queue and have not yet fired. Used at reconnect to re-queue traps whose watermark was
+    /// already advanced past them before they could fire.
+    /// </summary>
+    public IReadOnlyCollection<int> GetPendingDeferredTraps() => _deferredSet;
+
+    /// <summary>
+    /// Records that the trap at <paramref name="idx"/> has been placed in the deferred queue
+    /// (rate-limited, pending fire). Persists immediately so a disconnect doesn't lose it.
+    /// </summary>
+    public void AddDeferredTrap(int idx)
+    {
+        if (_saveFile == null || !_deferredSet.Add(idx)) return;
+        _deferredTrapIndices!.Value = string.Join(",", _deferredSet);
+        _saveFile.Save();
+    }
+
+    /// <summary>
+    /// Removes <paramref name="idx"/> from the deferred trap set once the trap has fired
+    /// (or been skipped as already-ephemeral). No-op if the index is not in the set.
+    /// </summary>
+    public void RemoveDeferredTrap(int idx)
+    {
+        if (_saveFile == null || !_deferredSet.Remove(idx)) return;
+        _deferredTrapIndices!.Value = string.Join(",", _deferredSet);
+        _saveFile.Save();
+    }
+
     /// <summary>
     /// Forcibly sets <see cref="LastItemIndex"/> to <paramref name="idx"/>, even if lower
     /// than the current value. Used to correct a corrupted/stale watermark (e.g. when the
@@ -301,6 +392,7 @@ public class ApSaveManager
     /// </summary>
     public void ForceLastItemIndex(int idx)
     {
+        Logger.Info($"[AP] ForceLastItemIndex: {_lastItemIdx} → {idx}");
         _lastItemIdx = idx;
         if (_saveFile == null) return;
         _lastItemIndex!.Value = idx;

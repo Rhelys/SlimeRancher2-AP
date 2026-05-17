@@ -119,7 +119,11 @@ public static class ItemHandler
             case ItemType.Trap:             ApplyTrap(item, null, itemIndex);                break; // return ignored — debug path has no requeue
         }
 
-        Plugin.Instance.SaveManager.UpdateLastItemIndex(itemIndex);
+        // Intentionally do NOT call UpdateLastItemIndex here.
+        // Debug panel grants use an internal counter (starting at 9000) that has no
+        // relation to the AP server item index. Calling UpdateLastItemIndex would corrupt
+        // the watermark and cause all subsequent real AP items (idx 0–N) to be permanently
+        // skipped on reconnect (idx <= 9000+ always true).
     }
 
     public static void Apply(ApItemInfo apItem, int itemIndex)
@@ -136,6 +140,11 @@ public static class ItemHandler
                 Plugin.Instance.ApClient.RequeueItem(apItem, itemIndex);
             return;
         }
+
+        Logger.Info(
+            $"[AP] About to apply: {apItem.ItemName} " +
+            $"(id={apItem.ItemId}, idx={itemIndex}, " +
+            $"lastIdx={Plugin.Instance.SaveManager.LastItemIndex})");
 
         var item = ItemTable.Get(apItem.ItemId);
         if (item == null)
@@ -216,6 +225,11 @@ public static class ItemHandler
             if (isEphemeral)
                 Plugin.Instance.SaveManager.MarkEphemeralApplied(itemIndex);
         }
+
+        // Clear any pending-deferred entry: this item has now been applied (or confirmed
+        // already-applied), so it no longer needs the deferred-trap reconnect safety net.
+        // No-op for non-trap items and for items that were never deferred.
+        Plugin.Instance.SaveManager.RemoveDeferredTrap(itemIndex);
     }
 
     // -------------------------------------------------------------------------
@@ -1176,6 +1190,10 @@ public static class TrapHandler
             if (apItem != null)
             {
                 _deferred.Enqueue((apItem, itemIndex));
+                // Persist the deferred index so a disconnect before the trap fires doesn't
+                // lose it permanently (the watermark may advance past this index before Tick()
+                // promotes it; without persistence the trap would be silently skipped on reconnect).
+                Plugin.Instance.SaveManager.AddDeferredTrap(itemIndex);
                 Logger.Info(
                     $"[AP] Trap deferred — cooldown/grace active " +
                     $"(deferred queue depth: {_deferred.Count})");

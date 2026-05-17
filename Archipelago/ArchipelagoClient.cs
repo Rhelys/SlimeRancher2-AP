@@ -29,17 +29,22 @@ public class ArchipelagoClient
     public event Action?         OnConnected;
     public event Action?         OnDisconnected;
 
-    // Queue holds (item, index) tuples. Index is a local counter (_receivedCount) that
-    // tracks receipt order within this connection. It matches the AP server's own position
-    // counter because AllItems causes a full replay from 0 on every connect.
+    // Queue holds (item, index) tuples. Index is the library's canonical 0-based position
+    // (ReceivedItemsHelper.Index captured before DequeueItem) — matches the AP server's
+    // own position counter regardless of when the handler fires or how many items are batched.
     // Used to skip items already applied in a previous session (reconnect dedup).
     private readonly Queue<(ItemInfo item, int index)> _itemQueue = new();
     private readonly object _queueLock = new();
-    // volatile: OnItemReceived runs on the network thread; Connect() writes this field on
-    // the background task thread.  volatile ensures the network thread always sees the
-    // value written by Connect() (_receivedCount = snapshot.Count) rather than a stale
-    // cached copy.  Also, ++ in OnItemReceived should be Interlocked for atomicity in
-    // case the library can fire ItemReceived concurrently (not expected, but safe).
+    // _receivedCount is a plain sequential counter: how many items we have personally
+    // dequeued from the ReceivedItemsHelper across all OnItemReceived calls this session.
+    // It starts at 0 (reset by Disconnect → set by Connect → resets Disconnect again).
+    // Each item's 0-based AP position = _receivedCount before the dequeue (then we ++).
+    // This matches AllItemsReceived indexing exactly, regardless of whether items arrive
+    // one-at-a-time or in a batch (the library delivers them in order).
+    //
+    // Note: helper.Index is NOT used for per-item positions because it tracks total items
+    // received by the helper (1-based count), not each item's individual position. In a
+    // batch of N items, helper.Index equals N for all N dequeues — wrong for our purposes.
     private volatile int _receivedCount = 0;
 
     // Number of items in AllItemsReceived at login time (after the sanity check + historical
@@ -48,6 +53,14 @@ public class ArchipelagoClient
     // This prevents the race where OnConnected writes _lastItemIdx=9017 from the config
     // before ForceLastItemIndex(0) corrects it, causing a fast live item to be skipped.
     private volatile int _snapshotCount = 0;
+
+    // The watermark as it stood at connect time, AFTER the stale-watermark sanity check
+    // (and after ForceLastItemIndex reset it to -1 if necessary).  Used as the threshold
+    // for the secondary dedup in ProcessItemQueue so that a stale on-disk watermark (e.g.
+    // 9018 from a previous AP slot) does not cause freshly-replayed historical items
+    // (indices 0..N) to be incorrectly skipped.  The live LastItemIndex can drift upward
+    // as items are applied, but this snapshot never changes for the lifetime of the session.
+    private volatile int _connectTimeWatermark = -1;
 
     // In-memory scout cache — populated after connect, then refreshed from server.
     // Also readable from ApSaveManager for offline sessions.
@@ -58,11 +71,7 @@ public class ArchipelagoClient
     // Volatile so the main thread always sees the latest write without a full lock.
     private volatile Action? _pendingMainThreadAction;
 
-    // Tracks the last pending-count value we logged so "Processing N item(s)" is only
-    // emitted when the count changes rather than every frame while traps are waiting.
-    private int _lastLoggedPendingCount;
-
-    // When true, ProcessItemQueue will run ValidateAndRepairUpgrades() once as soon as
+// When true, ProcessItemQueue will run ValidateAndRepairUpgrades() once as soon as
     // UpgradeHandler is non-null (i.e., the scene has loaded far enough).  Set on every
     // connect so that if the SR2 save is behind the AP watermark (e.g. the game crashed
     // before the autosave after items were applied), the correct levels are restored.
@@ -175,6 +184,10 @@ public class ArchipelagoClient
                         savedWatermark = -1;
                     }
 
+                    // Freeze the effective watermark for this session's secondary dedup.
+                    // savedWatermark is now either the disk value or -1 (if sanity-check reset it).
+                    _connectTimeWatermark = savedWatermark;
+
                     int enqueued = 0;
                     lock (_queueLock)
                     {
@@ -183,17 +196,50 @@ public class ArchipelagoClient
                             _itemQueue.Enqueue((snapshot[i], i));
                             enqueued++;
                         }
+
+                        // Re-queue any trap items that were rate-limited (deferred) last session
+                        // and whose watermark has already advanced past their index.
+                        //
+                        // Scenario: trap at idx=6 was deferred; live item at idx=7 was applied
+                        // (advancing the watermark to 7); then the game disconnected before the
+                        // trap could fire.  Without this, idx=6 would be permanently lost on
+                        // reconnect (below watermark=7, not in ephemeral set).
+                        //
+                        // We only need to re-queue deferred items at or below savedWatermark;
+                        // those above the watermark are already handled by the replay loop above.
+                        var pendingDeferred = Plugin.Instance.SaveManager.GetPendingDeferredTraps();
+                        int deferredRequeued = 0;
+                        foreach (var deferredIdx in pendingDeferred)
+                        {
+                            if (deferredIdx < snapshot.Count && deferredIdx <= savedWatermark)
+                            {
+                                _itemQueue.Enqueue((snapshot[deferredIdx], deferredIdx));
+                                deferredRequeued++;
+                            }
+                        }
+                        if (deferredRequeued > 0)
+                            Logger.Info(
+                                $"[AP] Re-queued {deferredRequeued} deferred trap(s) from previous session " +
+                                $"(below watermark={savedWatermark}, will fire this session).");
+                        enqueued += deferredRequeued;
                     }
-                    _receivedCount = snapshot.Count;
-                    _snapshotCount = snapshot.Count; // live-item boundary: idx >= this means freshly generated
+                    // _receivedCount stays at 0 (reset by Disconnect at the top of Connect).
+                    // It is a plain dequeue counter — assigned sequentially as OnItemReceived
+                    // pulls items from the helper.  Starting from 0 ensures the positions
+                    // match AllItemsReceived 0-based indexing regardless of batch vs single.
+                    _snapshotCount = snapshot.Count; // live-item boundary: pos >= this means freshly generated
                     Logger.Info(
                         $"[AP] Historical replay: {snapshot.Count} item(s) in history, " +
                         $"watermark={savedWatermark}, {enqueued} new item(s) queued.");
+                    Logger.Info(
+                        $"[AP] Counters frozen: _receivedCount={_receivedCount} (starts at 0), _snapshotCount={_snapshotCount}");
 
                     // Register ItemReceived NOW so only live (post-login) items come through.
                     // _receivedCount is already set to snapshot.Count, so new items get
                     // sequential indices starting from there.
+                    Logger.Info("[AP] Registering ItemReceived handler...");
                     Session.Items.ItemReceived += OnItemReceived;
+                    Logger.Info("[AP] ItemReceived handler registered.");
 
                     // Flush offline checks and start scout from the background thread.
                     FlushPendingChecks();
@@ -255,7 +301,7 @@ public class ArchipelagoClient
         GoldLuckySpawnRatePatch.OnDisconnected();
         _receivedCount            = 0;
         _snapshotCount            = 0;
-        _lastLoggedPendingCount   = 0;
+        _connectTimeWatermark     = -1;
         _pendingMainThreadAction  = null;
         _pendingUpgradeValidation = false;
         GateReturnEnforcer.Clear();
@@ -350,27 +396,57 @@ public class ArchipelagoClient
     /// </summary>
     private void OnItemReceived(ReceivedItemsHelper helper)
     {
+        // Log on EVERY call so we can see silent/unexpected invocations.
+        Logger.Info(
+            $"[AP] OnItemReceived-ENTER: _receivedCount={_receivedCount}, _snapshotCount={_snapshotCount}");
 #if DEBUG
         SlimeRancher2AP.Utils.DebugTrace.Once("[BG] OnItemReceived — first call (background thread)");
 #endif
-        var item       = helper.DequeueItem();
-        var idx        = System.Threading.Interlocked.Increment(ref _receivedCount) - 1;
-        var watermark  = Plugin.Instance.SaveManager.LastItemIndex;
-        // idx >= _snapshotCount means this item was generated AFTER login — it is a live
-        // item and must always be queued.  This guards against the race where the saved
-        // watermark is stale (e.g. 9017 from a previous run) and hasn't been corrected
-        // by ForceLastItemIndex yet at the moment this callback fires.
-        var isLiveItem = (idx >= _snapshotCount);
-        if (isLiveItem || idx > watermark)
+        // Drain the ENTIRE helper queue, not just the first item.
+        //
+        // The AP server may bundle multiple items into a single ReceivedItems packet
+        // (e.g. when a live check and another player's check resolve simultaneously).
+        // In that case the library fires ItemReceived ONCE with all pending items in
+        // the helper queue.  Dequeuing only the first item silently drops the rest —
+        // they remain in the helper with no further event fired this session.
+        //
+        // Draining fully is safe for both library behaviours:
+        //  • One event per item  — loop runs once, exits; next event drains its item.
+        //  • One event per batch — loop drains all items in the batch correctly.
+        while (helper.Any())
         {
-            lock (_queueLock) { _itemQueue.Enqueue((item, idx)); }
-            Logger.Info(
-                $"[AP] Queued item: {item.ItemName} (id={item.ItemId}, idx={idx}, watermark={watermark}, live={isLiveItem})");
-        }
-        else
-        {
-            Logger.Info(
-                $"[AP] Skipped item (already applied): {item.ItemName} (id={item.ItemId}, idx={idx}, watermark={watermark})");
+            // pos is the 0-based AP position of this item, matching AllItemsReceived[pos].
+            // We assign it by reading _receivedCount BEFORE incrementing — this is a plain
+            // sequential counter (reset to 0 each Connect via Disconnect()) that advances
+            // by 1 for each item dequeued, regardless of how many arrive per call.
+            //
+            // This is correct for both delivery patterns:
+            //   • One event per item  — pos = 0,1,2,… across separate calls, one item each.
+            //   • Batch event         — pos = 0,1,2,3 within a single call for 4 items.
+            // In either case, pos matches AllItemsReceived[pos], giving correct dedup.
+            //
+            // We do NOT use helper.Index for per-item positions because helper.Index tracks
+            // the total count of items received by the helper (incremented when the network
+            // packet arrives, not when we dequeue). In a batch of N items, helper.Index
+            // equals N for every dequeue in the loop — the same value for all N items —
+            // making it useless as a per-item discriminator.
+            int pos  = _receivedCount++;
+            var item = helper.DequeueItem();
+            var watermark  = Plugin.Instance.SaveManager.LastItemIndex;
+            // pos >= _snapshotCount means this item was generated AFTER login — it is a live
+            // item and must always be queued, even if the saved watermark is stale.
+            bool isLiveItem = (pos >= _snapshotCount);
+            if (isLiveItem || pos > watermark)
+            {
+                lock (_queueLock) { _itemQueue.Enqueue((item, pos)); }
+                Logger.Info(
+                    $"[AP] Queued item: {item.ItemName} (id={item.ItemId}, idx={pos}, watermark={watermark}, live={isLiveItem})");
+            }
+            else
+            {
+                Logger.Info(
+                    $"[AP] Skipped item (already applied): {item.ItemName} (id={item.ItemId}, idx={pos}, watermark={watermark})");
+            }
         }
     }
 
@@ -434,44 +510,54 @@ public class ArchipelagoClient
             ItemHandler.ValidateAndRepairUpgrades();
         }
 
-        // Only log when the queue count changes — avoids spamming one line per frame while
-        // a trap is sitting in the queue waiting for its grace/cooldown period to expire.
-        if (pending.Count > 0 && pending.Count != _lastLoggedPendingCount)
-        {
-            _lastLoggedPendingCount = pending.Count;
+
+        if (pending.Count > 0)
             Logger.Info(
-                $"[AP] Processing {pending.Count} queued item(s); " +
-                $"LastItemIndex={Plugin.Instance.SaveManager.LastItemIndex}, " +
-                $"snapshotCount={_snapshotCount}");
-        }
-        else if (pending.Count == 0)
-        {
-            _lastLoggedPendingCount = 0;
-        }
+                $"[AP] ProcessItemQueue: {pending.Count} item(s) to process, " +
+                $"_snapshotCount={_snapshotCount}, _connectTimeWatermark={_connectTimeWatermark}");
 
         foreach (var entry in pending)
         {
 #if DEBUG
             SlimeRancher2AP.Utils.DebugTrace.Once($"ProcessItemQueue.3 — first dequeued item id={entry.item.ItemId} idx={entry.index}");
 #endif
-            // Secondary dedup: skip items whose index is at or below the saved watermark.
+            // Secondary dedup: skip items whose index is at or below the connect-time watermark.
             //
             // OnItemReceived uses _lastItemIdx as a gate, but that field starts at -1 and
             // is only loaded from disk once SaveManager.OnConnected runs.  On a reconnect,
             // all historical items replay before OnConnected completes, so items with
             // index <= the saved watermark can sneak into the queue.  Checking again here
-            // (with the now-correct watermark) prevents double-grants.
+            // (with the frozen connect-time watermark) prevents double-grants.
+            //
+            // We use _connectTimeWatermark (the disk watermark AFTER the stale-watermark sanity
+            // check, i.e. -1 if ForceLastItemIndex reset it) rather than the live LastItemIndex.
+            // Using the live value caused items to be wrongly skipped when the disk watermark
+            // was stale from an old AP slot (e.g. 9018) even though the sanity check had already
+            // reset it to -1 so all historical items should replay.
             // Exception: live items (idx >= _snapshotCount) were generated after login and
             // must always be applied even if the saved watermark is stale.
             bool isLiveItem = (entry.index >= _snapshotCount);
-            if (!isLiveItem && entry.index <= Plugin.Instance.SaveManager.LastItemIndex)
+            if (!isLiveItem && entry.index <= _connectTimeWatermark)
             {
                 Logger.Info(
-                    $"[AP] Skipped item (secondary dedup): {entry.item.ItemName} (id={entry.item.ItemId}, idx={entry.index}, watermark={Plugin.Instance.SaveManager.LastItemIndex})");
+                    $"[AP] Skipped item (secondary dedup): {entry.item.ItemName} (id={entry.item.ItemId}, idx={entry.index}, watermark={_connectTimeWatermark})");
                 continue;
             }
 
-            ItemHandler.Apply(entry.item, entry.index);
+            try
+            {
+                ItemHandler.Apply(entry.item, entry.index);
+            }
+            catch (Exception ex)
+            {
+                // An unhandled exception inside Apply would normally abort the foreach,
+                // silently dropping every remaining item in `pending` (they've already been
+                // dequeued and are not going back into the queue).  Catching here lets the
+                // loop continue and logs enough detail to diagnose the root cause.
+                Logger.Error(
+                    $"[AP] Exception applying item {entry.item.ItemName} " +
+                    $"(id={entry.item.ItemId}, idx={entry.index}): {ex}");
+            }
 #if DEBUG
             SlimeRancher2AP.Utils.DebugTrace.Once($"ProcessItemQueue.4 — Apply returned for first item idx={entry.index}");
 #endif
@@ -508,6 +594,13 @@ public class ArchipelagoClient
         }
 
         Plugin.Instance.SaveManager.ForceLastItemIndex(-1);
+        // Also reset _connectTimeWatermark: the secondary dedup in ProcessItemQueue uses
+        // this frozen value to skip items that were already applied before this session.
+        // After RequestFullReplay resets the watermark to -1, we must lower the threshold
+        // here too — otherwise ProcessItemQueue's secondary dedup would kill items at
+        // indices 0.._connectTimeWatermark (the old connect-time value), which are exactly
+        // the items we just re-queued for the fresh SR2 save.
+        _connectTimeWatermark = -1;
 
         var snapshot = Session.Items.AllItemsReceived.ToList();
         int enqueued = 0;
