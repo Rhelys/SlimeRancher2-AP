@@ -134,7 +134,8 @@ public class ArchipelagoClient
                         $"[AP] SlotData: goal='{SlotData.Goal}' region_access_mode='{SlotData.RegionAccessMode}' " +
                         $"conversation_checks='{SlotData.ConversationChecks}' " +
                         $"weather_freq_mult={SlotData.WeatherFrequencyMultiplier} force_heavy={SlotData.ForceHeavyWeather} " +
-                        $"all_radiant={SlotData.AllRadiantSlimes} radiant_mult={SlotData.RadiantSpawnRateMultiplier}");
+                        $"all_radiant={SlotData.AllRadiantSlimes} radiant_mult={SlotData.RadiantSpawnRateMultiplier} " +
+                        $"start_harvester={SlotData.StartWithResourceHarvester}");
 
                     if (SlotData.DeathLink)
                     {

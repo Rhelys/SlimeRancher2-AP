@@ -994,16 +994,15 @@ public static class TrapHandler
         => _runtimeOpenRegions.Add(regionItemName);
 
     /// <summary>
-    /// Clears all deferred traps. Called on disconnect to prevent traps that were
-    /// waiting for cooldown from firing unexpectedly on the next session.
+    /// Clears all per-group deferred trap queues.  Called on disconnect to prevent traps
+    /// that were waiting for a cooldown from firing unexpectedly in the next session.
     /// </summary>
     public static void ClearDeferred()
     {
-        if (_deferred.Count > 0)
-        {
-            Logger.Info($"[AP] TrapHandler: cleared {_deferred.Count} deferred trap(s) on disconnect");
-            _deferred.Clear();
-        }
+        int total = 0;
+        foreach (var q in _deferredByGroup) { total += q.Count; q.Clear(); }
+        if (total > 0)
+            Logger.Info($"[AP] TrapHandler: cleared {total} deferred trap(s) on disconnect");
     }
 
     /// <summary>
@@ -1028,29 +1027,65 @@ public static class TrapHandler
     }
 
     // -------------------------------------------------------------------------
-    // Trap rate-limiting
+    // Trap rate-limiting — per-group independent queues
     // -------------------------------------------------------------------------
 
+    /// <summary>
+    /// Each trap belongs to exactly one group.  Groups are independent: a cooldown in one
+    /// group does NOT delay traps in another.  Within a group, traps fire at most once per
+    /// <see cref="GroupMinInterval"/> seconds, and share one deferred queue.
+    /// </summary>
+    private enum TrapGroup
+    {
+        Spawn    = 0,  // Tarr Spawn, Slime Ring — lightweight spawns; rapid fire OK
+        Weather  = 1,  // Weather Change, Tarr Rain — prolonged effects; needs breathing room
+        Teleport = 2,  // Teleport — disorienting but recoverable; moderate gap
+    }
+
     // Scene-readiness tracking: set when Player first becomes non-null after a load.
-    // Traps are deferred until the grace period has elapsed AND the cooldown has expired.
-    private static bool  _sceneWasReady    = false;
-    private static float _sceneReadySince  = -1f;
-    private static float _lastTrapFiredAt  = -1f;
+    // Traps are deferred until the global grace period has elapsed AND their group
+    // cooldown has expired.
+    private static bool  _sceneWasReady   = false;
+    private static float _sceneReadySince = -1f;
 
-    // Rate-limited traps park here instead of cycling through _itemQueue every frame.
-    // Tick() promotes one entry to _itemQueue each time IsTrapAllowed() returns true.
-    private static readonly Queue<(ApItemInfo apItem, int itemIndex)> _deferred = new();
-
-    /// <summary>Seconds after scene load before any trap may fire.</summary>
+    /// <summary>Seconds after scene load before ANY trap may fire (all groups).</summary>
     private const float SceneGracePeriod = 10f;
-    /// <summary>Minimum seconds between consecutive trap fires.</summary>
-    private const float TrapMinInterval  = 30f;
 
     /// <summary>
-    /// Returns true when it is safe to fire a trap (scene loaded, grace period passed,
-    /// cooldown expired).  Returns false + logs a message when the trap should be deferred.
+    /// Per-group minimum interval (seconds) between consecutive fires within that group.
+    /// Index matches <see cref="TrapGroup"/> ordinal.
     /// </summary>
-    private static bool IsTrapAllowed(string trapName)
+    private static readonly float[] GroupMinInterval =
+    {
+        1f,   // Spawn   — Tarr Spawn, Slime Ring
+        30f,  // Weather — Weather Change, Tarr Rain
+        5f,   // Teleport
+    };
+
+    /// <summary>
+    /// Per-group last-fire timestamp (Unity Time.time).  -1 = never fired this session.
+    /// Index matches <see cref="TrapGroup"/> ordinal.
+    /// </summary>
+    private static readonly float[] _lastGroupFiredAt = { -1f, -1f, -1f };
+
+    /// <summary>
+    /// Per-group deferred queues.  Rate-limited traps park here; <see cref="Tick"/> promotes
+    /// one entry per group per frame once the grace period and group cooldown have passed.
+    /// Index matches <see cref="TrapGroup"/> ordinal.
+    /// </summary>
+    private static readonly Queue<(ApItemInfo apItem, int itemIndex)>[] _deferredByGroup =
+    {
+        new(), // Spawn
+        new(), // Weather
+        new(), // Teleport
+    };
+
+    /// <summary>
+    /// Returns true when it is safe to fire a trap in <paramref name="group"/>
+    /// (scene loaded, global grace period passed, group-specific cooldown expired).
+    /// Returns false and optionally logs the reason when the trap should be deferred.
+    /// </summary>
+    private static bool IsTrapAllowed(TrapGroup group, string trapName)
     {
         if (_sceneReadySince < 0f) return false; // scene not ready yet
 
@@ -1066,14 +1101,15 @@ public static class TrapHandler
             return false;
         }
 
-        if (_lastTrapFiredAt >= 0f)
+        float lastFired = _lastGroupFiredAt[(int)group];
+        if (lastFired >= 0f)
         {
-            float cooldownRemaining = (_lastTrapFiredAt + TrapMinInterval) - now;
+            float cooldownRemaining = (lastFired + GroupMinInterval[(int)group]) - now;
             if (cooldownRemaining > 0f)
             {
 #if DEBUG
                 Logger.Info(
-                    $"[AP] Trap '{trapName}' deferred — {cooldownRemaining:F0}s of inter-trap cooldown remaining");
+                    $"[AP] Trap '{trapName}' deferred — {cooldownRemaining:F0}s of {group} group cooldown remaining");
 #endif
                 return false;
             }
@@ -1131,22 +1167,30 @@ public static class TrapHandler
             _weatherResetAt = -1f;
         }
 
-        // Deferred trap promotion: when the rate-limit window has passed, move one trap back
-        // to the main item queue.  Only one per Tick() so consecutive traps remain separated
-        // by TrapMinInterval — the promoted trap fires, sets _lastTrapFiredAt, and restarts
-        // the inter-trap cooldown before the next deferred entry is promoted.
-        if (_deferred.Count > 0 && _sceneReadySince >= 0f)
+        // Deferred trap promotion: each group is checked independently.
+        // When a group's cooldown has cleared, one deferred entry is moved back to the main
+        // item queue.  Groups do NOT block each other — a Weather trap in cooldown does not
+        // delay a pending Spawn trap.  Only one trap per group is promoted per Tick() so that
+        // consecutive traps within a group remain separated by GroupMinInterval[g].
+        if (_sceneReadySince >= 0f)
         {
-            float now        = UnityEngine.Time.time;
-            bool  graceOk    = now >= _sceneReadySince + SceneGracePeriod;
-            bool  cooldownOk = _lastTrapFiredAt < 0f || now >= _lastTrapFiredAt + TrapMinInterval;
-            if (graceOk && cooldownOk)
+            float now     = UnityEngine.Time.time;
+            bool  graceOk = now >= _sceneReadySince + SceneGracePeriod;
+            if (graceOk)
             {
-                var (trapApItem, trapIndex) = _deferred.Dequeue();
-                Plugin.Instance.ApClient.RequeueItem(trapApItem, trapIndex);
-                Logger.Info(
-                    $"[AP] TrapHandler: promoted deferred trap to item queue " +
-                    $"(remaining deferred: {_deferred.Count})");
+                for (int g = 0; g < _deferredByGroup.Length; g++)
+                {
+                    var q = _deferredByGroup[g];
+                    if (q.Count == 0) continue;
+                    bool cooldownOk = _lastGroupFiredAt[g] < 0f
+                                   || now >= _lastGroupFiredAt[g] + GroupMinInterval[g];
+                    if (!cooldownOk) continue;
+                    var (trapApItem, trapIndex) = q.Dequeue();
+                    Plugin.Instance.ApClient.RequeueItem(trapApItem, trapIndex);
+                    Logger.Info(
+                        $"[AP] TrapHandler: promoted deferred {(TrapGroup)g} trap to item queue " +
+                        $"(remaining in group: {q.Count})");
+                }
             }
         }
     }
@@ -1174,29 +1218,30 @@ public static class TrapHandler
 
     // Helper: park the item for a later retry, then return false so the watermark does NOT advance.
     //
-    // Rate-limited traps (grace period or inter-trap cooldown still active) are pushed into
-    // the _deferred queue.  Tick() promotes one deferred trap to _itemQueue per frame once
-    // IsTrapAllowed() returns true.  This replaces the old pattern of calling RequeueItem()
-    // for rate-limited traps, which caused a per-frame dequeue/requeue cycle (~2400 iterations
-    // for a 40 s cooldown at 60 fps and several thousand log lines per trap).
+    // Rate-limited traps pass their TrapGroup; the item is pushed into that group's deferred
+    // queue.  Tick() promotes one deferred trap per group per frame once both the global grace
+    // period and the group cooldown have cleared.  This replaces the old pattern of calling
+    // RequeueItem() for rate-limited traps, which caused a per-frame dequeue/requeue cycle
+    // (~2400 iterations for a 40 s cooldown at 60 fps and thousands of log lines per trap).
     //
     // Non-rate-limit failures (scene not ready, missing assets, etc.) still go straight back
     // to _itemQueue via RequeueItem() for a quick retry on the next Update frame.
-    private static bool Requeue(ApItemInfo? apItem, int itemIndex, string reason)
+    // Pass deferGroup=null for those cases.
+    private static bool Requeue(ApItemInfo? apItem, int itemIndex, string reason,
+                                TrapGroup? deferGroup = null)
     {
-        bool isRateLimit = reason == "trap rate-limited";
-        if (isRateLimit)
+        if (deferGroup.HasValue)
         {
             if (apItem != null)
             {
-                _deferred.Enqueue((apItem, itemIndex));
+                var q = _deferredByGroup[(int)deferGroup.Value];
+                q.Enqueue((apItem, itemIndex));
                 // Persist the deferred index so a disconnect before the trap fires doesn't
                 // lose it permanently (the watermark may advance past this index before Tick()
                 // promotes it; without persistence the trap would be silently skipped on reconnect).
                 Plugin.Instance.SaveManager.AddDeferredTrap(itemIndex);
                 Logger.Info(
-                    $"[AP] Trap deferred — cooldown/grace active " +
-                    $"(deferred queue depth: {_deferred.Count})");
+                    $"[AP] Trap deferred ({deferGroup.Value} group, queue depth: {q.Count})");
             }
         }
         else
@@ -1251,8 +1296,8 @@ public static class TrapHandler
 
     internal static bool ApplySlimeRingTrap(ApItemInfo? apItem, int itemIndex)
     {
-        if (!IsTrapAllowed("SlimeRing"))
-            return Requeue(apItem, itemIndex, "trap rate-limited");
+        if (!IsTrapAllowed(TrapGroup.Spawn, "SlimeRing"))
+            return Requeue(apItem, itemIndex, "trap rate-limited", TrapGroup.Spawn);
 
         var playerGo = SceneContext.Instance?.Player;
         if (playerGo == null)
@@ -1332,7 +1377,7 @@ public static class TrapHandler
             if (go != null) spawned++;
         }
 
-        _lastTrapFiredAt = UnityEngine.Time.time;
+        _lastGroupFiredAt[(int)TrapGroup.Spawn] = UnityEngine.Time.time;
         Logger.Info($"[AP] SlimeRing: spawned {spawned} slimes around player");
         SlimeRancher2AP.UI.StatusHUD.Instance?.ShowNotification("Slime Ring!");
         return true;
@@ -1344,8 +1389,8 @@ public static class TrapHandler
 
     private static bool ApplyTarrSpawnTrap(ApItemInfo? apItem, int itemIndex)
     {
-        if (!IsTrapAllowed("TarrSpawn"))
-            return Requeue(apItem, itemIndex, "trap rate-limited");
+        if (!IsTrapAllowed(TrapGroup.Spawn, "TarrSpawn"))
+            return Requeue(apItem, itemIndex, "trap rate-limited", TrapGroup.Spawn);
 
         var playerGo = SceneContext.Instance?.Player;
         if (playerGo == null)
@@ -1397,7 +1442,7 @@ public static class TrapHandler
             if (go != null) spawned++;
         }
 
-        _lastTrapFiredAt = UnityEngine.Time.time;
+        _lastGroupFiredAt[(int)TrapGroup.Spawn] = UnityEngine.Time.time;
         Logger.Info($"[AP] TarrSpawnTrap: spawned {spawned} Tarr near player");
         SlimeRancher2AP.UI.StatusHUD.Instance?.ShowNotification("Trap: Tarr Incoming!");
         return true;
@@ -1409,8 +1454,8 @@ public static class TrapHandler
 
     private static bool ApplyWeatherTrap(ApItemInfo? apItem, int itemIndex)
     {
-        if (!IsTrapAllowed("WeatherChange"))
-            return Requeue(apItem, itemIndex, "trap rate-limited");
+        if (!IsTrapAllowed(TrapGroup.Weather, "WeatherChange"))
+            return Requeue(apItem, itemIndex, "trap rate-limited", TrapGroup.Weather);
 
         var found = Resources.FindObjectsOfTypeAll<WeatherDirector>();
         if (found == null || found.Count == 0)
@@ -1492,7 +1537,7 @@ public static class TrapHandler
             director.RunState(chosen.Cast<IWeatherState>(), null, immediate: false);
         }
 
-        _lastTrapFiredAt = UnityEngine.Time.time;
+        _lastGroupFiredAt[(int)TrapGroup.Weather] = UnityEngine.Time.time;
         string label = chosen.StateName ?? chosen.name;
         Logger.Info($"[AP] WeatherTrap: started '{label}' on {found.Count} director(s) for {durationSeconds}s");
         SlimeRancher2AP.UI.StatusHUD.Instance?.ShowNotification($"Trap: {label} weather for {(int)durationSeconds}s!");
@@ -1563,8 +1608,8 @@ public static class TrapHandler
     /// </summary>
     private static bool ApplyTeleportTrap(ApItemInfo? apItem, int itemIndex)
     {
-        if (!IsTrapAllowed("Teleport"))
-            return Requeue(apItem, itemIndex, "trap rate-limited");
+        if (!IsTrapAllowed(TrapGroup.Teleport, "Teleport"))
+            return Requeue(apItem, itemIndex, "trap rate-limited", TrapGroup.Teleport);
 
         var playerGo = SceneContext.Instance?.Player;
         if (playerGo == null)
@@ -1645,7 +1690,7 @@ public static class TrapHandler
                 $"[AP] TeleportTrap: sent to '{chosen.sg.ReferenceId}' via node '{chosen.dest.NodeId}'");
         }
 
-        _lastTrapFiredAt = UnityEngine.Time.time;
+        _lastGroupFiredAt[(int)TrapGroup.Teleport] = UnityEngine.Time.time;
         SlimeRancher2AP.UI.StatusHUD.Instance?.ShowNotification("Trap: Teleported!");
         return true;
     }
@@ -1656,8 +1701,8 @@ public static class TrapHandler
 
     private static bool ApplySlimeRainTrap(ApItemInfo? apItem, int itemIndex)
     {
-        if (!IsTrapAllowed("TarrRain"))
-            return Requeue(apItem, itemIndex, "trap rate-limited");
+        if (!IsTrapAllowed(TrapGroup.Weather, "TarrRain"))
+            return Requeue(apItem, itemIndex, "trap rate-limited", TrapGroup.Weather);
 
         // Find the Slime Rain WeatherStateDefinition.
         var allStates = Resources.FindObjectsOfTypeAll<WeatherStateDefinition>();
@@ -1731,7 +1776,7 @@ public static class TrapHandler
 #if DEBUG
         const float durationSeconds = 20f;
 #else
-        const float durationSeconds = 180f;
+        const float durationSeconds = 60f;
 #endif
         _weatherResetAt = UnityEngine.Time.time + durationSeconds;
 
@@ -1749,7 +1794,7 @@ public static class TrapHandler
             director.RunState(slimeRainDef.Cast<IWeatherState>(), null, immediate: false);
         }
 
-        _lastTrapFiredAt = UnityEngine.Time.time;
+        _lastGroupFiredAt[(int)TrapGroup.Weather] = UnityEngine.Time.time;
         Logger.Info(
             $"[AP] SlimeRainTrap: started Slime Rain (Tarr override) on {found.Count} director(s) for {durationSeconds}s");
         SlimeRancher2AP.UI.StatusHUD.Instance?.ShowNotification("Trap: Slime Rain!");

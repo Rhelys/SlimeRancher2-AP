@@ -145,6 +145,14 @@ public class SlotData
     /// </summary>
     public int WeatherFrequencyMultiplier { get; init; } = 1;
 
+    /// <summary>
+    /// When true, the Resource Harvester upgrade is precollected — it appears in
+    /// <c>AllItemsReceived</c> at session start and is applied through the normal
+    /// item pipeline on first connect.
+    /// Slot data key: <c>"start_with_resource_harvester"</c>.
+    /// </summary>
+    public bool StartWithResourceHarvester { get; init; } = false;
+
     public static SlotData Parse(Dictionary<string, object> raw)
     {
         return new SlotData
@@ -170,8 +178,9 @@ public class SlotData
             DisableTarr                 = GetBool(raw, "disable_tarr",   defaultVal: false),
             TarrInstakill               = GetBool(raw, "tarr_instakill", defaultVal: false),
             IncomingDamageMultiplier    = (int)GetLong(raw, "incoming_damage_multiplier", 1),
-            ForceHeavyWeather           = GetBool(raw, "force_heavy_weather",          defaultVal: true),
-            WeatherFrequencyMultiplier  = (int)GetLong(raw, "weather_frequency_multiplier", 1),
+            ForceHeavyWeather              = GetBool(raw, "force_heavy_weather",              defaultVal: true),
+            WeatherFrequencyMultiplier     = (int)GetLong(raw, "weather_frequency_multiplier", 1),
+            StartWithResourceHarvester     = GetBool(raw, "start_with_resource_harvester",    defaultVal: false),
         };
     }
 
