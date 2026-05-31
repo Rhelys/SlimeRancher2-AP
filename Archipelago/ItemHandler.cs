@@ -1038,7 +1038,10 @@ public static class TrapHandler
     private enum TrapGroup
     {
         Spawn    = 0,  // Tarr Spawn, Slime Ring — lightweight spawns; rapid fire OK
-        Weather  = 1,  // Weather Change, Tarr Rain — prolonged effects; needs breathing room
+        // TODO: TrapGroup.Weather is a slight misnomer — it rate-limits both Weather Change
+        // (useful filler) and Tarr Rain (trap). Consider splitting into separate groups or
+        // renaming if more non-trap items end up sharing rate-limit buckets.
+        Weather  = 1,  // Weather Change (useful filler), Tarr Rain (trap) — prolonged effects; needs breathing room
         Teleport = 2,  // Teleport — disorienting but recoverable; moderate gap
     }
 
@@ -1208,8 +1211,10 @@ public static class TrapHandler
         {
             case ItemTable.TrapTarrSpawn:     return ApplyTarrSpawnTrap(apItem, itemIndex);
             case ItemTable.TrapTeleport:      return ApplyTeleportTrap(apItem, itemIndex);
-            case ItemTable.TrapWeatherChange: return ApplyWeatherTrap(apItem, itemIndex);
+            case ItemTable.WeatherChange:     return ApplyWeatherChange(apItem, itemIndex);
             case ItemTable.TrapTarrRain:      return ApplySlimeRainTrap(apItem, itemIndex);
+            case ItemTable.TrapVacExpel:      return ApplyVacExpelTrap(apItem, itemIndex);
+            case ItemTable.TrapVacFill:   return ApplyVacpackFillTrap(apItem, itemIndex);
             default:
                 Logger.Info($"[AP] Trap received: id={trapItemId} (not yet implemented)");
                 return true; // unimplemented traps do not retry
@@ -1311,10 +1316,12 @@ public static class TrapHandler
         if (hasEV)                        candidateNames.AddRange(_slimesEmberValley);
         if (hasSS)                        candidateNames.AddRange(_slimesStarlightStrand);
         if (IsRegionGateOpen("Powderfall Bluffs Access")) candidateNames.AddRange(_slimesPowderfallBluffs);
-        // Grey Labyrinth slimes: only if the player has physically visited the Labyrinth this
-        // session. hasEV/hasSS is necessary but not sufficient — the beam puzzles still need
-        // solving to enter. Using the visited-zone set (same check as TeleportTrap) is correct.
-        if (_visitedSceneGroupRefs.Contains("SceneGroup.Labyrinth"))
+        // Grey Labyrinth slimes: only if the player has physically visited the Labyrinth.
+        // hasEV/hasSS is necessary but not sufficient — the beam puzzles still need solving to
+        // enter. Check both the persisted HasVisitedZone (previous sessions) and the in-memory
+        // set (current session), matching the same dual-check used by TeleportTrap.
+        if (Plugin.Instance.SaveManager.HasVisitedZone("SceneGroup.Labyrinth")
+            || _visitedSceneGroupRefs.Contains("SceneGroup.Labyrinth"))
             candidateNames.AddRange(_slimesGreyLabyrinth);
 
         // Resolve IdentifiableType assets, keeping only those with valid prefabs.
@@ -1449,10 +1456,95 @@ public static class TrapHandler
     }
 
     // -------------------------------------------------------------------------
-    // Weather trap
+    // Vacpack Spew trap
     // -------------------------------------------------------------------------
 
-    private static bool ApplyWeatherTrap(ApItemInfo? apItem, int itemIndex)
+    /// <summary>
+    /// Expels all contents of the player's vacpack as physical world objects, then clears
+    /// every slot.  Uses the Spawn group cooldown (fast re-fire OK — no sustained effect).
+    /// </summary>
+    private static bool ApplyVacExpelTrap(ApItemInfo? apItem, int itemIndex)
+    {
+        if (!IsTrapAllowed(TrapGroup.Spawn, "VacExpel"))
+            return Requeue(apItem, itemIndex, "trap rate-limited", TrapGroup.Spawn);
+
+        var playerState = SceneContext.Instance?.PlayerState;
+        var vac         = playerState?.VacuumItem;
+        var ammo        = playerState?.Ammo;
+
+        if (vac == null || ammo == null)
+            return Requeue(apItem, itemIndex, "scene not ready");
+
+        var slots   = ammo.Slots;
+        int expelled = 0;
+
+        for (int i = 0; i < slots.Count; i++)
+        {
+            var slot = slots[i];
+            if (slot == null || slot.Id == null || slot.Count <= 0) continue;
+
+            int  count = slot.Count;
+            var  meta  = slot.Metadata;
+
+            for (int j = 0; j < count; j++)
+                vac.Expel(meta, false, 0f, false);
+
+            ammo.Clear(i);
+            expelled += count;
+        }
+
+        _lastGroupFiredAt[(int)TrapGroup.Spawn] = UnityEngine.Time.time;
+        Logger.Info($"[AP] VacpackSpewTrap: expelled {expelled} item(s) from vacpack");
+        SlimeRancher2AP.UI.StatusHUD.Instance?.ShowNotification("Trap: Vacpack Spew!");
+        return true;
+    }
+
+    // -------------------------------------------------------------------------
+    // Vacpack Fill trap — fills all empty vacpack slots with Pink slimes
+    // -------------------------------------------------------------------------
+
+    private static bool ApplyVacpackFillTrap(ApItemInfo? apItem, int itemIndex)
+    {
+        if (!IsTrapAllowed(TrapGroup.Spawn, "VacpackFill"))
+            return Requeue(apItem, itemIndex, "trap rate-limited", TrapGroup.Spawn);
+
+        var ammo = SceneContext.Instance?.PlayerState?.Ammo;
+        if (ammo == null)
+            return Requeue(apItem, itemIndex, "scene not ready");
+
+        var pinkSlime = Resources.FindObjectsOfTypeAll<IdentifiableType>()
+                                 .FirstOrDefault(t => t.name == "Pink");
+        if (pinkSlime == null)
+        {
+            Logger.Warning("[AP] VacpackFillTrap: 'Pink' IdentifiableType not found — skipped");
+            return true; // asset issue; don't retry
+        }
+
+        var slots  = ammo.Slots;
+        int filled = 0;
+
+        for (int i = 0; i < slots.Count; i++)
+        {
+            var slot = slots[i];
+            if (slot == null || !slot.IsUnlocked) continue;
+            if (slot.Id != null && slot.Count > 0) continue; // leave occupied slots alone
+
+            slot.Id    = pinkSlime;
+            slot.Count = slot.MaxCount;
+            filled++;
+        }
+
+        _lastGroupFiredAt[(int)TrapGroup.Spawn] = UnityEngine.Time.time;
+        Logger.Info($"[AP] VacpackFillTrap: filled {filled} empty slot(s) with Pink slimes");
+        SlimeRancher2AP.UI.StatusHUD.Instance?.ShowNotification("Trap: Vacpack Fill!");
+        return true;
+    }
+
+    // -------------------------------------------------------------------------
+    // Weather Change — useful filler item, triggers a 3-minute severe weather event
+    // -------------------------------------------------------------------------
+
+    private static bool ApplyWeatherChange(ApItemInfo? apItem, int itemIndex)
     {
         if (!IsTrapAllowed(TrapGroup.Weather, "WeatherChange"))
             return Requeue(apItem, itemIndex, "trap rate-limited", TrapGroup.Weather);
@@ -1466,7 +1558,7 @@ public static class TrapHandler
         var allStates = Resources.FindObjectsOfTypeAll<WeatherStateDefinition>();
         if (allStates == null || allStates.Count == 0)
         {
-            Logger.Warning("[AP] WeatherTrap: no WeatherStateDefinition assets found — trap skipped");
+            Logger.Warning("[AP] WeatherChange: no WeatherStateDefinition assets found — trap skipped");
             return true; // asset issue; don't retry
         }
 
@@ -1477,7 +1569,7 @@ public static class TrapHandler
             if (i > 0) sb.Append(", ");
             sb.Append('\'').Append(allStates[i].StateName ?? allStates[i].name).Append('\'');
         }
-        Logger.Info($"[AP] WeatherTrap: {allStates.Count} state(s) available: {sb}");
+        Logger.Info($"[AP] WeatherChange: {allStates.Count} state(s) available: {sb}");
 
         // Only pick the most impactful weather states:
         // - "Heavy" variants (Thunder Heavy, Rain Heavy, Pollen Heavy)
@@ -1498,7 +1590,7 @@ public static class TrapHandler
 
         if (eligible.Count == 0)
         {
-            Logger.Warning("[AP] WeatherTrap: no eligible weather states after filtering — trap skipped");
+            Logger.Warning("[AP] WeatherChange: no eligible weather states after filtering — trap skipped");
             return true; // filtering issue; don't retry
         }
 
@@ -1539,8 +1631,8 @@ public static class TrapHandler
 
         _lastGroupFiredAt[(int)TrapGroup.Weather] = UnityEngine.Time.time;
         string label = chosen.StateName ?? chosen.name;
-        Logger.Info($"[AP] WeatherTrap: started '{label}' on {found.Count} director(s) for {durationSeconds}s");
-        SlimeRancher2AP.UI.StatusHUD.Instance?.ShowNotification($"Trap: {label} weather for {(int)durationSeconds}s!");
+        Logger.Info($"[AP] WeatherChange: started '{label}' on {found.Count} director(s) for {durationSeconds}s");
+        SlimeRancher2AP.UI.StatusHUD.Instance?.ShowNotification($"Weather Change: {label} for {(int)(durationSeconds / 60)}m!");
         return true;
     }
 
@@ -1761,7 +1853,7 @@ public static class TrapHandler
                 Logger.Warning("[AP] SlimeRainTrap: no SpawnActorActivity found in Slime Rain weather — Tarr override has no effect");
         }
 
-        // Apply the weather to all directors (same logic as the Weather Change trap).
+        // Apply the weather to all directors (same logic as ApplyWeatherChange).
         var found = Resources.FindObjectsOfTypeAll<WeatherDirector>();
         if (found == null || found.Count == 0)
         {
@@ -1832,6 +1924,6 @@ public static class TrapHandler
         // Restore any SpawnActorActivity overrides made by the Slime Rain trap.
         RestoreSlimeRainActorTypes();
 
-        Logger.Info($"[AP] WeatherTrap: stopped '{label}', natural weather cycle resumed");
+        Logger.Info($"[AP] WeatherChange: stopped '{label}', natural weather cycle resumed");
     }
 }

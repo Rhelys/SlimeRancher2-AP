@@ -47,7 +47,8 @@ Base offset: **819000** — must be identical in both the mod and the apworld.
 | 819580–819589 | Filler — Newbucks | 250 / 500 / 1000 tiers |
 | 819590–819599 | Filler — Plort Caches | Common / Uncommon / Rare (5 random plorts each) |
 | 819600–819609 | Filler — Craft Caches | Common / Rare (5 random craft materials each) |
-| 819610–819629 | Traps | Slime Ring / Tarr Spawn / Teleport / Weather Change / Slime Rain |
+| 819610–819611 | Filler / Useful Filler | Slime Ring (819610) / Weather Change (819611) |
+| 819612–819629 | Traps | Tarr Spawn / Teleport / Tarr Rain / Vacpack Spew |
 | 819630–819639 | Market Items (when `randomize_market: true`) | Market Boom / Saturation Reset / Market Insight |
 | 819640–819649 | Market Traps (when `randomize_market: true`) | Market Crash / Market Shutdown / Oversaturation |
 | 819650–819699 | **Reserved** for future items | |
@@ -324,14 +325,16 @@ Grants blueprint via `GadgetDirector.AddBlueprint(gadgetDef, false)`.
 **Note on zone teleporters**: When `conversation_checks` includes key items, the zone teleporters from Viktor (`TeleporterPink/Blue/Grey/Violet`) become AP location checks and their in-game grant is suppressed. In this case, the zone teleporter gadgets ARE in the AP item pool as items players can receive from any location. When `conversation_checks = none`, Viktor always gives them directly and they are removed from the item pool (players have vanilla access).
 
 ### Filler Items
-| Item | Notes |
-|---|---|
-| 250 / 500 / 1000 Newbucks | `PlayerState.AddCurrency(currency.Cast<ICurrency>(), amount)` |
-| Common Plort Cache | 5 random common plorts → Refinery via `GadgetDirector.AddItem` |
-| Uncommon Plort Cache | 5 random uncommon plorts → Refinery |
-| Rare Plort Cache | 5 random rare plorts → Refinery |
-| Common Craft Cache | 5 random common craft materials → Refinery |
-| Rare Craft Cache | 5 random rare craft materials → Refinery |
+| Item | ID | Notes |
+|---|---|---|
+| 250 / 500 / 1000 Newbucks | 819580–819582 | `PlayerState.AddCurrency(currency.Cast<ICurrency>(), amount)` |
+| Common Plort Cache | 819590 | 5 random common plorts → Refinery via `GadgetDirector.AddItem` |
+| Uncommon Plort Cache | 819591 | 5 random uncommon plorts → Refinery |
+| Rare Plort Cache | 819592 | 5 random rare plorts → Refinery |
+| Common Craft Cache | 819600–819604 | 5 random common craft materials → Refinery |
+| Rare Craft Cache | 819605 | 5 random rare craft materials → Refinery |
+| Slime Ring | 819610 | Spawns 8 random zone-appropriate slimes in a ring around the player |
+| Weather Change *(useful)* | 819611 | Starts a random Heavy or Slime Rain weather for 3 minutes |
 
 **Confirmed plort IdentifiableType names** (from runtime dump):
 - Common: `PinkPlort`, `TabbyPlort`, `RockPlort`, `PhosphorPlort`, `CottonPlort`, `HoneyPlort`, `CrystalPlort`, `BoomPlort`, `BattyPlort`
@@ -345,11 +348,10 @@ Grants blueprint via `GadgetDirector.AddBlueprint(gadgetDef, false)`.
 ### Traps
 | Trap | ID | Mod Status | Effect |
 |---|---|---|---|
-| Slime Ring | 819610 | ✅ Implemented (untested) | Spawns 8 random common slimes (Pink/Tabby/Rock/Cotton/Honey/Phosphor/Crystal/Ringtail) in a ring around the player, dropped from 3–5 m above |
-| Tarr Spawn | 819611 | ✅ Implemented (untested) | Spawns 2 Tarr at 2–4 m from the player at head height so they immediately aggro |
-| Teleport | 819612 | ✅ Implemented, verified in-game | Teleports player to a random accessible zone entrance (excludes current zone; respects region gate state) |
-| Weather Change | 819613 | ✅ Implemented (untested) | Starts a random Heavy or Slime Rain weather state for 3 minutes; restores natural weather cycle after |
-| Slime Rain | 819614 | ✅ Implemented (untested) | Finds the Slime Rain `WeatherStateDefinition`, overrides all `SpawnActorActivity.ActorType` fields to `Tarr`, triggers the weather for 3 minutes, then restores original actor types on reset. Falls back to Slime Ring if the Slime Rain weather state is not found. |
+| Tarr Spawn | 819612 | ✅ Implemented (untested) | Spawns 2 Tarr at 2–4 m from the player at head height so they immediately aggro |
+| Teleport | 819613 | ✅ Implemented, verified in-game | Teleports player to a random accessible zone entrance (excludes current zone; respects region gate state) |
+| Tarr Rain | 819614 | ✅ Implemented (untested) | Finds the Slime Rain `WeatherStateDefinition`, overrides all `SpawnActorActivity.ActorType` fields to `Tarr`, triggers the weather for 3 minutes, then restores original actor types on reset. Falls back to Slime Ring if the Slime Rain weather state is not found. |
+| Vacpack Spew | 819615 | ✅ Implemented | Launches all items in the player's vacpack as world objects and clears every slot. |
 
 ---
 

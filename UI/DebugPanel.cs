@@ -1,4 +1,5 @@
 ﻿#if DEBUG
+using Il2CppMonomiPark.SlimeRancher.Player.PlayerItems;
 using SlimeRancher2AP.Archipelago;
 using SlimeRancher2AP.Data;
 using SlimeRancher2AP.Utils;
@@ -261,8 +262,41 @@ public class DebugPanel : MonoBehaviour
         y = SectionLabel(x, y, "Traps");
         y = ItemBtn(x, y, "Tarr Spawn Trap",     ItemTable.TrapTarrSpawn);
         y = ItemBtn(x, y, "Teleport Trap",       ItemTable.TrapTeleport);
-        y = ItemBtn(x, y, "Weather Change Trap", ItemTable.TrapWeatherChange);
+        y = ItemBtn(x, y, "Weather Change",      ItemTable.WeatherChange);
         y = ItemBtn(x, y, "Tarr Rain Trap",      ItemTable.TrapTarrRain);
+        y = ItemBtn(x, y, "Vacpack Spew Trap",   ItemTable.TrapVacExpel);
+        y = ItemBtn(x, y, "Vacpack Fill Trap",   ItemTable.TrapVacFill);
+
+        y = SectionLabel(x, y, "Vacpack Spew (manual test)");
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Spew — dump all slots"))
+        {
+            var playerState = SceneContext.Instance?.PlayerState;
+            var vac  = playerState?.VacuumItem;
+            var ammo = playerState?.Ammo;
+            if (vac == null || ammo == null)
+            {
+                Logger.Warning("[AP-Debug] VacpackSpew: PlayerState/VacuumItem/Ammo null — load into a game first");
+            }
+            else
+            {
+                var slots = ammo.Slots;
+                int expelled = 0;
+                for (int i = 0; i < slots.Count; i++)
+                {
+                    var slot = slots[i];
+                    if (slot == null || slot.Id == null || slot.Count <= 0) continue;
+                    int count = slot.Count;
+                    var meta  = slot.Metadata;
+                    Logger.Info($"[AP-Debug] VacpackSpew: slot {i} has {count}× '{slot.Id.name}' — expelling");
+                    for (int j = 0; j < count; j++)
+                        vac.Expel(meta, false, 0f, false);
+                    ammo.Clear(i);  // remove from slot data after spawning world objects
+                    expelled += count;
+                }
+                Logger.Info($"[AP-Debug] VacpackSpew: expelled {expelled} total item(s)");
+            }
+        }
+        y += BtnH + Gap;
 
         y = SectionLabel(x, y, "Location Checks");
         y = CheckBtn(x, y, "Treasure Pod 1", 819000);

@@ -88,9 +88,20 @@ internal static class ActorUpgradeHandlerCachePatch
 #if DEBUG
         SlimeRancher2AP.Utils.DebugTrace.All("ActorUpgradeHandlerCachePatch.Postfix — entry");
 #endif
-        if (ItemHandler.UpgradeHandler != null) return; // already cached
+        if (ItemHandler.UpgradeHandler == __instance) return; // same instance, nothing to do
+
+        bool isReplacement = ItemHandler.UpgradeHandler != null;
         ItemHandler.UpgradeHandler = __instance;
-        Logger.Info("[AP] ActorUpgradeHandler cached via CheckUpgradePropertiesAreAvailable Postfix");
+        Logger.Info($"[AP] ActorUpgradeHandler {(isReplacement ? "re-cached (new instance after scene reload)" : "cached")} via CheckUpgradePropertiesAreAvailable Postfix");
+
+        // If this is a replacement (scene reload while connected), the old validation flag
+        // was already consumed for the previous handler.  Schedule a fresh validation so
+        // AP-applied upgrades are re-applied against the new model.
+        if (isReplacement && Plugin.Instance.ApClient.IsConnected)
+        {
+            Plugin.Instance.ApClient.ScheduleUpgradeValidation();
+            Logger.Info("[AP] Scheduled upgrade re-validation for replacement ActorUpgradeHandler");
+        }
     }
 }
 

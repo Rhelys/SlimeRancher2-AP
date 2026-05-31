@@ -103,14 +103,16 @@ public static class ItemTable
     public const long GreyLabyrinthCraftCache    = 819604;
     public const long RareCraftCache             = 819605;
 
-    // Filler — Slime Ring: 819610
-    public const long SlimeRing         = 819610; // spawns common slimes in a ring around the player
+    // Filler — Slime Ring & Weather Change: 819610–819611
+    public const long SlimeRing     = 819610; // spawns common slimes in a ring around the player
+    public const long WeatherChange = 819611; // triggers random Heavy/SlimeRain weather for 3 minutes
 
-    // Traps: 819611–819614
-    public const long TrapTarrSpawn     = 819611; // spawns Tarr near the player
-    public const long TrapTeleport      = 819612; // teleports player to a random accessible zone
-    public const long TrapWeatherChange = 819613; // triggers random Heavy/SlimeRain weather
-    public const long TrapTarrRain      = 819614; // triggers Slime Rain weather but overrides spawns to Tarr
+    // Traps: 819612–819629
+    public const long TrapTarrSpawn   = 819612; // spawns Tarr near the player
+    public const long TrapTeleport    = 819613; // teleports player to a random accessible zone
+    public const long TrapTarrRain    = 819614; // triggers Slime Rain weather but overrides spawns to Tarr
+    public const long TrapVacExpel    = 819615; // expels all vacpack contents as world objects and clears slots
+    public const long TrapVacFill = 819616; // fills all empty vacpack slots with Pink slimes
 
     // -------------------------------------------------------------------------
     // Item rows
@@ -200,14 +202,16 @@ public static class ItemTable
         new(GreyLabyrinthCraftCache,    "Grey Labyrinth Craft Cache",    ItemType.Filler),
         new(RareCraftCache,             "Rare Craft Cache",              ItemType.Filler),
 
-        // Filler — Slime Ring
-        new(SlimeRing, "Slime Ring", ItemType.Filler),
+        // Filler — Slime Ring / Weather Change (useful filler; ID 819613 is in the trap range by history)
+        new(SlimeRing,     "Slime Ring",     ItemType.Filler),
+        new(WeatherChange, "Weather Change", ItemType.Filler),
 
         // Traps
-        new(TrapTarrSpawn,     "Tarr Spawn Trap",     ItemType.Trap),
-        new(TrapTeleport,      "Teleport Trap",       ItemType.Trap),
-        new(TrapWeatherChange, "Weather Change Trap", ItemType.Trap),
-        new(TrapTarrRain,      "Tarr Rain Trap",      ItemType.Trap),
+        new(TrapTarrSpawn,  "Tarr Spawn Trap",  ItemType.Trap),
+        new(TrapTeleport,   "Teleport Trap",     ItemType.Trap),
+        new(TrapTarrRain,   "Tarr Rain Trap",    ItemType.Trap),
+        new(TrapVacExpel,    "Vacpack Spew Trap", ItemType.Trap),
+        new(TrapVacFill, "Vacpack Fill Trap", ItemType.Trap),
     };
 
     private static readonly Dictionary<long, ItemInfo> _byId = All.ToDictionary(i => i.Id);

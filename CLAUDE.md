@@ -108,7 +108,8 @@ See **`APWORLD_DESIGN.md`** for the full authoritative ID table, goal definition
 | 819537–819539 | Reserved |
 | 819540–819579 | Gadgets |
 | 819580–819609 | Filler (Newbucks / Plort / Craft Caches) |
-| 819610–819629 | Traps |
+| 819610–819611 | Filler — Slime Ring, Weather Change |
+| 819612–819629 | Traps |
 | 819630–819699 | Reserved |
 | 819700–819714 | Conversations — Key Gifts (NPC functional gadgets) |
 | 819715–819762 | Conversations — Deco Gifts (decorative blueprints) |

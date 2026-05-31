@@ -111,10 +111,14 @@ internal static class LoadGamePatch
             $"(seed={binding.Seed}, slot={binding.Slot}) — auto-connecting...");
 
         // If already connected to the correct session, no need to reconnect.
+        // But do schedule upgrade re-validation: the scene is about to reload and SR2's
+        // save data will be freshly restored.  AP-applied upgrades (e.g. Resource Harvester)
+        // are not persisted natively, so repair must re-run against the new model.
         if (Plugin.Instance.ApClient.IsConnected &&
             Plugin.Instance.ApClient.Session?.RoomState.Seed == binding.Seed)
         {
-            Logger.Info("[AP] LoadGamePatch: already connected to correct AP session.");
+            Logger.Info("[AP] LoadGamePatch: already connected to correct AP session — scheduling upgrade re-validation for scene reload.");
+            Plugin.Instance.ApClient.ScheduleUpgradeValidation();
             return;
         }
 

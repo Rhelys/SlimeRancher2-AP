@@ -281,6 +281,13 @@ public class ArchipelagoClient
         });
     }
 
+    /// <summary>
+    /// Schedules <see cref="ItemHandler.ValidateAndRepairUpgrades"/> to run on the next
+    /// <see cref="ProcessItemQueue"/> frame in which <see cref="ItemHandler.UpgradeHandler"/>
+    /// is non-null.  Safe to call from any thread (volatile write).
+    /// </summary>
+    public void ScheduleUpgradeValidation() => _pendingUpgradeValidation = true;
+
     public void Disconnect()
     {
         DeathLink?.Disable();
@@ -476,6 +483,14 @@ public class ArchipelagoClient
         // fires, HasActiveSession is guaranteed to be true.  Items are therefore held for at
         // most one extra Update() frame beyond the frame the action fires — negligible.
         if (!IsConnected || !Plugin.Instance.SaveManager.HasActiveSession) return;
+
+        // Don't drain the item queue until the game scene has a live Player object.
+        // Every Apply method needs SceneContext/GadgetDirector/UpgradeHandler, none of which
+        // exist on the main menu or save-select screen.  Holding items here (rather than
+        // dequeuing → failing → requeueing every frame) eliminates the per-frame log spam
+        // while the player is still in the pre-game UI.
+        if (SceneContext.Instance?.Player == null) return;
+
 #if DEBUG
         SlimeRancher2AP.Utils.DebugTrace.Once("ProcessItemQueue.1 — entered while connected");
 #endif
@@ -512,10 +527,12 @@ public class ArchipelagoClient
         }
 
 
+#if DEBUG
         if (pending.Count > 0)
             Logger.Info(
                 $"[AP] ProcessItemQueue: {pending.Count} item(s) to process, " +
                 $"_snapshotCount={_snapshotCount}, _connectTimeWatermark={_connectTimeWatermark}");
+#endif
 
         foreach (var entry in pending)
         {
