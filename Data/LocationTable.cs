@@ -145,7 +145,7 @@ public static class LocationTable
         // Ember Valley (zoneGorge) — 36 pods ✅
         new(LocationConstants.TreasurePod_EmberValley_01, "Ember Valley Pod: Dash Pad",                  LocationType.TreasurePod, "zoneGorge_Area1", "zoneGorge_Area1_-440_37_485"),
         new(LocationConstants.TreasurePod_EmberValley_02, "Ember Valley Pod: Stony Egg Lamp Statue",     LocationType.TreasurePod, "zoneGorge_Area1", "zoneGorge_Area1_-272_22_502"),
-        new(LocationConstants.TreasurePod_EmberValley_03, "Ember Valley Pod: Drones",                    LocationType.TreasurePod, "zoneGorge_Area1", "zoneGorge_Area1_-519_66_530"),
+        // 819040 (TreasurePod_EmberValley_03) removed — not a valid check location
         new(LocationConstants.TreasurePod_EmberValley_04, "Ember Valley Pod: Basic Tall Lamp",           LocationType.TreasurePod, "zoneGorge_Area1", "zoneGorge_Area1_-517_6_571"),
         new(LocationConstants.TreasurePod_EmberValley_05, "Ember Valley Pod: Amber Cypress Cluster",     LocationType.TreasurePod, "zoneGorge_Area1", "zoneGorge_Area1_-524_33_524"),
         new(LocationConstants.TreasurePod_EmberValley_06, "Ember Valley Pod: Tank Booster Component",    LocationType.TreasurePod, "zoneGorge_Area1", "zoneGorge_Area1_-207_-1_465"),
@@ -239,7 +239,7 @@ public static class LocationTable
         new(LocationConstants.TreasurePod_PowderfallBluffs_21, "Powderfall Bluffs Pod: Fireflower",         LocationType.TreasurePod, "zoneBluffs_Area3", "zoneBluffs_Area3_-591_-3_1586"),
         new(LocationConstants.TreasurePod_PowderfallBluffs_22, "Powderfall Bluffs Pod: Teleporter Powderfall", LocationType.TreasurePod, "zoneBluffs_Area3", "zoneBluffs_Area3_-645_51_1565"),
         new(LocationConstants.TreasurePod_PowderfallBluffs_23, "Powderfall Bluffs Pod: Teleporter White",   LocationType.TreasurePod, "zoneBluffs_Area3", "zoneBluffs_Area3_-652_92_1584"),
-        new(LocationConstants.TreasurePod_PowderfallBluffs_24, "Powderfall Bluffs Pod: Drones",             LocationType.TreasurePod, "zoneBluffs_Area3", "zoneBluffs_Area3_-682_122_1616"),
+        // 819130 (TreasurePod_PowderfallBluffs_24) removed — not a valid check location
         new(LocationConstants.TreasurePod_PowderfallBluffs_25, "Powderfall Bluffs Pod: Aurora Flowers",     LocationType.TreasurePod, "zoneBluffs_Area4", "zoneBluffs_Area4_-1077_8_1761"),
 
         // Grey Labyrinth — 0 treasure pods ✅ (none exist in this zone)
