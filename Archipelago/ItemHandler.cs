@@ -325,9 +325,9 @@ public static class ItemHandler
     /// Called from RegionGatePatch Postfix (auto mode) when a zone gate opens in-world.
     /// Looks up the region name for the given switch and grants its zone teleporter.
     /// </summary>
-    internal static void TryGrantRegionTeleporterForSwitch(string switchName)
+    internal static void TryGrantRegionTeleporterForSwitch(string switchName, string sceneName)
     {
-        if (!RegionTable.TryGetRegionForSwitch(switchName, out var regionName)) return;
+        if (!RegionTable.TryGetRegionForSwitch(switchName, sceneName, out var regionName)) return;
         GrantRegionTeleporter(regionName);
     }
 

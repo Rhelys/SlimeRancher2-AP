@@ -214,7 +214,9 @@ public class ConnectionUI : MonoBehaviour
         phText.fontSize            = 15;
         phText.color               = new Color(0.45f, 0.45f, 0.45f);
         phText.enableWordWrapping  = false;
-        if (font != null) phText.font = font;
+        // Intentionally NOT assigning the sampled SR2 font here — the game font is
+        // an all-caps typeface that lacks lowercase glyphs. TMP's built-in
+        // LiberationSans SDF (the default fallback) renders both cases correctly.
 
         // Main text
         var textGo = new GameObject("Text");
@@ -228,14 +230,14 @@ public class ConnectionUI : MonoBehaviour
         textComp.fontSize           = 15;
         textComp.color              = Color.white;
         textComp.enableWordWrapping = false;
-        if (font != null) textComp.font = font;
+        // Intentionally NOT assigning the sampled SR2 font — same reason as above.
 
         // Wire up TMP_InputField
         var inputField = fieldGo.AddComponent<TMP_InputField>();
         inputField.textViewport  = taRt;
         inputField.textComponent = textComp;
         inputField.placeholder   = phText.Cast<Graphic>();
-        if (font != null) inputField.fontAsset = font;
+        // fontAsset intentionally not set — let TMP use its default case-sensitive font.
         inputField.pointSize     = 15;
 
         if (password)

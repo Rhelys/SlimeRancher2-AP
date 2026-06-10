@@ -3,28 +3,34 @@ namespace SlimeRancher2AP.Data;
 /// <summary>
 /// Maps Archipelago region access item names to the in-game gate object names.
 /// EV and SS use WorldStatePrimarySwitch; PB uses a PuzzleSlotLockable (plort door).
+///
+/// Switch lookups are keyed by "sceneName:switchName" to avoid conflicts with
+/// duplicate switch names across different scenes (e.g. Grey Labyrinth also has
+/// a GameObject named "ruinSwitch" in a different scene from the EV gate).
 /// </summary>
 public static class RegionTable
 {
-    private static readonly Dictionary<string, string> Map = new()
+    private static string Key(string scene, string name) => $"{scene}:{name}";
+
+    // Item name → scene-qualified switch key (for TryGetSwitch logging helper)
+    private static readonly Dictionary<string, string> ItemToSwitchKey = new()
     {
-        // Key: WorldStatePrimarySwitch GameObject.name — confirmed via in-game log dump (2026-04-19).
-        // Both switches live in the zoneFields scene (Rainbow Fields).
-        ["Ember Valley Access"]      = "ruinSwitch",
-        ["Starlight Strand Access"]  = "ruinSwitch (2)",
+        // Confirmed: both switches live in the zoneFields scene (Rainbow Fields) — 2026-04-19.
+        ["Ember Valley Access"]      = Key("zoneFields", "ruinSwitch"),
+        ["Starlight Strand Access"]  = Key("zoneFields", "ruinSwitch (2)"),
         // PB uses a PuzzleSlotLockable — NOT a WorldStatePrimarySwitch; excluded from Map.
     };
 
-    // Reverse of Map: switch name → region item name (for vanilla-mode teleporter grants)
-    private static readonly Dictionary<string, string> ReverseMap =
-        Map.ToDictionary(kv => kv.Value, kv => kv.Key);
+    // Scene-qualified switch key → region item name (reverse lookup)
+    private static readonly Dictionary<string, string> KeyToRegion =
+        ItemToSwitchKey.ToDictionary(kv => kv.Value, kv => kv.Key);
 
-    // Switch name → AP location ID (for locations/bundled mode check sending from RegionGatePatch)
-    private static readonly Dictionary<string, long> SwitchToLocationId = new()
+    // Scene-qualified switch key → AP location ID
+    private static readonly Dictionary<string, long> KeyToLocationId = new()
     {
-        ["ruinSwitch"]      = LocationConstants.RegionGate_EmberValley,
-        ["ruinSwitch (2)"]  = LocationConstants.RegionGate_StarlightStrand,
-        // PB handled separately — it uses a PuzzleSlotLockable, not WorldStatePrimarySwitch.
+        [Key("zoneFields", "ruinSwitch")]      = LocationConstants.RegionGate_EmberValley,
+        [Key("zoneFields", "ruinSwitch (2)")]  = LocationConstants.RegionGate_StarlightStrand,
+        // PB handled separately — PuzzleSlotLockable, not WorldStatePrimarySwitch.
     };
 
     // Region access item name → AP location ID.
@@ -43,23 +49,38 @@ public static class RegionTable
     //   posKey='zoneGorge_Area3_-645_34_681'
     // -------------------------------------------------------------------------
     public const string PBDoorObjectName = "objLabyrinthPlortDoor01Small";
-    public const string PBGatePosKey     = "zoneGorge_Area3_-645_34_681";  // confirmed via AP-Dump 2026-04-20
+    public const string PBGatePosKey     = "zoneGorge_Area3_-645_34_681";
     public const string PBRegionItemName = "Powderfall Bluffs Access";
 
-    /// <summary>Returns the WorldStatePrimarySwitch name for the given region access item name.</summary>
+    /// <summary>
+    /// Returns the raw WorldStatePrimarySwitch GameObject name for the given region
+    /// access item name.  Used for log messages only.
+    /// </summary>
     public static bool TryGetSwitch(string itemName, out string switchName)
-        => Map.TryGetValue(itemName, out switchName!);
-
-    /// <summary>Returns the region access item name for the given switch GameObject name.</summary>
-    public static bool TryGetRegionForSwitch(string switchName, out string regionName)
-        => ReverseMap.TryGetValue(switchName, out regionName!);
+    {
+        if (!ItemToSwitchKey.TryGetValue(itemName, out var compositeKey))
+        {
+            switchName = "";
+            return false;
+        }
+        // Strip the "scene:" prefix — callers only need the bare name for display.
+        var colon = compositeKey.IndexOf(':');
+        switchName = colon >= 0 ? compositeKey[(colon + 1)..] : compositeKey;
+        return true;
+    }
 
     /// <summary>
-    /// Returns the AP location ID for the given gate switch name.
-    /// Used by <c>RegionGatePatch</c> when the player physically presses the gate button.
+    /// Returns the region access item name for the given switch, disambiguated by scene.
+    /// Switches with the same name in different scenes will not collide.
     /// </summary>
-    public static bool TryGetLocationId(string switchName, out long locationId)
-        => SwitchToLocationId.TryGetValue(switchName, out locationId);
+    public static bool TryGetRegionForSwitch(string switchName, string sceneName, out string regionName)
+        => KeyToRegion.TryGetValue(Key(sceneName, switchName), out regionName!);
+
+    /// <summary>
+    /// Returns the AP location ID for the given gate switch, disambiguated by scene.
+    /// </summary>
+    public static bool TryGetLocationId(string switchName, string sceneName, out long locationId)
+        => KeyToLocationId.TryGetValue(Key(sceneName, switchName), out locationId);
 
     /// <summary>
     /// Returns the AP location ID for the given region access item name (e.g. "Ember Valley Access").

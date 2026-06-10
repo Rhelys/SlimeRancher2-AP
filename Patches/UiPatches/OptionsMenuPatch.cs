@@ -76,7 +76,10 @@ internal static class OptionsMenuInjectionPatch
     /// </summary>
     internal static Sprite? GetLogoSprite()
     {
-        _logoSprite ??= LoadLogoSprite();
+        // Use explicit Unity null check (not ??=): ??= uses C# reference equality and misses
+        // Unity engine objects that were destroyed by UnloadUnusedAssets between scenes.
+        if (_logoSprite == null)
+            _logoSprite = LoadLogoSprite();
         return _logoSprite;
     }
 
@@ -263,7 +266,12 @@ internal static class OptionsMenuInjectionPatch
                 return null;
             }
 
-            return Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.5f), 100f);
+            // DontUnloadUnusedAsset prevents Unity from destroying these runtime-created objects
+            // during scene transitions (e.g. Resources.UnloadUnusedAssets after quit-to-menu).
+            tex.hideFlags = HideFlags.DontUnloadUnusedAsset;
+            var sprite = Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.5f), 100f);
+            if (sprite != null) sprite.hideFlags = HideFlags.DontUnloadUnusedAsset;
+            return sprite;
         }
         catch (Exception ex)
         {
@@ -524,28 +532,21 @@ internal static class OptionsMenuClosePatch
 /// Prefix on OptionsUIRoot.CheckThenSwapCategory — suppresses Q/E tab navigation
 /// whenever the Archipelago panel is visible.
 ///
-/// This covers two cases:
-///   1. Panel visible, no field focused yet — Q/E would otherwise still cycle the
-///      visible tab highlight even if the content doesn't switch (because the visual
-///      selection updates before CheckThenSwapCategory is even reached).
-///   2. Panel visible, a TMP_InputField IS focused — Q/E must go to the text box.
-///
 /// The player can still switch away from the AP tab by clicking another tab directly.
-/// CheckThenSwapCategory is the single entry point for ALL tab-navigation input
-/// (Q / E / shoulder buttons) so patching it here is sufficient.
+///
+/// Known behavior: typing 'q' or 'e' into a connection field will visually shift the
+/// tab-icon highlight (e.g. from "Archipelago" toward "Display") even though the page
+/// content never actually changes.  The visual shift is driven by the native
+/// categoryAdapter input pipeline which runs before this method is reached; no
+/// managed patch point has been found to suppress it cleanly.  Accepted as-is —
+/// the page content stays correct and clicking any tab resets the highlight.
 /// </summary>
 [HarmonyPatch(typeof(OptionsUIRoot), nameof(OptionsUIRoot.CheckThenSwapCategory))]
 internal static class OptionsMenuBlockTabNavWhileTypingPatch
 {
     private static bool Prefix()
     {
-        // If our panel is currently showing, block all keyboard tab navigation.
         if (Plugin.Instance.ConnectionUi?.IsVisible == true)
-            return false;
-
-        // Also block if any TMP_InputField has UGUI focus (safety net for edge cases).
-        var selected = EventSystem.current?.currentSelectedGameObject;
-        if (selected != null && selected.GetComponent<TMP_InputField>() != null)
             return false;
 
         return true;

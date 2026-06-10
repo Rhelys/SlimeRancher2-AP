@@ -69,11 +69,16 @@ internal static class RegionGateActivatePatch
             return true;
         }
 
-        string switchName;
-        try { switchName = __instance.gameObject.name; }
+        string switchName, sceneName;
+        try
+        {
+            switchName = __instance.gameObject.name;
+            var scene  = __instance.gameObject.scene;
+            sceneName  = scene.IsValid() ? (scene.name ?? "") : "";
+        }
         catch { return true; }
 
-        if (!RegionTable.TryGetRegionForSwitch(switchName, out var regionName))
+        if (!RegionTable.TryGetRegionForSwitch(switchName, sceneName, out var regionName))
             return true; // untracked switch — let it through, no side-effects needed
 
         if (Plugin.Instance.SaveManager.IsRegionUnlocked(regionName))
@@ -86,7 +91,7 @@ internal static class RegionGateActivatePatch
         // Region locked: send the check and block Activate() entirely so the button stays live.
         // Because Activate() never runs, _switchEnabled is not cleared and the player can press
         // the button again after the access item arrives.
-        if (RegionTable.TryGetLocationId(switchName, out var locationId))
+        if (RegionTable.TryGetLocationId(switchName, sceneName, out var locationId))
             Plugin.Instance.ApClient.SendCheck(locationId);
 
         Logger.Info(
@@ -111,7 +116,7 @@ internal static class RegionGateActivatePatch
         catch { return; }
 
         // Track gate as open for teleport trap eligibility.
-        if (RegionTable.TryGetRegionForSwitch(switchName, out var regionItemName))
+        if (RegionTable.TryGetRegionForSwitch(switchName, sceneName, out var regionItemName))
             TrapHandler.MarkRegionOpen(regionItemName);
 
         // Send the location check now that the gate has actually opened.
@@ -119,12 +124,12 @@ internal static class RegionGateActivatePatch
         var teleMode = Plugin.Instance.ApClient.IsConnected
             ? (Plugin.Instance.ApClient.SlotData?.RegionAccessMode ?? "vanilla")
             : "vanilla";
-        if (teleMode != "vanilla" && RegionTable.TryGetLocationId(switchName, out var locId))
+        if (teleMode != "vanilla" && RegionTable.TryGetLocationId(switchName, sceneName, out var locId))
             Plugin.Instance.ApClient.SendCheck(locId);
 
         // Vanilla mode: grant the zone teleporter for this region.
         if (teleMode == "vanilla")
-            ItemHandler.TryGrantRegionTeleporterForSwitch(switchName);
+            ItemHandler.TryGrantRegionTeleporterForSwitch(switchName, sceneName);
 
         // Goal detection (mode-independent).
         GoalHandler.OnSwitchOpened(switchName, sceneName);
