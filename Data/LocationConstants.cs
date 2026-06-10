@@ -78,7 +78,7 @@ public static class LocationConstants
     // Ember Valley (zoneGorge) â€” 36 pods confirmed âœ…
     public const long TreasurePod_EmberValley_01    = 819038;  // zoneGorge_Area1_-440_37_485     Dash Pad
     public const long TreasurePod_EmberValley_02    = 819039;  // zoneGorge_Area1_-272_22_502     Stony Egg Lamp Statue
-    public const long TreasurePod_EmberValley_03    = 819040;  // zoneGorge_Area1_-519_66_530     Drones (cosmetic pod)
+    // 819040 removed — not a valid check location
     public const long TreasurePod_EmberValley_04    = 819041;  // zoneGorge_Area1_-517_6_571      Basic Tall Lamp
     public const long TreasurePod_EmberValley_05    = 819042;  // zoneGorge_Area1_-524_33_524     Amber Cypress Cluster
     public const long TreasurePod_EmberValley_06    = 819043;  // zoneGorge_Area1_-207_-1_465     Tank Booster Component
@@ -172,11 +172,8 @@ public static class LocationConstants
     public const long TreasurePod_PowderfallBluffs_21  = 819127;  // zoneBluffs_Area3_-591_-3_1586    Fireflower
     public const long TreasurePod_PowderfallBluffs_22  = 819128;  // zoneBluffs_Area3_-645_51_1565    Teleporter Powderfall
     public const long TreasurePod_PowderfallBluffs_23  = 819129;  // zoneBluffs_Area3_-652_92_1584    Teleporter White
-    public const long TreasurePod_PowderfallBluffs_24  = 819130;  // zoneBluffs_Area3_-682_122_1616   Drones (cosmetic pod)
+    // 819130 removed — not a valid check location
     public const long TreasurePod_PowderfallBluffs_25  = 819131;  // zoneBluffs_Area4_-1077_8_1761    Aurora Flowers
-
-    // Grey Labyrinth â€” TODO: run dump while in zone (Goals 3 and 4 only)
-    // 819132â€“819199 reserved for Grey Labyrinth pods
 
     // =========================================================================
     // SHADOW PLORT DOORS: 819200 â€“ 819249  (Grey Labyrinth only)
