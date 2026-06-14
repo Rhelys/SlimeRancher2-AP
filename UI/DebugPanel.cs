@@ -215,6 +215,9 @@ public class DebugPanel : MonoBehaviour
 
     private void DrawPageFiller(float x, float y)
     {
+        y = SectionLabel(x, y, "Useful");
+        y = ItemBtn(x, y, "Drone Station Module", ItemTable.DroneStationModule);
+
         y = SectionLabel(x, y, "Newbucks");
         y = ItemBtn(x, y, "250 Newbucks",  ItemTable.Newbucks250);
         y = ItemBtn(x, y, "500 Newbucks",  ItemTable.Newbucks500);
@@ -302,6 +305,20 @@ public class DebugPanel : MonoBehaviour
         y = CheckBtn(x, y, "Treasure Pod 1", 819000);
         y = CheckBtn(x, y, "Gordo 1",        819250);
         y = CheckBtn(x, y, "Map Node 1",     819300);
+
+        y = SectionLabel(x, y, "Ghost Drone Spawners");
+
+        GUI.color = new Color(0.7f, 1f, 0.9f);
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Ghost Drone Spawners (→ log)"))
+            LocationDumper.DumpGhostDroneSpawners();
+        y += BtnH + Gap;
+
+        GUI.color = new Color(0.4f, 1f, 0.7f);
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Force Spawn Ghost Drones Now (bypass guards)"))
+            SlimeRancher2AP.Patches.LocationPatches.ComponentAcqDroneSpawnerFix.ForceSpawnAllDebug();
+        y += BtnH + Gap;
+
+        GUI.color = Color.white;
 
         y = SectionLabel(x, y, "DeathLink");
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Kill Player (DeathLink)"))

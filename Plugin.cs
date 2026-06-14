@@ -86,6 +86,14 @@ public class ApUpdateBehaviour : MonoBehaviour
 {
     public ApUpdateBehaviour(IntPtr handle) : base(handle) { }
 
+    // Ghost drone spawn retry state.
+    // SR2 loads zone sub-scenes additively and they finish streaming in several seconds
+    // after SceneContext.Player becomes available. We retry every 3 seconds for up to 60
+    // seconds after each scene change so we catch spawners in late-loading sub-scenes.
+    private string _lastScene          = "";
+    private float  _droneSpawnDeadline = 0f;
+    private float  _droneSpawnNextTry  = 0f;
+
     private void Update()
     {
 #if DEBUG
@@ -127,5 +135,24 @@ public class ApUpdateBehaviour : MonoBehaviour
         SlimeRancher2AP.Utils.DebugTrace.Once("Update.6 — after GoalHandler.Tick");
         SlimeRancher2AP.Utils.NoClipManager.Tick();
 #endif
+
+        // Ghost drone spawner fix — retry every 3s for 60s after each scene change.
+        // Sub-scenes finish streaming in well after SceneContext.Player is available,
+        // so a one-shot trigger misses spawners that load a few seconds later.
+        var sceneName = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+        if (sceneName != _lastScene)
+        {
+            _lastScene          = sceneName;
+            _droneSpawnDeadline = UnityEngine.Time.time + 60f;
+            _droneSpawnNextTry  = 0f;
+            SlimeRancher2AP.Patches.LocationPatches.ComponentAcqDroneSpawnerFix.ClearSpawnedSet();
+        }
+        if (UnityEngine.Time.time < _droneSpawnDeadline
+            && UnityEngine.Time.time >= _droneSpawnNextTry
+            && SceneContext.Instance?.Player != null)
+        {
+            SlimeRancher2AP.Patches.LocationPatches.ComponentAcqDroneSpawnerFix.ForceSpawnAll();
+            _droneSpawnNextTry = UnityEngine.Time.time + 3f;
+        }
     }
 }

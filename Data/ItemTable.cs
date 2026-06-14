@@ -1,6 +1,6 @@
 namespace SlimeRancher2AP.Data;
 
-public enum ItemType { RegionAccess, Upgrade, Gadget, Filler, UpgradeComponent, Trap }
+public enum ItemType { RegionAccess, Upgrade, Gadget, Filler, Useful, UpgradeComponent, Trap }
 
 /// <summary>Describes a single Archipelago item this game can send or receive.</summary>
 public record ItemInfo(long Id, string Name, ItemType Type);
@@ -57,6 +57,9 @@ public static class ItemTable
     public const long PulseWave           = 819527; // PulseWave             × 1
     public const long ResourceHarvester   = 819528; // ResourceNodeHarvester × 1
     public const long DroneArchiveKey     = 819529; // ArchiveKey            × 1
+
+    // Useful — Drone Station Module: 819537
+    public const long DroneStationModule = 819537; // ComponentAcqDrone × 1
 
     // Gadgets: 819540–819557
     // Zone Teleporters — one per region (confirmed via DumpGadgets)
@@ -157,6 +160,9 @@ public static class ItemTable
         new(PulseWave,                 "Pulse Wave",                  ItemType.Upgrade),
         new(ResourceHarvester,         "Resource Harvester",          ItemType.Upgrade),
         new(DroneArchiveKey,           "Drone Archive Key",           ItemType.Upgrade),
+
+        // Useful — Drone Station Module (confirmed IdentType: ComponentAcqDrone, max 19 in game)
+        new(DroneStationModule, "Drone Station Module", ItemType.Useful),
 
         // Gadgets — Zone Teleporters
         new(TeleporterEmberValley,      "Teleporter (Ember Valley)",      ItemType.Gadget),

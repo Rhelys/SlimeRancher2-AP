@@ -11,6 +11,7 @@ using Il2CppMonomiPark.SlimeRancher.World;
 using Il2CppMonomiPark.SlimeRancher.Slime;
 using Il2CppMonomiPark.SlimeRancher.DataModel;
 using Il2CppMonomiPark.SlimeRancher.Weather;
+using Il2CppMonomiPark.SlimeRancher.Drone;
 using Il2CppMonomiPark.SlimeRancher.World.ResearchDrone;
 using SlimeRancher2AP.Utils;
 using System;
@@ -2298,6 +2299,48 @@ public static class LocationDumper
             t = t.parent;
         }
         return path;
+    }
+
+    /// <summary>
+    /// Logs every <c>ComponentAcqDroneSpawner</c> in the current scene: pod state, spawner
+    /// name, and world position. Use this to confirm how many ghostly drone spawners exist
+    /// in the zone you're standing in and which ones the AP fix would call SpawnDrone() on.
+    /// </summary>
+    public static void DumpGhostDroneSpawners()
+    {
+        var log = Plugin.Instance.Log;
+        var spawners = Resources.FindObjectsOfTypeAll<Il2CppMonomiPark.SlimeRancher.Drone.ComponentAcqDroneSpawner>();
+        log.LogInfo($"[AP-Dump] ========== GHOST DRONE SPAWNER DUMP ({spawners.Length} found) ==========");
+
+        int eligible = 0;
+        foreach (var spawner in spawners)
+        {
+            if (spawner == null) continue;
+            try
+            {
+                var pod = spawner._treasurePod;
+                string podState = pod == null ? "NO_POD" : pod.CurrState.ToString();
+                bool wouldSpawn = pod != null && pod.CurrState == TreasurePod.State.LOCKED;
+                if (wouldSpawn) eligible++;
+
+                var go = spawner.gameObject;
+                string pos = go != null
+                    ? $"({go.transform.position.x:F1}, {go.transform.position.y:F1}, {go.transform.position.z:F1})"
+                    : "(no go)";
+                string name = go?.name ?? "(null)";
+                string scene = go?.scene.name ?? "(null)";
+
+                string ident = spawner._ident?.name ?? "(null)";
+                log.LogInfo($"[AP-Dump]   spawner='{name}'  scene='{scene}'  ident='{ident}'  podState={podState}  wouldSpawn={wouldSpawn}  pos={pos}");
+            }
+            catch (Exception ex)
+            {
+                log.LogWarning($"[AP-Dump]   spawner exception: {ex.Message}");
+            }
+        }
+
+        log.LogInfo($"[AP-Dump] Eligible for ForceSpawn (LOCKED): {eligible}/{spawners.Length}");
+        log.LogInfo($"[AP-Dump] =========== GHOST DRONE SPAWNER DUMP END ===========");
     }
 }
 #endif

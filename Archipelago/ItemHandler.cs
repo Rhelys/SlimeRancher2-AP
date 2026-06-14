@@ -115,6 +115,7 @@ public static class ItemHandler
             case ItemType.Upgrade:      ApplyUpgrade(item, null, itemIndex);            break;
             case ItemType.Gadget:       ApplyGadget(item, null, itemIndex);             break;
             case ItemType.Filler:           ApplyFiller(item, null, itemIndex);              break;
+            case ItemType.Useful:           ApplyUseful(item, null, itemIndex);              break;
             case ItemType.UpgradeComponent: ApplyUpgradeComponent(item, null, itemIndex);    break;
             case ItemType.Trap:             ApplyTrap(item, null, itemIndex);                break; // return ignored — debug path has no requeue
         }
@@ -169,7 +170,7 @@ public static class ItemHandler
         // index 0 — these must be skipped to avoid duplicate grants and trap-on-load crashes.
         // Upgrades, gadgets, and region access are idempotent or self-correcting and are
         // intentionally NOT guarded here so they always reach the correct level on reconnect.
-        bool isEphemeral = item.Type is ItemType.Filler or ItemType.Trap;
+        bool isEphemeral = item.Type is ItemType.Filler or ItemType.Useful or ItemType.Trap;
         if (isEphemeral && Plugin.Instance.SaveManager.IsEphemeralApplied(itemIndex))
         {
             Logger.Info(
@@ -182,7 +183,7 @@ public static class ItemHandler
         // Traps log when they actually fire (or silently requeue in Release builds).
         // Filler and UpgradeComponent also log inside their apply methods.
         // Logging here would spam every frame while a rate-limited item waits.
-        if (item.Type is not ItemType.Trap and not ItemType.Filler and not ItemType.UpgradeComponent)
+        if (item.Type is not ItemType.Trap and not ItemType.Filler and not ItemType.Useful and not ItemType.UpgradeComponent)
             Logger.Info($"[AP] Applying item: {item.Name} (id={item.Id}, idx={itemIndex})");
 
         // All Apply* helpers return true when the item was applied successfully and
@@ -206,6 +207,10 @@ public static class ItemHandler
                 break;
             case ItemType.Filler:
                 if (!ApplyFiller(item, apItem, itemIndex))
+                    advanceWatermark = false;
+                break;
+            case ItemType.Useful:
+                if (!ApplyUseful(item, apItem, itemIndex))
                     advanceWatermark = false;
                 break;
             case ItemType.UpgradeComponent:
@@ -705,6 +710,35 @@ public static class ItemHandler
 
         Logger.Warning($"[AP] Unhandled filler item ID: {item.Id}");
         return true; // unknown filler — don't retry
+    }
+
+    private static bool ApplyUseful(Data.ItemInfo item, ApItemInfo? apItem, int itemIndex)
+    {
+        Logger.Info($"[AP] Applying useful: {item.Name} (id={item.Id}, idx={itemIndex})");
+
+        // Drone Station Module — adds one ComponentAcqDrone unit to the player's inventory
+        if (item.Id == ItemTable.DroneStationModule)
+        {
+            var director = SceneContext.Instance?.GadgetDirector;
+            if (director == null)
+            {
+                if (apItem != null) Plugin.Instance.ApClient.RequeueItem(apItem, itemIndex);
+                return false;
+            }
+            var identType = Resources.FindObjectsOfTypeAll<IdentifiableType>()
+                                     .FirstOrDefault(t => t.name == "ComponentAcqDrone");
+            if (identType == null)
+            {
+                Logger.Warning("[AP] IdentifiableType 'ComponentAcqDrone' not found — grant skipped");
+                return true;
+            }
+            director.AddItem(identType, 1);
+            Notify("Received: Drone Station Module");
+            return true;
+        }
+
+        Logger.Warning($"[AP] Unhandled useful item ID: {item.Id}");
+        return true;
     }
 
     // Map ItemTable ID → UpgradeComponent asset name.
