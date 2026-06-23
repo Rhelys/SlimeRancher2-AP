@@ -52,8 +52,8 @@ internal static class FabricatorUpgradeBlockPatch
 
     private static bool Prefix()
     {
-        if (!Plugin.Instance.ModEnabled || !Plugin.Instance.SaveManager.HasActiveSession)
-            return true;              // AP mode off — vanilla behaviour, allow all
+        if (!FabricatorPatch.IsEnabled)
+            return true;              // fabricator not randomized — vanilla behaviour, allow all
         bool allow = ItemHandler.IsApplyingItem; // true = AP pipeline grant → allow
         if (!allow && FabricatorPatch.IsCrafting)
             WasCraftBlocked = true;   // transition: cost-check phase → display-refresh phase
@@ -153,7 +153,7 @@ internal static class UpgradeModelGetLevelPatch
         if (ItemHandler.IsApplyingItem)
             return true;
 
-        if (!Plugin.Instance.ModEnabled || !Plugin.Instance.SaveManager.HasActiveSession)
+        if (!FabricatorPatch.IsEnabled)
             return true;
 
         var upgradeName = definition?.name;
@@ -167,7 +167,13 @@ internal static class UpgradeModelGetLevelPatch
         if (FabricatorPatch.CraftingUpgradeName == upgradeName)
             checkedCount++;
 
-        __result = checkedCount - 1;
+        // Floor at the actual model level so AP-granted upgrades (received without crafting at
+        // the Fabricator) are still visible to game logic such as
+        // PlayerUpgradeObtainedQueryComponent.IsSatisfied (which fires for the Prismacore fight).
+        // Without this, checkedCount=0 for an AP-granted Water Tank returns level=-1, causing
+        // Gigi to block the final fight even though the player has the upgrade.
+        int modelLevel = ItemHandler.GetTrackedLevel(upgradeName);
+        __result = System.Math.Max(checkedCount - 1, modelLevel);
         return false;
     }
 }

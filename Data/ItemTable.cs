@@ -1,6 +1,6 @@
 namespace SlimeRancher2AP.Data;
 
-public enum ItemType { RegionAccess, Upgrade, Gadget, Filler, Useful, UpgradeComponent, Trap }
+public enum ItemType { RegionAccess, Upgrade, Gadget, Filler, Useful, UpgradeComponent, Trap, ConservatoryExpansion }
 
 /// <summary>Describes a single Archipelago item this game can send or receive.</summary>
 public record ItemInfo(long Id, string Name, ItemType Type);
@@ -110,6 +110,15 @@ public static class ItemTable
     public const long SlimeRing     = 819610; // spawns common slimes in a ring around the player
     public const long WeatherChange = 819611; // triggers random Heavy/SlimeRain weather for 3 minutes
 
+    // Conservatory Expansions: 819630–819634
+    // Received from AP pool; opens the corresponding AccessDoor in the Conservatory.
+    // Door _id strings confirmed via F9 → Dumps → "Dump Access Doors" in the Conservatory.
+    public const long ExpansionGully     = 819630;
+    public const long ExpansionTidepools = 819631;
+    public const long ExpansionArchway   = 819632;
+    public const long ExpansionDen       = 819633;
+    public const long ExpansionDigsite   = 819634;
+
     // Traps: 819612–819629
     public const long TrapTarrSpawn   = 819612; // spawns Tarr near the player
     public const long TrapTeleport    = 819613; // teleports player to a random accessible zone
@@ -190,6 +199,13 @@ public static class ItemTable
         new(MedStation,         "Med Station",          ItemType.Gadget),
         new(DreamLanternT2,     "Dream Lantern T2",     ItemType.Gadget),
 
+        // Conservatory Expansions
+        new(ExpansionGully,     "The Gully Access",     ItemType.ConservatoryExpansion),
+        new(ExpansionTidepools, "The Tidepools Access", ItemType.ConservatoryExpansion),
+        new(ExpansionArchway,   "The Archway Access",   ItemType.ConservatoryExpansion),
+        new(ExpansionDen,       "The Den Access",       ItemType.ConservatoryExpansion),
+        new(ExpansionDigsite,   "The Digsite Access",   ItemType.ConservatoryExpansion),
+
         // Filler — Newbucks
         new(Newbucks250,  "250 Newbucks",  ItemType.Filler),
         new(Newbucks500,  "500 Newbucks",  ItemType.Filler),
@@ -208,9 +224,8 @@ public static class ItemTable
         new(GreyLabyrinthCraftCache,    "Grey Labyrinth Craft Cache",    ItemType.Filler),
         new(RareCraftCache,             "Rare Craft Cache",              ItemType.Filler),
 
-        // Filler — Slime Ring / Weather Change (useful filler; ID 819613 is in the trap range by history)
         new(SlimeRing,     "Slime Ring",     ItemType.Filler),
-        new(WeatherChange, "Weather Change", ItemType.Filler),
+        new(WeatherChange, "Weather Change", ItemType.Useful),
 
         // Traps
         new(TrapTarrSpawn,  "Tarr Spawn Trap",  ItemType.Trap),
@@ -223,4 +238,23 @@ public static class ItemTable
     private static readonly Dictionary<long, ItemInfo> _byId = All.ToDictionary(i => i.Id);
 
     public static ItemInfo? Get(long id) => _byId.TryGetValue(id, out var info) ? info : null;
+
+    // Maps expansion item ID → AccessDoor._id string.
+    // Placeholder values must be replaced after running the in-game AccessDoor dump
+    // (F9 → Dumps → "Dump Access Doors" while standing in the Conservatory).
+    private static readonly Dictionary<long, string> _expansionDoorIds = new()
+    {
+        [ExpansionGully]     = "door1733849867", // zoneConservatory_Arboretum
+        [ExpansionTidepools] = "door0129604684", // zoneConservatory_Pools
+        [ExpansionArchway]   = "door0749608168", // zoneConservatory_Garden
+        [ExpansionDen]       = "door0010140679", // zoneConservatory_Den
+        [ExpansionDigsite]   = "door1356553442", // zoneConservatory_Digsite
+    };
+
+    /// <summary>
+    /// Returns the <c>AccessDoor._id</c> string for a conservatory expansion item, or
+    /// <c>null</c> if the item ID is not a conservatory expansion.
+    /// </summary>
+    public static string? GetExpansionDoorId(long itemId)
+        => _expansionDoorIds.TryGetValue(itemId, out var id) ? id : null;
 }

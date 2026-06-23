@@ -34,7 +34,7 @@
 
   <ItemGroup>
     <!-- BepInEx 6 IL2CPP framework (compile-only; runtime provided by BepInEx) -->
-    <PackageReference Include="BepInEx.Unity.IL2CPP" Version="6.0.0-be.*" IncludeAssets="compile" />
+    <PackageReference Include="BepInEx.Unity.IL2CPP" Version="6.0.0-be.755" IncludeAssets="compile" />
     <!-- Archipelago multiworld client library -->
     <!-- Note: UnityEngine.Modules NuGet is intentionally absent. Unity types are referenced
          directly from the BepInEx-generated interop DLLs below so that the IL2CPP versions

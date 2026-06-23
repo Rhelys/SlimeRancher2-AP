@@ -20,11 +20,9 @@ namespace SlimeRancher2AP.Archipelago;
 ///   <item><term>newbucks</term><description>
 ///     Polled via Tick() — checks PlayerModel.CurrencyInfo.AmountEverCollected (lifetime total).
 ///   </description></item>
-///   <item><term>prismacore_enter</term><description>
-///     Event-based: CoreRoomController.UpdateState Postfix fires OnCoreRoomStateChanged(PRE_FIGHT).
-///   </description></item>
-///   <item><term>prismacore_stabilize</term><description>
-///     Event-based: CoreRoomController.UpdateState Postfix fires OnCoreRoomStateChanged(POST_FIGHT).
+///   <item><term>prismacore</term><description>
+///     Event-based: CoreRoomController.UpdateState Postfix fires OnCoreRoomStateChanged(POST_FIGHT)
+///     when the boss fight completes and the Prismacore is stabilized.
 ///   </description></item>
 ///   <item><term>slimepedia</term><description>
 ///     Polled via Tick() — checks PediaRuntimeCategory.AllUnlocked() for BOTH the "Slimes"
@@ -67,6 +65,9 @@ public static class GoalHandler
     // -------------------------------------------------------------------------
 
     private static bool _goalAchieved = false;
+
+    /// <summary>True once the goal has been completed this session.</summary>
+    public static bool IsGoalComplete => _goalAchieved;
 
     // Newbucks goal caches
     private static int                _newbucksGoalAmount     = -1;
@@ -167,7 +168,8 @@ public static class GoalHandler
 
     /// <summary>
     /// Called from CoreRoomControllerPatch Postfix on every UpdateState call.
-    /// Handles both prismacore_enter (PRE_FIGHT) and prismacore_stabilize (POST_FIGHT).
+    /// Handles the prismacore goal: fires when POST_FIGHT is set (boss fight complete, core stabilized).
+    /// PRE_FIGHT fires on scene load and is intentionally ignored — it does NOT indicate room entry.
     /// </summary>
     public static void OnCoreRoomStateChanged(CoreRoomController.CoreRoomState state)
     {
@@ -175,15 +177,7 @@ public static class GoalHandler
 
         var goal = Plugin.Instance.ApClient.SlotData?.Goal;
 
-        // prismacore_enter: PRE_FIGHT is set when the player first enters the room.
-        if (goal == "prismacore_enter" && state == CoreRoomController.CoreRoomState.PRE_FIGHT)
-        {
-            Logger.Info("[AP] Prismacore entered (PRE_FIGHT state)");
-            NotifyGoalComplete();
-        }
-
-        // prismacore_stabilize: POST_FIGHT is set after the core is stabilized.
-        if (goal == "prismacore_stabilize" && state == CoreRoomController.CoreRoomState.POST_FIGHT)
+        if (goal == "prismacore" && state == CoreRoomController.CoreRoomState.POST_FIGHT)
         {
             Logger.Info("[AP] Prismacore stabilized (POST_FIGHT state)");
             NotifyGoalComplete();
@@ -386,11 +380,9 @@ public static class GoalHandler
         }
     }
 
-    /// <summary>Simulates the Prismacore room state changing. Calls OnCoreRoomStateChanged directly.</summary>
-    public static void DebugSimPrismacore(bool stabilize) =>
-        OnCoreRoomStateChanged(stabilize
-            ? CoreRoomController.CoreRoomState.POST_FIGHT
-            : CoreRoomController.CoreRoomState.PRE_FIGHT);
+    /// <summary>Simulates the Prismacore stabilizing. Calls OnCoreRoomStateChanged with POST_FIGHT directly.</summary>
+    public static void DebugSimPrismacore() =>
+        OnCoreRoomStateChanged(CoreRoomController.CoreRoomState.POST_FIGHT);
 
     /// <summary>
     /// Simulates both Labyrinth gates opening for testing the labyrinth_open goal.

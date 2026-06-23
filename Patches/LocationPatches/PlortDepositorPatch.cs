@@ -1,12 +1,14 @@
-﻿namespace SlimeRancher2AP.Patches.LocationPatches;
+namespace SlimeRancher2AP.Patches.LocationPatches;
 
 // NOTE (2026-05-15, v0.4.4): PlortDepositorPatch removed.
 //
 // Previous hook history for Shadow Plort door detection:
 //   1. ActivateOnFill()        — stack overflow: HarmonyX il2cpp_runtime_invoke re-enters the
 //                                patched managed bridge wrapper, causing infinite recursion.
-//   2. PlortDepositorModel.Push — AccessViolationException on game load: Push fires during save
-//                                 restoration before SetGameObject is called on the model.
+//   2. PlortDepositorModel.Push — crashes on main menu load: Push is invoked from native code
+//                                 during scene initialisation (CallerCount=7 counts only managed
+//                                 callers; native callers are not counted).  The HarmonyX trampoline
+//                                 fails in the same way OnTriggerEnter did.
 //   3. PlortDepositor.OnTriggerEnter — REMOVED here: PlortDepositor moved to root namespace in
 //                                      the 5/13/2026 game update. OnTriggerEnter is a Unity physics
 //                                      callback (CallerCount=0 managed callers) whose prologue
@@ -14,8 +16,9 @@
 //                                      scene load as the Conservatory's refinery PlortDepositors
 //                                      fire their physics triggers during initialization.
 //
-// Shadow Plort door detection is now handled in PuzzleSlotLockableActivatePatch
-// (PuzzleSlotLockable.ActivateOnUnlock, CallerCount=1, already patched for the PB gate).
-// ActivateOnUnlock fires as the final step of the PuzzleSlotLockable unlock chain — after
-// the plort is accepted (OnTriggerEnter) → ActivateOnFill → NotifySlotChanged → ActivateOnUnlock.
-// Detection uses posKey via WorldUtils.PositionKey() exactly as the old OnTriggerEnter patch did.
+// Shadow Plort door detection is handled in PuzzleSlotLockableActivatePatch
+// (PuzzleSlotLockable.ActivateOnUnlock) in PuzzleDoorLockPatch.cs.
+//
+// Powderfall Bluffs region gate detection: the PB door is a PlortDepositor (not
+// PuzzleSlotLockable), so PuzzleSlotLockableActivatePatch does not fire for it.
+// Detection is handled via polling in ApUpdateBehaviour (PlortDepositorPoller).

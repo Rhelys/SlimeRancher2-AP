@@ -26,6 +26,7 @@ public class SlotData
     public bool   RandomizeGordos        { get; init; } = true;
     public bool   RandomizePods          { get; init; } = true;
     public bool   RandomizeMapNodes      { get; init; } = true;
+    public bool   RandomizeFabricator    { get; init; } = true;
     public bool   RandomizeSlimepedia          { get; init; } = false;
     public bool   RandomizeSlimepediaResources { get; init; } = false;
 
@@ -66,11 +67,18 @@ public class SlotData
     public bool   RandomizeGhostlyDrones   { get; init; } = false;
 
     /// <summary>
-    /// When true, the 28 plort doors (PuzzleSlotLockable, lockTag='plort_door') that are not
-    /// Grey Labyrinth shadow plort doors or the PB region gate become Archipelago location checks.
-    /// Slot data key: <c>"randomize_puzzle_doors"</c>.
+    /// Controls whether the 28 plort doors become Archipelago location checks.
+    /// <c>"vanilla"</c> — disabled; <c>"locations"</c> — filling a door sends a check.
+    /// Slot data key: <c>"randomize_plort_doors"</c>.
     /// </summary>
-    public bool   RandomizePuzzleDoors     { get; init; } = false;
+    public string RandomizePlortDoors      { get; init; } = "vanilla";
+
+    /// <summary>
+    /// When true, the first time each of the 25 sellable plort types is sold at the Plort Market
+    /// becomes an Archipelago location check (25 checks total).
+    /// Slot data key: <c>"randomize_plort_market"</c>.
+    /// </summary>
+    public bool   RandomizePlortMarket     { get; init; } = false;
 
     /// <summary>
     /// Controls how region gate switches and zone teleporters are handled.
@@ -153,6 +161,21 @@ public class SlotData
     /// </summary>
     public bool StartWithResourceHarvester { get; init; } = false;
 
+    /// <summary>
+    /// Percentage of the vanilla feed count required to pop a Gordo (10–200).
+    /// 100 = vanilla (default). Applied by scaling <c>GordoEat.TargetCount</c> on Awake.
+    /// Slot data key: <c>"gordo_feed_requirement"</c>.
+    /// </summary>
+    public int GordoFeedRequirement { get; init; } = 100;
+
+    /// <summary>
+    /// When true, each of the 5 conservatory expansion terminals is a location check.
+    /// Interacting and confirming sends the check; the expansion unlocks only when the
+    /// corresponding AP item is received (no Newbucks cost in randomized mode).
+    /// Slot data key: <c>"randomize_conservatory_expansions"</c>.
+    /// </summary>
+    public bool RandomizeConservatoryExpansions { get; init; } = false;
+
     public static SlotData Parse(Dictionary<string, object> raw)
     {
         return new SlotData
@@ -164,6 +187,7 @@ public class SlotData
             RandomizeGordos          = GetBool(raw, "randomize_gordos",        defaultVal: true),
             RandomizePods            = GetBool(raw, "randomize_pods",          defaultVal: true),
             RandomizeMapNodes        = GetBool(raw, "randomize_map_nodes",     defaultVal: true),
+            RandomizeFabricator      = GetBool(raw, "randomize_fabricator",    defaultVal: true),
             RandomizeSlimepedia          = GetBool(raw, "randomize_slimepedia",           defaultVal: false),
             RandomizeSlimepediaResources = GetBool(raw, "randomize_slimepedia_resources", defaultVal: false),
             RandomizeSlimepediaRadiant   = GetBool(raw, "randomize_slimepedia_radiant",   defaultVal: false),
@@ -172,7 +196,8 @@ public class SlotData
             GoldLuckySpawnRateMultiplier = (int)Math.Clamp(GetLong(raw, "gold_lucky_spawn_rate_multiplier", 1), 1, 35),
             RandomizeResearchDrones  = GetBool(raw, "randomize_research_drones", defaultVal: false),
             RandomizeGhostlyDrones   = GetBool(raw, "randomize_ghostly_drones",  defaultVal: false),
-            RandomizePuzzleDoors     = GetBool(raw, "randomize_puzzle_doors",     defaultVal: false),
+            RandomizePlortDoors      = GetString(raw, "randomize_plort_doors", "vanilla"),
+            RandomizePlortMarket     = GetBool(raw, "randomize_plort_market",     defaultVal: false),
             RegionAccessMode            = GetString(raw, "region_access_mode", "vanilla"),
             ConversationChecks          = GetConversationCheckMode(raw, "conversation_checks"),
             DisableTarr                 = GetBool(raw, "disable_tarr",   defaultVal: false),
@@ -181,6 +206,8 @@ public class SlotData
             ForceHeavyWeather              = GetBool(raw, "force_heavy_weather",              defaultVal: true),
             WeatherFrequencyMultiplier     = (int)GetLong(raw, "weather_frequency_multiplier", 1),
             StartWithResourceHarvester     = GetBool(raw, "start_with_resource_harvester",    defaultVal: false),
+            GordoFeedRequirement           = (int)Math.Clamp(GetLong(raw, "gordo_feed_requirement", 100), 10, 200),
+            RandomizeConservatoryExpansions = GetBool(raw, "randomize_conservatory_expansions", defaultVal: false),
         };
     }
 

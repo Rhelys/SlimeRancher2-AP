@@ -43,10 +43,14 @@ public static class RegionTable
     };
 
     // -------------------------------------------------------------------------
-    // Powderfall Bluffs Slime Door (PuzzleSlotLockable, zoneGorge_Area3)
-    // Confirmed via in-game log 2026-04-20:
+    // Powderfall Bluffs gate door (PuzzleSlotLockable, zoneGorge_Area3)
+    // Confirmed via PlortDoorPoller debug dump 2026-06-21:
     //   name='objLabyrinthPlortDoor01Small'  scene='zoneGorge_Area3'
     //   posKey='zoneGorge_Area3_-645_34_681'
+    //
+    // Note: zoneGorge_Area4_-892_12_508 (objLabyrinthPlortDoor02Small) is the Boom Gordo
+    // door — it shows ShouldUnlock=True after the Gordo is defeated. It has no AP location
+    // and is intentionally excluded from the plort door pool.
     // -------------------------------------------------------------------------
     public const string PBDoorObjectName = "objLabyrinthPlortDoor01Small";
     public const string PBGatePosKey     = "zoneGorge_Area3_-645_34_681";

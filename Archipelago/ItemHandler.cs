@@ -1,5 +1,6 @@
 ﻿using System;
 using Archipelago.MultiClient.Net.Models;
+using Il2CppMonomiPark.World;
 using Il2CppMonomiPark.SlimeRancher.DataModel;
 using Il2CppMonomiPark.SlimeRancher.Economy;
 using Il2CppMonomiPark.SlimeRancher.Player;
@@ -111,13 +112,14 @@ public static class ItemHandler
 
         switch (item.Type)
         {
-            case ItemType.RegionAccess: ApplyRegionAccess(item);                        break;
-            case ItemType.Upgrade:      ApplyUpgrade(item, null, itemIndex);            break;
-            case ItemType.Gadget:       ApplyGadget(item, null, itemIndex);             break;
-            case ItemType.Filler:           ApplyFiller(item, null, itemIndex);              break;
-            case ItemType.Useful:           ApplyUseful(item, null, itemIndex);              break;
-            case ItemType.UpgradeComponent: ApplyUpgradeComponent(item, null, itemIndex);    break;
-            case ItemType.Trap:             ApplyTrap(item, null, itemIndex);                break; // return ignored — debug path has no requeue
+            case ItemType.RegionAccess:          ApplyRegionAccess(item);                        break;
+            case ItemType.ConservatoryExpansion: ApplyConservatoryExpansion(item, itemIndex);  break;
+            case ItemType.Upgrade:               ApplyUpgrade(item, null, itemIndex);          break;
+            case ItemType.Gadget:                ApplyGadget(item, null, itemIndex);           break;
+            case ItemType.Filler:                ApplyFiller(item, null, itemIndex);           break;
+            case ItemType.Useful:                ApplyUseful(item, null, itemIndex);           break;
+            case ItemType.UpgradeComponent:      ApplyUpgradeComponent(item, null, itemIndex); break;
+            case ItemType.Trap:                  ApplyTrap(item, null, itemIndex);             break; // return ignored — debug path has no requeue
         }
 
         // Intentionally do NOT call UpdateLastItemIndex here.
@@ -196,6 +198,10 @@ public static class ItemHandler
         {
             case ItemType.RegionAccess:
                 ApplyRegionAccess(item);   // always succeeds — writes config, never requeues
+                break;
+            case ItemType.ConservatoryExpansion:
+                if (!ApplyConservatoryExpansion(item, itemIndex))
+                    advanceWatermark = false;
                 break;
             case ItemType.Upgrade:
                 if (!ApplyUpgrade(item, apItem, itemIndex))
@@ -326,6 +332,76 @@ public static class ItemHandler
             $"[AP] Region '{item.Name}' unlocked — press the gate button ('{switchName}') to open it.");
     }
 
+    // Doors that couldn't be opened yet because their sub-scene wasn't loaded.
+    // Tick() polls these every few seconds until the door appears.
+    private static readonly List<(string doorId, string itemName, int itemIndex)> _pendingExpansions = new();
+    private static int _expansionTickCounter = 0;
+    private const int ExpansionTickInterval = 180; // ~3 seconds at 60 fps
+
+    /// <summary>
+    /// Called every frame from ApUpdateBehaviour.Update, but only does work every ~3 seconds.
+    /// Retries any expansion doors whose sub-scene wasn't loaded when the AP item first arrived.
+    /// Advances the watermark and removes each entry as soon as the door is found and opened.
+    /// </summary>
+    internal static void TickExpansionDoors()
+    {
+        if (_pendingExpansions.Count == 0) return;
+        if (++_expansionTickCounter < ExpansionTickInterval) return;
+        _expansionTickCounter = 0;
+
+        for (int i = _pendingExpansions.Count - 1; i >= 0; i--)
+        {
+            var (doorId, itemName, idx) = _pendingExpansions[i];
+            var door = Resources.FindObjectsOfTypeAll<AccessDoor>()
+                                 .FirstOrDefault(d => d._id == doorId);
+            if (door == null) continue;
+
+            OpenDoor(door, doorId, itemName);
+            Plugin.Instance.SaveManager.UpdateLastItemIndex(idx);
+            _pendingExpansions.RemoveAt(i);
+        }
+    }
+
+    /// <summary>
+    /// Opens the Conservatory expansion door corresponding to the received AP item.
+    /// Returns false (without advancing watermark) when the door's sub-scene isn't loaded
+    /// yet — the door is added to the pending list so TickExpansionDoors() retries each frame.
+    /// </summary>
+    private static bool ApplyConservatoryExpansion(Data.ItemInfo item, int itemIndex)
+    {
+        var doorId = ItemTable.GetExpansionDoorId(item.Id);
+        if (doorId == null || doorId.StartsWith("PLACEHOLDER"))
+        {
+            Logger.Warning($"[AP] No confirmed door ID for expansion '{item.Name}' (id={item.Id}) — run the AccessDoor dump and fill in ItemTable.");
+            return true; // don't retry — nothing will change until the placeholder is replaced
+        }
+
+        Notify($"Received: {item.Name}");
+
+        var door = Resources.FindObjectsOfTypeAll<AccessDoor>()
+                             .FirstOrDefault(d => d._id == doorId);
+        if (door == null)
+        {
+            // Only add to pending list once — reconnect replays will try again anyway
+            if (!_pendingExpansions.Exists(e => e.doorId == doorId))
+                _pendingExpansions.Add((doorId, item.Name, itemIndex));
+            Logger.Info($"[AP] AccessDoor '{doorId}' not in scene yet — queued for deferred open.");
+            return false; // watermark NOT advanced — Tick() will advance it when door opens
+        }
+
+        OpenDoor(door, doorId, item.Name);
+        return true;
+    }
+
+    private static void OpenDoor(AccessDoor door, string doorId, string itemName)
+    {
+        door._model?.Push(AccessDoor.State.OPEN);
+        door._model?.NotifyParticipants();
+        door.ForceUpdateBarrierController();
+        door.ForceUpdateAnimator();
+        Logger.Info($"[AP] Opened conservatory expansion: {itemName} (door='{doorId}')");
+    }
+
     /// <summary>
     /// Called from RegionGatePatch Postfix (auto mode) when a zone gate opens in-world.
     /// Looks up the region name for the given switch and grants its zone teleporter.
@@ -361,6 +437,16 @@ public static class ItemHandler
     /// <summary>Called by <c>ActorUpgradeHandlerPatch.OnUpgradeChangedPostfix</c>.</summary>
     public static void TrackUpgradeLevel(string upgradeName, int newLevel)
         => _upgradeLevels[upgradeName] = newLevel;
+
+    /// <summary>
+    /// Returns the last tracked model level for <paramref name="upgradeName"/>, or -1 if the
+    /// upgrade has never been applied this session (not yet tracked).
+    /// Used by <c>UpgradeModelGetLevelPatch</c> to floor the patched return value so that
+    /// AP-granted upgrades are still recognized by game logic such as
+    /// <c>PlayerUpgradeObtainedQueryComponent.IsSatisfied</c>.
+    /// </summary>
+    public static int GetTrackedLevel(string upgradeName)
+        => _upgradeLevels.TryGetValue(upgradeName, out var lvl) ? lvl : -1;
 
     /// <summary>
     /// Maps an AP item ID to the corresponding UpgradeDefinition asset name, or null if
@@ -737,6 +823,9 @@ public static class ItemHandler
             return true;
         }
 
+        if (item.Id == ItemTable.WeatherChange)
+            return TrapHandler.Schedule(item.Id, apItem, itemIndex);
+
         Logger.Warning($"[AP] Unhandled useful item ID: {item.Id}");
         return true;
     }
@@ -1048,13 +1137,14 @@ public static class TrapHandler
         if (sceneGroupRef == null || sceneGroupRef == _lastSeenGroupRef) return;
         string? previousZone = _lastSeenGroupRef;
         _lastSeenGroupRef = sceneGroupRef;
+        // Enforce gate checks before recording the visit. If the transition is
+        // unauthorized, skip recording so the zone isn't added to the teleport pool.
+        bool enforced = GateReturnEnforcer.OnZoneChanged(sceneGroupRef, previousZone);
+        if (enforced) return;
         _visitedSceneGroupRefs.Add(sceneGroupRef);
         // Persist first visits so the teleport trap knows which zones are safe to send
         // the player to across sessions, not just within the current play session.
         Plugin.Instance.SaveManager.MarkZoneVisited(sceneGroupRef);
-        // Enforce gate checks: if the player returned from a gated zone without pressing
-        // the gate button, send them back. See GateReturnEnforcer for full details.
-        GateReturnEnforcer.OnZoneChanged(sceneGroupRef, previousZone);
 #if DEBUG
         Logger.Info($"[AP] TrapHandler: zone visit recorded — '{sceneGroupRef}'");
 #endif
@@ -1241,6 +1331,20 @@ public static class TrapHandler
     /// </returns>
     public static bool Schedule(long trapItemId, ApItemInfo? apItem, int itemIndex)
     {
+        // Suppress disruptive traps once the goal is complete.
+        if (GoalHandler.IsGoalComplete)
+        {
+            switch (trapItemId)
+            {
+                case ItemTable.TrapTarrSpawn:
+                case ItemTable.TrapTeleport:
+                case ItemTable.TrapTarrRain:
+                case ItemTable.WeatherChange:
+                    Logger.Info($"[AP] Trap id={trapItemId} suppressed — goal already complete");
+                    return true;
+            }
+        }
+
         switch (trapItemId)
         {
             case ItemTable.TrapTarrSpawn:     return ApplyTarrSpawnTrap(apItem, itemIndex);

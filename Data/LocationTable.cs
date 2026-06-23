@@ -35,6 +35,13 @@ public enum LocationType
     SlimepediaRadiantEntry,
 
     /// <summary>
+    /// First-time sale of a plort type at the Plort Market.
+    /// Included when <see cref="SlimeRancher2AP.Archipelago.SlotData.RandomizePlortMarket"/> is true.
+    /// Lookup key: <c>IdentifiableType.name</c> (e.g. "PinkPlort").
+    /// </summary>
+    PlortMarket,
+
+    /// <summary>
     /// Conversation with confirmed zone or chain access conditions (8 total).
     /// Included when <see cref="ConversationCheckMode"/> ≥ <see cref="ConversationCheckMode.Conditional"/>.
     /// Examples: Radiant Projector Blueprint (EV or Strand), Archive Key (EV+Strand),
@@ -60,6 +67,13 @@ public enum LocationType
     /// Included only when <see cref="ConversationCheckMode"/> = <see cref="ConversationCheckMode.All"/>.
     /// </summary>
     ConversationNonGift,
+
+    /// <summary>
+    /// A Conservatory expansion terminal (AccessDoor).
+    /// Included when <c>randomize_conservatory_expansions</c> is enabled.
+    /// Lookup key: <c>AccessDoor._id</c> (IdHandler string ID).
+    /// </summary>
+    ConservatoryExpansion,
 }
 
 /// <summary>
@@ -503,37 +517,37 @@ public static class LocationTable
         // -------------------------------------------------------------------------
 
         // Conservatory sub-zones (5 drones) ✅
-        new(LocationConstants.ResearchDrone_Gully,               "Research Drone: Gully",               LocationType.ResearchDrone, "zoneConservatory_Arboretum", "Drone_2", "ResearchDroneGully"),
-        new(LocationConstants.ResearchDrone_Conservatory,        "Research Drone: Conservatory",        LocationType.ResearchDrone, "zoneConservatory_Arboretum", "Drone_2", "ResearchDroneConservatory"),
-        new(LocationConstants.ResearchDrone_TheDen,              "Research Drone: The Den",             LocationType.ResearchDrone, "zoneConservatory_Den",       "Drone_2", "ResearchDroneTheDen"),
-        new(LocationConstants.ResearchDrone_Archway,             "Research Drone: Archway",             LocationType.ResearchDrone, "zoneConservatory_Garden",    "Drone_2", "ResearchDroneArchway"),
-        new(LocationConstants.ResearchDrone_Tidepools,           "Research Drone: Tidepools",           LocationType.ResearchDrone, "zoneConservatory_Pools",     "Drone_2", "ResearchDroneTidepools"),
+        new(LocationConstants.ResearchDrone_Gully,               "Research Drone: Conservatory - Gully",        LocationType.ResearchDrone, "zoneConservatory_Arboretum", "Drone_2", "ResearchDroneGully"),
+        new(LocationConstants.ResearchDrone_Conservatory,        "Research Drone: Conservatory - Above Gully entrance", LocationType.ResearchDrone, "zoneConservatory_Arboretum", "Drone_2", "ResearchDroneConservatory"),
+        new(LocationConstants.ResearchDrone_TheDen,              "Research Drone: Conservatory - The Den",      LocationType.ResearchDrone, "zoneConservatory_Den",       "Drone_2", "ResearchDroneTheDen"),
+        new(LocationConstants.ResearchDrone_Archway,             "Research Drone: Conservatory - Archway",      LocationType.ResearchDrone, "zoneConservatory_Garden",    "Drone_2", "ResearchDroneArchway"),
+        new(LocationConstants.ResearchDrone_Tidepools,           "Research Drone: Conservatory - Tidepools",    LocationType.ResearchDrone, "zoneConservatory_Pools",     "Drone_2", "ResearchDroneTidepools"),
 
         // Rainbow Fields (2 drones) ✅
-        new(LocationConstants.ResearchDrone_FieldsExpanse,       "Research Drone: Fields Expanse",      LocationType.ResearchDrone, "zoneFields_Area1",           "Drone_2", "ResearchDroneFieldsExpanse"),
-        new(LocationConstants.ResearchDrone_FieldsBluff,         "Research Drone: Fields Bluff",        LocationType.ResearchDrone, "zoneFields_Area3",           "Drone_2", "ResearchDroneFieldsBluff"),
+        new(LocationConstants.ResearchDrone_FieldsExpanse,       "Research Drone: Rainbow Fields - First big area",               LocationType.ResearchDrone, "zoneFields_Area1", "Drone_2", "ResearchDroneFieldsExpanse"),
+        new(LocationConstants.ResearchDrone_FieldsBluff,         "Research Drone: Rainbow Fields - By path to Starlight Strand",  LocationType.ResearchDrone, "zoneFields_Area3", "Drone_2", "ResearchDroneFieldsBluff"),
 
         // Ember Valley / zoneGorge (6 drones) ✅
-        new(LocationConstants.ResearchDrone_GorgeOverlook,       "Research Drone: Gorge Overlook",          LocationType.ResearchDrone, "zoneGorge_Area1", "Drone_2", "ResearchDroneGorgeOverlook"),
-        new(LocationConstants.ResearchDrone_GorgeRuinedOverlook, "Research Drone: Gorge Ruined Overlook",   LocationType.ResearchDrone, "zoneGorge_Area2", "Drone_2", "ResearchDroneGorgeRuinedOverlook"),
-        new(LocationConstants.ResearchDrone_GorgeOceanPerch,     "Research Drone: Gorge Ocean Perch",       LocationType.ResearchDrone, "zoneGorge_Area3", "Drone_2", "ResearchDroneGorgeOceanPerch"),
-        new(LocationConstants.ResearchDrone_GorgeCaveHub,        "Research Drone: Gorge Cave Hub",          LocationType.ResearchDrone, "zoneGorge_Area4", "Drone_2", "ResearchDroneGorgeCaveHub"),
-        new(LocationConstants.ResearchDrone_GorgeLabyrinthGate,  "Research Drone: Gorge Labyrinth Gate",    LocationType.ResearchDrone, "zoneGorge_Area4", "Drone_2", "ResearchDroneGorgeLabyrinthGate"),
-        new(LocationConstants.ResearchDrone_GorgeMagmaFieldsPerch,"Research Drone: Gorge Magma Fields Perch",LocationType.ResearchDrone,"zoneGorge_Area4", "Drone_2", "ResearchDroneGorgeMagmaFieldsPerch"),
+        new(LocationConstants.ResearchDrone_GorgeOverlook,       "Research Drone: Ember Valley - Before 3-geyser main area", LocationType.ResearchDrone, "zoneGorge_Area1", "Drone_2", "ResearchDroneGorgeOverlook"),
+        new(LocationConstants.ResearchDrone_GorgeRuinedOverlook, "Research Drone: Ember Valley - Below Angler ruins",        LocationType.ResearchDrone, "zoneGorge_Area2", "Drone_2", "ResearchDroneGorgeRuinedOverlook"),
+        new(LocationConstants.ResearchDrone_GorgeOceanPerch,     "Research Drone: Ember Valley - Next to Tabby Gordo",       LocationType.ResearchDrone, "zoneGorge_Area3", "Drone_2", "ResearchDroneGorgeOceanPerch"),
+        new(LocationConstants.ResearchDrone_GorgeCaveHub,        "Research Drone: Ember Valley - In main lava cave",         LocationType.ResearchDrone, "zoneGorge_Area4", "Drone_2", "ResearchDroneGorgeCaveHub"),
+        new(LocationConstants.ResearchDrone_GorgeLabyrinthGate,  "Research Drone: Ember Valley - Grey Labyrinth Gate",       LocationType.ResearchDrone, "zoneGorge_Area4", "Drone_2", "ResearchDroneGorgeLabyrinthGate"),
+        new(LocationConstants.ResearchDrone_GorgeMagmaFieldsPerch,"Research Drone: Ember Valley - Magma Fields Perch",       LocationType.ResearchDrone, "zoneGorge_Area4", "Drone_2", "ResearchDroneGorgeMagmaFieldsPerch"),
 
         // Starlight Strand / zoneStrand (6 drones) ✅
-        new(LocationConstants.ResearchDrone_StrandField,         "Research Drone: Strand Field",         LocationType.ResearchDrone, "zoneStrand",       "Drone_2", "ResearchDroneStrandField"),
-        new(LocationConstants.ResearchDrone_StrandMushroomAlley, "Research Drone: Strand Mushroom Alley", LocationType.ResearchDrone, "zoneStrand_Area1", "Drone_2", "ResearchDroneStrandMushroomAlley"),
-        new(LocationConstants.ResearchDrone_StrandWaterfall,     "Research Drone: Strand Waterfall",     LocationType.ResearchDrone, "zoneStrand_Area2", "Drone_2", "ResearchDroneStrandWaterfall"),
-        new(LocationConstants.ResearchDrone_StrandSplitTree,     "Research Drone: Strand Split Tree",    LocationType.ResearchDrone, "zoneStrand_Area2", "Drone_2", "ResearchDroneStrandSplitTree"),
-        new(LocationConstants.ResearchDrone_StrandSlopedCliff,   "Research Drone: Strand Sloped Cliff",  LocationType.ResearchDrone, "zoneStrand_Area3", "Drone_2", "ResearchDroneStrandSlopedCliff"),
-        new(LocationConstants.ResearchDrone_StrandLabyrinthGate, "Research Drone: Strand Labyrinth Gate",LocationType.ResearchDrone, "zoneStrand_Area4", "Drone_2", "ResearchDroneStrandLabyrinthGate"),
+        new(LocationConstants.ResearchDrone_StrandField,         "Research Drone: Starlight Strand - Start of Blue area",          LocationType.ResearchDrone, "zoneStrand",       "Drone_2", "ResearchDroneStrandField"),
+        new(LocationConstants.ResearchDrone_StrandMushroomAlley, "Research Drone: Starlight Strand - Mushroom Alley",              LocationType.ResearchDrone, "zoneStrand_Area1", "Drone_2", "ResearchDroneStrandMushroomAlley"),
+        new(LocationConstants.ResearchDrone_StrandWaterfall,     "Research Drone: Starlight Strand - In front of Honey Gordo",     LocationType.ResearchDrone, "zoneStrand_Area2", "Drone_2", "ResearchDroneStrandWaterfall"),
+        new(LocationConstants.ResearchDrone_StrandSplitTree,     "Research Drone: Starlight Strand - Central Blue/Red split area", LocationType.ResearchDrone, "zoneStrand_Area2", "Drone_2", "ResearchDroneStrandSplitTree"),
+        new(LocationConstants.ResearchDrone_StrandSlopedCliff,   "Research Drone: Starlight Strand - Southeast Red path",          LocationType.ResearchDrone, "zoneStrand_Area3", "Drone_2", "ResearchDroneStrandSlopedCliff"),
+        new(LocationConstants.ResearchDrone_StrandLabyrinthGate, "Research Drone: Starlight Strand - Grey Labyrinth Gate",         LocationType.ResearchDrone, "zoneStrand_Area4", "Drone_2", "ResearchDroneStrandLabyrinthGate"),
 
         // Powderfall Bluffs / zoneBluffs (4 drones) ✅
-        new(LocationConstants.ResearchDrone_BluffsAurora,        "Research Drone: Bluffs Aurora",       LocationType.ResearchDrone, "zoneBluffs_Area1", "Drone_2", "ResearchDroneBluffsAurora"),
-        new(LocationConstants.ResearchDrone_BluffsIntro,         "Research Drone: Bluffs Intro",        LocationType.ResearchDrone, "zoneBluffs_Area1", "Drone_2", "ResearchDroneBluffsIntro"),
-        new(LocationConstants.ResearchDrone_BluffsSaber,         "Research Drone: Bluffs Saber",        LocationType.ResearchDrone, "zoneBluffs_Area3", "Drone_2", "ResearchDroneBluffsSaber"),
-        new(LocationConstants.ResearchDrone_BluffsFinal,         "Research Drone: Bluffs Final",        LocationType.ResearchDrone, "zoneBluffs_Area3", "Drone_2", "ResearchDroneBluffsFinal"),
+        new(LocationConstants.ResearchDrone_BluffsAurora,        "Research Drone: Powderfall Bluffs - Southwest Island",       LocationType.ResearchDrone, "zoneBluffs_Area1", "Drone_2", "ResearchDroneBluffsAurora"),
+        new(LocationConstants.ResearchDrone_BluffsIntro,         "Research Drone: Powderfall Bluffs - Zone Entrance",          LocationType.ResearchDrone, "zoneBluffs_Area1", "Drone_2", "ResearchDroneBluffsIntro"),
+        new(LocationConstants.ResearchDrone_BluffsSaber,         "Research Drone: Powderfall Bluffs - Flower Cave",            LocationType.ResearchDrone, "zoneBluffs_Area3", "Drone_2", "ResearchDroneBluffsSaber"),
+        new(LocationConstants.ResearchDrone_BluffsFinal,         "Research Drone: Powderfall Bluffs - Below Eastern Map Node", LocationType.ResearchDrone, "zoneBluffs_Area3", "Drone_2", "ResearchDroneBluffsFinal"),
 
         // -------------------------------------------------------------------------
         // RESEARCH DRONE ARCHIVES (IDs 819473–819495)
@@ -542,25 +556,25 @@ public static class LocationTable
         // -------------------------------------------------------------------------
 
         // Conservatory sub-zones (5 archives — all 5 Conservatory drones have archives)
-        new(LocationConstants.ResearchDroneArchive_Gully,               "Research Drone Archive: Gully",               LocationType.ResearchDroneArchive, "zoneConservatory_Arboretum", "Drone_2", "ResearchDroneGullyArchive"),
-        new(LocationConstants.ResearchDroneArchive_Conservatory,        "Research Drone Archive: Conservatory",        LocationType.ResearchDroneArchive, "zoneConservatory_Arboretum", "Drone_2", "ResearchDroneConservatoryArchive"),
-        new(LocationConstants.ResearchDroneArchive_TheDen,              "Research Drone Archive: The Den",             LocationType.ResearchDroneArchive, "zoneConservatory_Den",       "Drone_2", "ResearchDroneTheDenArchive"),
-        new(LocationConstants.ResearchDroneArchive_Archway,             "Research Drone Archive: Archway",             LocationType.ResearchDroneArchive, "zoneConservatory_Garden",    "Drone_2", "ResearchDroneArchwayArchive"),
-        new(LocationConstants.ResearchDroneArchive_Tidepools,           "Research Drone Archive: Tidepools",           LocationType.ResearchDroneArchive, "zoneConservatory_Pools",     "Drone_2", "ResearchDroneTidepoolsArchive"),
+        new(LocationConstants.ResearchDroneArchive_Gully,               "Research Drone Archive: Conservatory - Gully",        LocationType.ResearchDroneArchive, "zoneConservatory_Arboretum", "Drone_2", "ResearchDroneGullyArchive"),
+        new(LocationConstants.ResearchDroneArchive_Conservatory,        "Research Drone Archive: Conservatory - Above Gully entrance", LocationType.ResearchDroneArchive, "zoneConservatory_Arboretum", "Drone_2", "ResearchDroneConservatoryArchive"),
+        new(LocationConstants.ResearchDroneArchive_TheDen,              "Research Drone Archive: Conservatory - The Den",      LocationType.ResearchDroneArchive, "zoneConservatory_Den",       "Drone_2", "ResearchDroneTheDenArchive"),
+        new(LocationConstants.ResearchDroneArchive_Archway,             "Research Drone Archive: Conservatory - Archway",      LocationType.ResearchDroneArchive, "zoneConservatory_Garden",    "Drone_2", "ResearchDroneArchwayArchive"),
+        new(LocationConstants.ResearchDroneArchive_Tidepools,           "Research Drone Archive: Conservatory - Tidepools",    LocationType.ResearchDroneArchive, "zoneConservatory_Pools",     "Drone_2", "ResearchDroneTidepoolsArchive"),
 
         // Rainbow Fields (2 archives — all 2 Rainbow Fields drones have archives)
-        new(LocationConstants.ResearchDroneArchive_FieldsExpanse,       "Research Drone Archive: Fields Expanse",      LocationType.ResearchDroneArchive, "zoneFields_Area1",           "Drone_2", "ResearchDroneFieldsExpanseArchive"),
-        new(LocationConstants.ResearchDroneArchive_FieldsBluff,         "Research Drone Archive: Fields Bluff",        LocationType.ResearchDroneArchive, "zoneFields_Area3",           "Drone_2", "ResearchDroneFieldsBluffArchive"),
+        new(LocationConstants.ResearchDroneArchive_FieldsExpanse,       "Research Drone Archive: Rainbow Fields - First big area",              LocationType.ResearchDroneArchive, "zoneFields_Area1", "Drone_2", "ResearchDroneFieldsExpanseArchive"),
+        new(LocationConstants.ResearchDroneArchive_FieldsBluff,         "Research Drone Archive: Rainbow Fields - By path to Starlight Strand", LocationType.ResearchDroneArchive, "zoneFields_Area3", "Drone_2", "ResearchDroneFieldsBluffArchive"),
 
         // Ember Valley / zoneGorge (3 of 6 drones have archives)
-        new(LocationConstants.ResearchDroneArchive_GorgeOverlook,       "Research Drone Archive: Gorge Overlook",      LocationType.ResearchDroneArchive, "zoneGorge_Area1", "Drone_2", "ResearchDroneGorgeOverlookArchive"),
-        new(LocationConstants.ResearchDroneArchive_GorgeRuinedOverlook, "Research Drone Archive: Gorge Ruined Overlook", LocationType.ResearchDroneArchive, "zoneGorge_Area2", "Drone_2", "ResearchDroneGorgeRuinedOverlookArchive"),
-        new(LocationConstants.ResearchDroneArchive_GorgeLabyrinthGate,  "Research Drone Archive: Gorge Labyrinth Gate",  LocationType.ResearchDroneArchive, "zoneGorge_Area4", "Drone_2", "ResearchDroneGorgeLabyrinthGateArchive"),
+        new(LocationConstants.ResearchDroneArchive_GorgeOverlook,       "Research Drone Archive: Ember Valley - Before 3-geyser main area", LocationType.ResearchDroneArchive, "zoneGorge_Area1", "Drone_2", "ResearchDroneGorgeOverlookArchive"),
+        new(LocationConstants.ResearchDroneArchive_GorgeRuinedOverlook, "Research Drone Archive: Ember Valley - Below Angler ruins",        LocationType.ResearchDroneArchive, "zoneGorge_Area2", "Drone_2", "ResearchDroneGorgeRuinedOverlookArchive"),
+        new(LocationConstants.ResearchDroneArchive_GorgeLabyrinthGate,  "Research Drone Archive: Ember Valley - Grey Labyrinth Gate",       LocationType.ResearchDroneArchive, "zoneGorge_Area4", "Drone_2", "ResearchDroneGorgeLabyrinthGateArchive"),
 
         // Starlight Strand / zoneStrand (3 of 6 drones have archives)
-        new(LocationConstants.ResearchDroneArchive_StrandField,         "Research Drone Archive: Strand Field",         LocationType.ResearchDroneArchive, "zoneStrand",       "Drone_2", "ResearchDroneStrandFieldArchive"),
-        new(LocationConstants.ResearchDroneArchive_StrandWaterfall,     "Research Drone Archive: Strand Waterfall",     LocationType.ResearchDroneArchive, "zoneStrand_Area2", "Drone_2", "ResearchDroneStrandWaterfallArchive"),
-        new(LocationConstants.ResearchDroneArchive_StrandLabyrinthGate, "Research Drone Archive: Strand Labyrinth Gate", LocationType.ResearchDroneArchive, "zoneStrand_Area4", "Drone_2", "ResearchDroneStrandLabyrinthGateArchive"),
+        new(LocationConstants.ResearchDroneArchive_StrandField,         "Research Drone Archive: Starlight Strand - Start of Blue area",    LocationType.ResearchDroneArchive, "zoneStrand",       "Drone_2", "ResearchDroneStrandFieldArchive"),
+        new(LocationConstants.ResearchDroneArchive_StrandWaterfall,     "Research Drone Archive: Starlight Strand - In front of Honey Gordo",LocationType.ResearchDroneArchive, "zoneStrand_Area2", "Drone_2", "ResearchDroneStrandWaterfallArchive"),
+        new(LocationConstants.ResearchDroneArchive_StrandLabyrinthGate, "Research Drone Archive: Starlight Strand - Grey Labyrinth Gate",   LocationType.ResearchDroneArchive, "zoneStrand_Area4", "Drone_2", "ResearchDroneStrandLabyrinthGateArchive"),
 
         // -------------------------------------------------------------------------
         // GHOSTLY DRONES (IDs 819480–819494)
@@ -783,7 +797,7 @@ public static class LocationTable
         new(LocationConstants.PlortDoor_EmberValley_1, "Plort Door - Ember Valley 1", LocationType.PuzzleDoor, "zoneGorge_Area1", "zoneGorge_Area1_-193_-1_471"),
         new(LocationConstants.PlortDoor_EmberValley_2, "Plort Door - Ember Valley 2", LocationType.PuzzleDoor, "zoneGorge_Area2", "zoneGorge_Area2_-332_10_285"),
         new(LocationConstants.PlortDoor_EmberValley_3, "Plort Door - Ember Valley 3", LocationType.PuzzleDoor, "zoneGorge_Area3", "zoneGorge_Area3_-353_6_625"),
-        new(LocationConstants.PlortDoor_EmberValley_4, "Plort Door - Ember Valley 4", LocationType.PuzzleDoor, "zoneGorge_Area4", "zoneGorge_Area4_-892_12_508"),
+        new(LocationConstants.PlortDoor_EmberValley_4, "Plort Door - Ember Valley 4 (PB gate)", LocationType.PuzzleDoor, "zoneGorge_Area3", "zoneGorge_Area3_-645_34_681"),
 
         // Rainbow Fields (1)
         new(LocationConstants.PlortDoor_RainbowFields_1, "Plort Door - Rainbow Fields 1", LocationType.PuzzleDoor, "zoneFields", "zoneFields_338_-2_348"),
@@ -814,6 +828,61 @@ public static class LocationTable
         new(LocationConstants.PlortDoor_GreyLabyrinth_9,  "Plort Door - Grey Labyrinth 9",  LocationType.PuzzleDoor, "zoneLabyrinthHub_C",                 "zoneLabyrinthHub_C_1469_88_-1057"),
         new(LocationConstants.PlortDoor_GreyLabyrinth_10, "Plort Door - Grey Labyrinth 10", LocationType.PuzzleDoor, "zoneLabyrinthTerrarium_JungleGlacier","zoneLabyrinthTerrarium_JungleGlacier_1951_140_-854"),
         new(LocationConstants.PlortDoor_GreyLabyrinth_11, "Plort Door - Grey Labyrinth 11", LocationType.PuzzleDoor, "zoneLabyrinthTerrarium_JungleGlacier","zoneLabyrinthTerrarium_JungleGlacier_2145_155_-856"),
+
+        // -------------------------------------------------------------------------
+        // PLORT MARKET (IDs 819896–819920)
+        // Enabled by the "randomize_plort_market" apworld option.
+        // GameObjectName = IdentifiableType.name; SceneName = "" (cross-zone mechanic).
+        // Checked via TryGetPlortMarketByPlortName() in PlortMarketPatch.
+        // Region reflects where the plort type natively lives (from Gordo/Slimepedia data).
+        // -------------------------------------------------------------------------
+
+        // Rainbow Fields (7)
+        new(LocationConstants.PlortMarket_Pink,     "Plort Market: Pink Plort",     LocationType.PlortMarket, "", "PinkPlort"),
+        new(LocationConstants.PlortMarket_Cotton,   "Plort Market: Cotton Plort",   LocationType.PlortMarket, "", "CottonPlort"),
+        new(LocationConstants.PlortMarket_Phosphor, "Plort Market: Phosphor Plort", LocationType.PlortMarket, "", "PhosphorPlort"),
+        new(LocationConstants.PlortMarket_Dervish,  "Plort Market: Dervish Plort",  LocationType.PlortMarket, "", "DervishPlort"),
+        new(LocationConstants.PlortMarket_Gold,     "Plort Market: Gold Plort",     LocationType.PlortMarket, "", "GoldPlort"),
+        new(LocationConstants.PlortMarket_Tangle,   "Plort Market: Tangle Plort",   LocationType.PlortMarket, "", "TanglePlort"),
+        new(LocationConstants.PlortMarket_Yolky,    "Plort Market: Yolky Plort",    LocationType.PlortMarket, "", "YolkyPlort"),
+
+        // Ember Valley (6)
+        new(LocationConstants.PlortMarket_Rock,     "Plort Market: Rock Plort",     LocationType.PlortMarket, "", "RockPlort"),
+        new(LocationConstants.PlortMarket_Tabby,    "Plort Market: Tabby Plort",    LocationType.PlortMarket, "", "TabbyPlort"),
+        new(LocationConstants.PlortMarket_Crystal,  "Plort Market: Crystal Plort",  LocationType.PlortMarket, "", "CrystalPlort"),
+        new(LocationConstants.PlortMarket_Batty,    "Plort Market: Batty Plort",    LocationType.PlortMarket, "", "BattyPlort"),
+        new(LocationConstants.PlortMarket_Boom,     "Plort Market: Boom Plort",     LocationType.PlortMarket, "", "BoomPlort"),
+        new(LocationConstants.PlortMarket_Fire,     "Plort Market: Fire Plort",     LocationType.PlortMarket, "", "FirePlort"),
+
+        // Starlight Strand (6)
+        new(LocationConstants.PlortMarket_Hunter,   "Plort Market: Hunter Plort",   LocationType.PlortMarket, "", "HunterPlort"),
+        new(LocationConstants.PlortMarket_Honey,    "Plort Market: Honey Plort",    LocationType.PlortMarket, "", "HoneyPlort"),
+        new(LocationConstants.PlortMarket_Ringtail, "Plort Market: Ringtail Plort", LocationType.PlortMarket, "", "RingtailPlort"),
+        new(LocationConstants.PlortMarket_Angler,   "Plort Market: Angler Plort",   LocationType.PlortMarket, "", "AnglerPlort"),
+        new(LocationConstants.PlortMarket_Flutter,  "Plort Market: Flutter Plort",  LocationType.PlortMarket, "", "FlutterPlort"),
+        new(LocationConstants.PlortMarket_Puddle,   "Plort Market: Puddle Plort",   LocationType.PlortMarket, "", "PuddlePlort"),
+
+        // Powderfall Bluffs (1)
+        new(LocationConstants.PlortMarket_Saber,    "Plort Market: Saber Plort",    LocationType.PlortMarket, "", "SaberPlort"),
+
+        // Grey Labyrinth (5)
+        new(LocationConstants.PlortMarket_Shadow,   "Plort Market: Shadow Plort",   LocationType.PlortMarket, "", "ShadowPlort"),
+        new(LocationConstants.PlortMarket_Sloomber, "Plort Market: Sloomber Plort", LocationType.PlortMarket, "", "SloomberPlort"),
+        new(LocationConstants.PlortMarket_Twin,     "Plort Market: Twin Plort",     LocationType.PlortMarket, "", "TwinPlort"),
+        new(LocationConstants.PlortMarket_Hyper,    "Plort Market: Hyper Plort",    LocationType.PlortMarket, "", "HyperPlort"),
+        new(LocationConstants.PlortMarket_Stable,   "Plort Market: Prisma Plort",   LocationType.PlortMarket, "", "StablePlort"),
+
+        // =================================================================
+        // CONSERVATORY EXPANSIONS: 819875–819879
+        // GameObjectName = AccessDoor._id (IdHandler string, must be confirmed
+        // via F9 → Dumps → "Dump Access Doors" while in the Conservatory).
+        // Placeholders below will be replaced once the IDs are dumped in-game.
+        // =================================================================
+        new(LocationConstants.ConservatoryExpansion_Gully,     "Conservatory Expansion: The Gully",     LocationType.ConservatoryExpansion, "zoneConservatory", "door1733849867"), // zoneConservatory_Arboretum
+        new(LocationConstants.ConservatoryExpansion_Tidepools, "Conservatory Expansion: The Tidepools", LocationType.ConservatoryExpansion, "zoneConservatory", "door0129604684"), // zoneConservatory_Pools
+        new(LocationConstants.ConservatoryExpansion_Archway,   "Conservatory Expansion: The Archway",   LocationType.ConservatoryExpansion, "zoneConservatory", "door0749608168"), // zoneConservatory_Garden
+        new(LocationConstants.ConservatoryExpansion_Den,       "Conservatory Expansion: The Den",       LocationType.ConservatoryExpansion, "zoneConservatory", "door0010140679"), // zoneConservatory_Den
+        new(LocationConstants.ConservatoryExpansion_Digsite,   "Conservatory Expansion: The Digsite",   LocationType.ConservatoryExpansion, "zoneConservatory", "door1356553442"), // zoneConservatory_Digsite
     };
 
     // -------------------------------------------------------------------------
@@ -833,10 +902,19 @@ public static class LocationTable
                       && l.Type != LocationType.SlimepediaResourceEntry
                       && l.Type != LocationType.SlimepediaRadiantEntry   // keyed by EntryName, GameObjectName is ""
                       && l.Type != LocationType.FabricatorCraft
+                      && l.Type != LocationType.PlortMarket               // keyed by GameObjectName via _byPlortName
                       && l.Type != LocationType.ConversationConditional
                       && l.Type != LocationType.ConversationKeyGift
                       && l.Type != LocationType.ConversationDecoGift
                       && l.Type != LocationType.ConversationNonGift)
+             .ToDictionary(l => l.GameObjectName);
+
+    /// <summary>
+    /// Keyed by <c>IdentifiableType.name</c> (e.g. "PinkPlort").
+    /// Used by <c>PlortMarketPatch</c> to map a sold plort type to its location check.
+    /// </summary>
+    private static readonly Dictionary<string, LocationInfo> _byPlortName
+        = All.Where(l => l.Type == LocationType.PlortMarket)
              .ToDictionary(l => l.GameObjectName);
 
     /// <summary>
@@ -886,6 +964,13 @@ public static class LocationTable
     /// </summary>
     public static bool TryGetByEntryName(string entryName, out LocationInfo? info)
         => _byEntryName.TryGetValue(entryName, out info);
+
+    /// <summary>
+    /// Look up a Plort Market location by the <c>IdentifiableType.name</c> of the plort sold
+    /// (e.g. "PinkPlort"). Used only by <c>PlortMarketPatch</c>.
+    /// </summary>
+    public static bool TryGetPlortMarketByPlortName(string plortName, out LocationInfo? info)
+        => _byPlortName.TryGetValue(plortName, out info);
 
     /// <summary>
     /// Returns all Fabricator craft entries for a given upgrade type, in ID order.

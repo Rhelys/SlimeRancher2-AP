@@ -42,13 +42,22 @@ public static class GateReturnEnforcer
     // Pending return state
     // -------------------------------------------------------------------------
 
-    private static long  _returnLocId = -1;
-    private static float _returnAt    = -1f;
+    private static long    _returnLocId    = -1;
+    private static float   _returnAt       = -1f;
+    // When true, the pending return was triggered by unauthorized PB entry (door opened
+    // before the access item was received).  Cancel condition is IsRegionUnlocked rather
+    // than IsChecked, because filling the door sends the check but does not grant access.
+    private static bool    _isPBEntryBlock  = false;
+
+    // Last player position recorded while no enforcement was pending.
+    // Used to return the player to where they came from rather than to spawn.
+    private static Vector3 _lastSafePosition;
+    private static bool    _hasSafePosition = false;
 
     /// <summary>
     /// Seconds after detecting the bypass before firing the return teleport.
     /// Gives the destination scene time to finish loading so Player/TeleportNetwork
-    /// are valid.  Also a grace window: if the player presses the gate button during
+    /// are valid.  Also a grace window: if the gate check / access item arrives during
     /// this time the return is cancelled (rechecked in Tick before executing).
     /// </summary>
     private const float ReturnDelay = 2f;
@@ -64,41 +73,74 @@ public static class GateReturnEnforcer
     /// </summary>
     /// <param name="newZone">SceneGroup.ReferenceId the player just arrived in.</param>
     /// <param name="previousZone">SceneGroup.ReferenceId the player just left.</param>
-    public static void OnZoneChanged(string? newZone, string? previousZone)
+    /// <returns>True if enforcement was triggered (zone transition is unauthorized).</returns>
+    public static bool OnZoneChanged(string? newZone, string? previousZone)
     {
-        if (newZone == null || previousZone == null) return;
-        if (!Plugin.Instance.ModEnabled) return;
-        if (!Plugin.Instance.ApClient.IsConnected) return;
+        if (newZone == null || previousZone == null) return false;
+        if (!Plugin.Instance.ModEnabled) return false;
+        if (!Plugin.Instance.ApClient.IsConnected) return false;
 
         // Only enforce when gate checks are actual AP locations.
         var mode = Plugin.Instance.ApClient.SlotData?.RegionAccessMode ?? "vanilla";
-        if (mode == "vanilla") return;
+        if (mode == "vanilla") return false;
 
-        if (!ZoneGateLocations.TryGetValue(previousZone, out var locId)) return;
-        if (Plugin.Instance.SaveManager.IsChecked(locId)) return;
+        // ── PB entry enforcement ──────────────────────────────────────────────
+        // The PB gate is a plort door that opens permanently when filled; we
+        // cannot block ActivateOnUnlock for native callers.  Instead, detect
+        // unauthorised entry here and teleport the player back.
+        // Cancel condition: IsRegionUnlocked (item received), NOT IsChecked
+        // (filling the door sends the check but does not grant access).
+        if (newZone == "SceneGroup.PowderfallBluffs"
+            && !Plugin.Instance.SaveManager.IsRegionUnlocked(RegionTable.PBRegionItemName))
+        {
+            _returnLocId    = LocationConstants.RegionGate_PowderfallBluffs;
+            _returnAt       = Time.time + ReturnDelay;
+            _isPBEntryBlock = true;
+            Logger.Info(
+                $"[AP] GateReturnEnforcer: entered PB without 'Powderfall Bluffs Access' " +
+                $"— resetting to Rainbow Fields in {ReturnDelay}s");
+            UI.StatusHUD.Instance?.ShowNotification("Receive 'Powderfall Bluffs Access' to enter Powderfall Bluffs!");
+            return true;
+        }
+
+        // ── EV / SS exit enforcement (and PB exit / gadget bypass) ───────────
+        if (!ZoneGateLocations.TryGetValue(previousZone, out var locId)) return false;
+        if (Plugin.Instance.SaveManager.IsChecked(locId)) return false;
 
         // Gate check not sent — schedule the reset to Rainbow Fields spawn.
-        _returnLocId = locId;
-        _returnAt    = Time.time + ReturnDelay;
+        _returnLocId    = locId;
+        _returnAt       = Time.time + ReturnDelay;
+        _isPBEntryBlock = false;
 
         Logger.Info(
             $"[AP] GateReturnEnforcer: '{previousZone}' → '{newZone}' " +
             $"without gate check {locId} — resetting to Rainbow Fields in {ReturnDelay}s");
 
         UI.StatusHUD.Instance?.ShowNotification("Use the gate button to open the region first!");
+        return true;
     }
 
     /// <summary>Called every frame from <c>ApUpdateBehaviour.Update()</c>.</summary>
     public static void Tick()
     {
+        // Continuously record the player's position while no enforcement is pending,
+        // so we have a "where they came from" position ready when a violation fires.
+        if (_returnLocId < 0)
+        {
+            var p = SceneContext.Instance?.Player;
+            if (p != null) { _lastSafePosition = p.transform.position; _hasSafePosition = true; }
+        }
+
         if (_returnLocId < 0 || _returnAt < 0f) return;
         if (Time.time < _returnAt) return;
 
-        // Re-check: gate button may have been pressed during the delay window.
-        if (Plugin.Instance.SaveManager.IsChecked(_returnLocId))
+        // Re-check: gate condition may have been satisfied during the delay window.
+        bool satisfied = _isPBEntryBlock
+            ? Plugin.Instance.SaveManager.IsRegionUnlocked(RegionTable.PBRegionItemName)
+            : Plugin.Instance.SaveManager.IsChecked(_returnLocId);
+        if (satisfied)
         {
-            Logger.Info(
-                "[AP] GateReturnEnforcer: gate check sent during delay — cancelling reset");
+            Logger.Info("[AP] GateReturnEnforcer: condition satisfied during delay — cancelling reset");
             ClearPending();
             return;
         }
@@ -111,21 +153,42 @@ public static class GateReturnEnforcer
             return;
         }
 
+#if DEBUG
+        Logger.Info(
+            $"[AP] GateReturnEnforcer: DEBUG — enforcement suppressed (would return to " +
+            (_hasSafePosition ? $"{_lastSafePosition}" : "spawn fallback") + ")");
+        ClearPending();
+        return;
+#endif
+
+        // Return the player to where they came from via the KCC motor.
+        if (_hasSafePosition)
+        {
+            var motor = playerGo
+                .GetComponent<Il2CppMonomiPark.SlimeRancher.Player.CharacterController.SRCharacterController>()
+                ?._motor;
+            if (motor != null)
+            {
+                motor.SetPosition(_lastSafePosition);
+                Logger.Info($"[AP] GateReturnEnforcer: returned player to last safe position {_lastSafePosition}");
+                ClearPending();
+                return;
+            }
+        }
+
+        // Fallback: no safe position captured yet (e.g. enforcement fired immediately on load).
         var teleportable = playerGo.GetComponent<TeleportablePlayer>();
         var network      = UnityEngine.Object.FindObjectOfType<TeleportNetwork>();
 
         if (teleportable == null || network == null)
         {
-            Logger.Warning(
-                "[AP] GateReturnEnforcer: TeleportablePlayer or TeleportNetwork not found — cancelling");
+            Logger.Warning("[AP] GateReturnEnforcer: TeleportablePlayer or TeleportNetwork not found — cancelling");
             ClearPending();
             return;
         }
 
         network.Teleport_ResetPlayer(teleportable);
-
-        Logger.Info(
-            "[AP] GateReturnEnforcer: reset player to Rainbow Fields spawn");
+        Logger.Info("[AP] GateReturnEnforcer: fallback reset to Rainbow Fields spawn");
         ClearPending();
     }
 
@@ -137,7 +200,8 @@ public static class GateReturnEnforcer
 
     private static void ClearPending()
     {
-        _returnLocId = -1;
-        _returnAt    = -1f;
+        _returnLocId    = -1;
+        _returnAt       = -1f;
+        _isPBEntryBlock = false;
     }
 }

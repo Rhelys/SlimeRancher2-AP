@@ -64,8 +64,9 @@ internal static class FabricatorDetailsPatch
             return;
         }
 
-        // Only override when connected; otherwise preserve normal display
-        if (!Plugin.Instance.ApClient.IsConnected)
+        // Only override when connected and fabricator is randomized; otherwise preserve normal display
+        if (!Plugin.Instance.ApClient.IsConnected
+            || !(Plugin.Instance.ApClient.SlotData?.RandomizeFabricator ?? true))
         {
             if (nameEvent != null) nameEvent.enabled = true;
             if (descEvent != null) descEvent.enabled = true;

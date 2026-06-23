@@ -111,6 +111,9 @@ public class ApUpdateBehaviour : MonoBehaviour
 #endif
         TrapHandler.Tick();
         GateReturnEnforcer.Tick();
+        PlortDoorPoller.Tick();
+        SlimeRancher2AP.Patches.LocationPatches.AccessDoorUITextPatch.Tick();
+        SlimeRancher2AP.Archipelago.ItemHandler.TickExpansionDoors();
         SlimeRancher2AP.Patches.PlayerPatches.WeatherPatch.TryApplyIfNeeded();
         SlimeRancher2AP.Patches.LocationPatches.RadiantSlimeSpawnRatePatch.TryApplyIfNeeded();
         SlimeRancher2AP.Patches.LocationPatches.GoldLuckySpawnRatePatch.TryApplyIfNeeded();

@@ -1,28 +1,21 @@
 ﻿using HarmonyLib;
 using Il2CppMonomiPark.SlimeRancher;
-using SlimeRancher2AP.Archipelago;
 using SlimeRancher2AP.Data;
 using SlimeRancher2AP.Utils;
-using UnityEngine;
 
 namespace SlimeRancher2AP.Patches.PlayerPatches;
 
 /// <summary>
-/// Prefix on PuzzleSlotLockable.ActivateOnUnlock — the single point where any plort door
-/// transitions to its open state. Handles two cases:
+/// Postfix on PuzzleSlotLockable.ActivateOnUnlock — fires via the managed caller path when
+/// a Shadow Plort door (Grey Labyrinth) opens. Sends the AP location check.
 ///
-///   1. Powderfall Bluffs region gate (posKey = "zoneGorge_Area3_-645_34_681"):
-///      • Sends the AP location check for RegionGate_PowderfallBluffs (idempotent).
-///      • Blocks the open if "Powderfall Bluffs Access" has not been received yet.
-///      • When the access item arrives, ApplyRegionAccess calls ActivateOnUnlock directly,
-///        which passes through here with IsRegionUnlocked = true.
+/// Shadow plort doors have a managed caller that reaches ActivateOnUnlock, so this patch
+/// fires reliably for them. Other plort doors (PuzzleDoor type) and the PB region gate are
+/// called from native code and bypass this patch — those are handled by PlortDoorPoller
+/// (ShouldUnlock() polling from the Update loop).
 ///
-///   2. Other puzzle doors (PuzzleDoor entries in LocationTable):
-///      • Sends the AP location check if RandomizePuzzleDoors is enabled.
-///      • Always allows the door to open (no blocking).
-///
-/// Uses posKey (sceneName_X_Y_Z) rather than objectName for identification, because
-/// multiple doors share the same objectName (e.g. "objLabyrinthPlortDoor01Small").
+/// Uses posKey (sceneName_X_Y_Z) for identification because multiple doors share the same
+/// objectName (e.g. "objLabyrinthPlortDoor01Small").
 /// </summary>
 [HarmonyPatch(typeof(PuzzleSlotLockable), "ActivateOnUnlock")]
 internal static class PuzzleSlotLockableActivatePatch
@@ -36,48 +29,15 @@ internal static class PuzzleSlotLockableActivatePatch
         try { posKey = WorldUtils.PositionKey(__instance.gameObject!); }
         catch { return true; }
 
-        // ── Case 1: Powderfall Bluffs region gate ────────────────────────────────
-        if (posKey == RegionTable.PBGatePosKey)
+#if DEBUG
+        Logger.Info($"[AP-PuzzleDoor] ActivateOnUnlock: name='{__instance.gameObject?.name ?? "?"}'  posKey='{posKey}'");
+#endif
+
+        if (LocationTable.TryGetByObjectName(posKey, out var locInfo) && locInfo != null
+            && locInfo.Type == LocationType.ShadowPlortDoor)
         {
-            var mode = Plugin.Instance.ApClient.SlotData?.RegionAccessMode ?? "vanilla";
-            if (mode == "vanilla") return true;
-
-            Plugin.Instance.ApClient.SendCheck(LocationConstants.RegionGate_PowderfallBluffs);
-
-            bool unlocked = Plugin.Instance.SaveManager.IsRegionUnlocked(RegionTable.PBRegionItemName);
-            if (!unlocked)
-            {
-                Logger.Info(
-                    $"[AP] Blocked PB Slime Door — '{RegionTable.PBRegionItemName}' not yet received.");
-                return false;
-            }
-
-            Logger.Info("[AP] PB Slime Door — access confirmed, opening.");
-            return true;
-        }
-
-        // ── Cases 2 & 3: Lookup by posKey — Shadow Plort doors and randomized puzzle doors ──
-        if (LocationTable.TryGetByObjectName(posKey, out var locInfo) && locInfo != null)
-        {
-            // Case 2: Shadow Plort doors (Grey Labyrinth) — always send check when opened.
-            // Detection moved here from PlortDepositorPatch (PlortDepositor.OnTriggerEnter)
-            // because PlortDepositor moved to root namespace in the 5/13 update and its
-            // physics-callback prologue changed, crashing the trampoline on scene load.
-            if (locInfo.Type == LocationType.ShadowPlortDoor)
-            {
-                Plugin.Instance.ApClient.SendCheck(locInfo.Id);
-                Logger.Info(
-                    $"[AP] Shadow Plort Door check: '{locInfo.Name}' (id={locInfo.Id}) posKey='{posKey}'");
-            }
-
-            // Case 3: Other puzzle doors (when randomized).
-            else if (Plugin.Instance.ApClient.SlotData?.RandomizePuzzleDoors == true
-                     && locInfo.Type == LocationType.PuzzleDoor)
-            {
-                Plugin.Instance.ApClient.SendCheck(locInfo.Id);
-                Logger.Info(
-                    $"[AP] Puzzle Door check: '{locInfo.Name}' (id={locInfo.Id}) posKey='{posKey}'");
-            }
+            Plugin.Instance.ApClient.SendCheck(locInfo.Id);
+            Logger.Info($"[AP] Shadow Plort Door check: '{locInfo.Name}' (id={locInfo.Id}) posKey='{posKey}'");
         }
 
         return true;

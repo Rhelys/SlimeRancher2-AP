@@ -35,6 +35,15 @@ namespace SlimeRancher2AP.Patches.LocationPatches;
 internal static class FabricatorPatch
 {
     /// <summary>
+    /// True when the fabricator is in AP mode and the randomize_fabricator option is on.
+    /// All fabricator-related patches check this before modifying behaviour.
+    /// </summary>
+    internal static bool IsEnabled =>
+        Plugin.Instance.ModEnabled
+        && Plugin.Instance.SaveManager.HasActiveSession
+        && (Plugin.Instance.ApClient.SlotData?.RandomizeFabricator ?? true);
+
+    /// <summary>
     /// True while <c>FabricateAndSpendCost</c> is executing with AP mode active.
     /// </summary>
     internal static bool IsCrafting { get; private set; }
@@ -50,7 +59,7 @@ internal static class FabricatorPatch
 
     private static void Prefix(PlayerUpgradeFabricatableItem __instance)
     {
-        if (Plugin.Instance.ModEnabled && Plugin.Instance.SaveManager.HasActiveSession)
+        if (IsEnabled)
         {
             IsCrafting = true;
             CraftingUpgradeName = __instance.UpgradeDefinition?.name;
@@ -65,7 +74,7 @@ internal static class FabricatorPatch
         IsCrafting = false;  // always reset first, before any early return
 
         if (__result != FabricationBlockedReason.NONE) { CraftingUpgradeName = null; return; }
-        if (!Plugin.Instance.ModEnabled || !Plugin.Instance.SaveManager.HasActiveSession) { CraftingUpgradeName = null; return; }
+        if (!IsEnabled) { CraftingUpgradeName = null; return; }
 
         var upgradeName = __instance.UpgradeDefinition?.name;
         if (string.IsNullOrEmpty(upgradeName)) { CraftingUpgradeName = null; return; }
@@ -124,7 +133,7 @@ internal static class FabricatorCurrentLevelPatch
 {
     private static bool Prefix(PlayerUpgradeFabricatableItem __instance, ref int __result)
     {
-        if (!Plugin.Instance.ModEnabled || !Plugin.Instance.SaveManager.HasActiveSession)
+        if (!FabricatorPatch.IsEnabled)
             return true;
 
         var upgradeName = __instance.UpgradeDefinition?.name;
@@ -176,7 +185,7 @@ internal static class FabricatorNextLevelDefinitionPatch
     private static bool Prefix(PlayerUpgradeFabricatableItem __instance,
                                 ref UpgradeDefinition.UpgradeLevelDefinition __result)
     {
-        if (!Plugin.Instance.ModEnabled || !Plugin.Instance.SaveManager.HasActiveSession)
+        if (!FabricatorPatch.IsEnabled)
             return true;
 
         var upgradeDef = __instance.UpgradeDefinition;

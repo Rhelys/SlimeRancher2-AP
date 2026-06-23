@@ -33,7 +33,7 @@ public class DebugPanel : MonoBehaviour
     private const float BtnH    = 26;
     private const float Gap     = 4;
     private const float LabelH  = 20;
-    private const int   Pages   = 11;
+    private const int   Pages   = 10;
 
     // Teleport page — coordinate state (floats; adjusted with ± step buttons or clipboard paste)
     private float _tpX = 0f;
@@ -97,17 +97,16 @@ public class DebugPanel : MonoBehaviour
 
             switch (_page)
             {
-                case 0: DrawPageRegionAndUpgrades(x, y); break;
+                case 0: DrawPageRegionAndUpgrades(x, y);  break;
                 case 1: DrawPageGadgetsTeleporters(x, y); break;
                 case 2: DrawPageGadgetsDeployment(x, y);  break;
-                case 3: DrawPageGadgetsFunctional(x, y);  break;
-                case 4: DrawPageFiller(x, y);             break;
-                case 5: DrawPageMisc(x, y);               break;
-                case 6: DrawPageRadiant(x, y);            break;
-                case 7: DrawPageGoals(x, y);              break;
-                case 8: DrawPageDumps(x, y);              break;
-                case 9:  DrawPageWeatherDumps(x, y);  break;
-                case 10: DrawPageTeleport(x, y);      break;
+                case 3: DrawPageFiller(x, y);              break;
+                case 4: DrawPageDumps(x, y);               break;
+                case 5: DrawPageMisc(x, y);                break;
+                case 6: { float ny = DrawPageRadiant(x, y); DrawPageWeatherDumps(x, ny); break; }
+                case 7: { float ny = DrawPageTeleport(x, y); DrawPageGoals(x, ny); break; }
+                case 8: DrawPagePlortsA(x, y);             break;
+                case 9: DrawPagePlortsB(x, y);             break;
             }
 
             // Nav buttons sit below 20 content rows (tallest page is ~18 rows)
@@ -149,6 +148,11 @@ public class DebugPanel : MonoBehaviour
         y = ItemBtn(x, y, "Resource Harvester",   ItemTable.ResourceHarvester);
         y = ItemBtn(x, y, "Drone Archive Key",    ItemTable.DroneArchiveKey);
 
+    }
+
+    // Page 1: Crafting Components + Zone + Home Teleporters
+    private void DrawPageGadgetsTeleporters(float x, float y)
+    {
         y = SectionLabel(x, y, "Crafting Components");
         y = ItemBtn(x, y, "Archive Key Component",  ItemTable.ArchiveKeyComponent);
         y = ItemBtn(x, y, "Sureshot Module",         ItemTable.SureshotModule);
@@ -161,11 +165,7 @@ public class DebugPanel : MonoBehaviour
         y = ItemBtn(x, y, "Shadow Sureshot Module",  ItemTable.ShadowSureshotModule);
         y = ItemBtn(x, y, "Injector Module",         ItemTable.InjectorModule);
         y = ItemBtn(x, y, "Regen Module",            ItemTable.RegenModule);
-    }
 
-    // Page 1: Zone + Home Teleporters
-    private void DrawPageGadgetsTeleporters(float x, float y)
-    {
         y = SectionLabel(x, y, "Zone Teleporters");
         y = ItemBtn(x, y, "Teleporter (Ember Valley)",      ItemTable.TeleporterEmberValley);
         y = ItemBtn(x, y, "Teleporter (Starlight Strand)",  ItemTable.TeleporterStarlightStrand);
@@ -195,11 +195,7 @@ public class DebugPanel : MonoBehaviour
         y = ItemBtn(x, y, "Gordo Snare Advanced", ItemTable.GordoSnareAdvanced);
         y = ItemBtn(x, y, "Med Station",          ItemTable.MedStation);
         y = ItemBtn(x, y, "Dream Lantern T2",     ItemTable.DreamLanternT2);
-    }
 
-    // Page 3: Special access + Archive Key Component
-    private void DrawPageGadgetsFunctional(float x, float y)
-    {
         y = SectionLabel(x, y, "Special Access");
         GUI.color = new Color(1f, 1f, 0.6f);
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Unlock: Radiant Projector Blueprint (?)"))
@@ -209,11 +205,9 @@ public class DebugPanel : MonoBehaviour
             ItemHandler.DebugGrantRadiantProjectorUnit();
         y += BtnH + Gap;
         GUI.color = Color.white;
-
-        y = ItemBtn(x, y, "Archive Key Component", ItemTable.ArchiveKeyComponent);
     }
 
-    private void DrawPageFiller(float x, float y)
+    private float DrawPageFiller(float x, float y)
     {
         y = SectionLabel(x, y, "Useful");
         y = ItemBtn(x, y, "Drone Station Module", ItemTable.DroneStationModule);
@@ -236,25 +230,7 @@ public class DebugPanel : MonoBehaviour
         y = ItemBtn(x, y, "Grey Labyrinth Craft Cache",    ItemTable.GreyLabyrinthCraftCache);
         y = ItemBtn(x, y, "Rare Craft Cache",              ItemTable.RareCraftCache);
 
-        y = SectionLabel(x, y, "Plorts → Vacpack ×20");
-        GUI.color = new Color(1f, 0.85f, 0.2f);
-        y = FoodBtn(x, y, "Gold Plort ×20", "GoldPlort");
-        GUI.color = new Color(0.7f, 0.5f, 1f);
-        y = FoodBtn(x, y, "Shadow Plort ×20 (Shadow Door testing)", "ShadowPlort");
-        GUI.color = Color.white;
-
-        // Food → Vacpack (for gordo-feeding tests on fresh playthroughs).
-        // IdentifiableType names are best guesses based on SR2 naming conventions —
-        // if a button logs "not found", run Dump IdentifiableTypes (Misc page) to get the real name.
-        y = SectionLabel(x, y, "Food → Vacpack ×20 (?) [for gordo testing]");
-        GUI.color = new Color(1f, 0.9f, 0.6f);
-        y = FoodBtn(x, y, "Hen ×20",            "Hen");
-        y = FoodBtn(x, y, "Rooster ×20",        "Rooster");
-        y = FoodBtn(x, y, "PogoFruit ×20",      "PogoFruit");
-        y = FoodBtn(x, y, "MoondewNectar ×20",  "MoondewNectar");
-        y = FoodBtn(x, y, "CarrotVeggie ×20",   "CarrotVeggie");
-        y = FoodBtn(x, y, "BeetVeggie ×20",     "BeetVeggie");
-        GUI.color = Color.white;
+        return y;
     }
 
     private void DrawPageMisc(float x, float y)
@@ -269,6 +245,19 @@ public class DebugPanel : MonoBehaviour
         y = ItemBtn(x, y, "Tarr Rain Trap",      ItemTable.TrapTarrRain);
         y = ItemBtn(x, y, "Vacpack Spew Trap",   ItemTable.TrapVacExpel);
         y = ItemBtn(x, y, "Vacpack Fill Trap",   ItemTable.TrapVacFill);
+
+        y = SectionLabel(x, y, "Diagnostics");
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Plort IdentifiableType Names → Log"))
+        {
+            var types = Resources.FindObjectsOfTypeAll<IdentifiableType>();
+            var plorts = System.Linq.Enumerable.OrderBy(
+                System.Linq.Enumerable.Where(types, t => t.name.Contains("Plort", System.StringComparison.OrdinalIgnoreCase)),
+                t => t.name);
+            Logger.Info("[AP-Debug] Plort IdentifiableType names:");
+            foreach (var t in plorts)
+                Logger.Info($"  {t.name}");
+        }
+        y += BtnH + Gap;
 
         y = SectionLabel(x, y, "Vacpack Spew (manual test)");
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Spew — dump all slots"))
@@ -326,8 +315,8 @@ public class DebugPanel : MonoBehaviour
         y += BtnH + Gap;
     }
 
-    // Page 6: Radiant slime tools
-    private void DrawPageRadiant(float x, float y)
+    // Page 6: Radiant slime tools + Weather dumps
+    private float DrawPageRadiant(float x, float y)
     {
         y = SectionLabel(x, y, "Radiant Spawn Rate");
 
@@ -358,10 +347,11 @@ public class DebugPanel : MonoBehaviour
         y += BtnH + Gap;
 
         GUI.color = Color.white;
+        return y;
     }
 
     // Page 7: Goal testing + Upgrade Components
-    private void DrawPageGoals(float x, float y)
+    private float DrawPageGoals(float x, float y)
     {
         y = SectionLabel(x, y, "Goal Triggers");
 
@@ -378,12 +368,8 @@ public class DebugPanel : MonoBehaviour
             GoalHandler.DebugSetLifetimeNewbucksToGoal();
         y += BtnH + Gap;
 
-        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Sim: Prismacore — Enter Room"))
-            GoalHandler.DebugSimPrismacore(stabilize: false);
-        y += BtnH + Gap;
-
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Sim: Prismacore — Stabilize"))
-            GoalHandler.DebugSimPrismacore(stabilize: true);
+            GoalHandler.DebugSimPrismacore();
         y += BtnH + Gap;
 
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Sim: Labyrinth — Open Both Gates"))
@@ -394,10 +380,11 @@ public class DebugPanel : MonoBehaviour
 
         y = SectionLabel(x, y, "Upgrade Components");
         y = ItemBtn(x, y, "Grant: Archive Key Component", ItemTable.ArchiveKeyComponent);
+        return y;
     }
 
     // Page 8: All data dump buttons
-    private void DrawPageDumps(float x, float y)
+    private float DrawPageDumps(float x, float y)
     {
         GUI.color = new Color(1f, 0.9f, 0.5f);
 
@@ -496,10 +483,11 @@ public class DebugPanel : MonoBehaviour
         y += BtnH + Gap;
 
         GUI.color = Color.white;
+        return y;
     }
 
-    // Page 9: Weather dump buttons
-    private void DrawPageWeatherDumps(float x, float y)
+    // (Merged into page 6 — Radiant + Weather)
+    private float DrawPageWeatherDumps(float x, float y)
     {
         GUI.color = new Color(0.7f, 0.9f, 1f);
 
@@ -514,10 +502,11 @@ public class DebugPanel : MonoBehaviour
         y += BtnH + Gap;
 
         GUI.color = Color.white;
+        return y;
     }
 
     // Page 10: NoClip + Coordinate Teleport
-    private void DrawPageTeleport(float x, float y)
+    private float DrawPageTeleport(float x, float y)
     {
         // ── NoClip toggle ────────────────────────────────────────────────────
         y = SectionLabel(x, y, "Movement");
@@ -551,7 +540,7 @@ public class DebugPanel : MonoBehaviour
             GUI.color = new Color(1f, 0.75f, 0.4f);
             GUI.Label(new Rect(x + 4, y, PanelW - 8, LabelH), "Enable NoClip above to use teleport.");
             GUI.color = Color.white;
-            return;
+            return y + LabelH + Gap;
         }
 
         // ── Coordinate input ─────────────────────────────────────────────────
@@ -608,6 +597,8 @@ public class DebugPanel : MonoBehaviour
         }
 
         GUI.color = Color.white;
+        y += BtnH + Gap;
+        return y;
     }
 
     /// <summary>
@@ -691,6 +682,65 @@ public class DebugPanel : MonoBehaviour
         return player?.GetComponent<Il2CppMonomiPark.SlimeRancher.Player.CharacterController.SRCharacterController>()?._motor;
     }
 
+    // Page 11: Common + Uncommon plorts (1× each → vacpack, for plort door testing)
+    private void DrawPagePlortsA(float x, float y)
+    {
+        y = SectionLabel(x, y, "Common Plorts ×1 → Vacpack");
+        y = PlortBtn(x, y, "Pink",      "PinkPlort");
+        y = PlortBtn(x, y, "Tabby",     "TabbyPlort");
+        y = PlortBtn(x, y, "Rock",      "RockPlort");
+        y = PlortBtn(x, y, "Phosphor",  "PhosphorPlort");
+        y = PlortBtn(x, y, "Cotton",    "CottonPlort");
+        y = PlortBtn(x, y, "Honey",     "HoneyPlort");
+        y = PlortBtn(x, y, "Crystal",   "CrystalPlort");
+        y = PlortBtn(x, y, "Boom",      "BoomPlort");
+        y = PlortBtn(x, y, "Batty",     "BattyPlort");
+
+        y = SectionLabel(x, y, "Uncommon Plorts ×1 → Vacpack");
+        y = PlortBtn(x, y, "Dervish",   "DervishPlort");
+        y = PlortBtn(x, y, "Tangle",    "TanglePlort");
+        y = PlortBtn(x, y, "Hunter",    "HunterPlort");
+        y = PlortBtn(x, y, "Ringtail",  "RingtailPlort");
+        y = PlortBtn(x, y, "Flutter",   "FlutterPlort");
+        y = PlortBtn(x, y, "Angler",    "AnglerPlort");
+        y = PlortBtn(x, y, "Yolky",     "YolkyPlort");
+    }
+
+    // Page 12: Rare plorts + bulk test grants
+    private void DrawPagePlortsB(float x, float y)
+    {
+        y = SectionLabel(x, y, "Rare Plorts ×1 → Vacpack");
+        y = PlortBtn(x, y, "Hyper",     "HyperPlort");
+        y = PlortBtn(x, y, "Twin",      "TwinPlort");
+        y = PlortBtn(x, y, "Saber",     "SaberPlort");
+        y = PlortBtn(x, y, "Shadow",    "ShadowPlort");
+        y = PlortBtn(x, y, "Gold",      "GoldPlort");
+        y = PlortBtn(x, y, "Puddle",    "PuddlePlort");
+        y = PlortBtn(x, y, "Sloomber",  "SloomberPlort");
+        y = PlortBtn(x, y, "Fire",      "FirePlort");
+        y = PlortBtn(x, y, "Unstable",  "UnstablePlort");
+        y = PlortBtn(x, y, "Stable",    "StablePlort");
+
+        y = SectionLabel(x, y, "Bulk Plorts → Vacpack ×20");
+        GUI.color = new Color(1f, 0.85f, 0.2f);
+        y = FoodBtn(x, y, "Gold Plort ×20", "GoldPlort");
+        GUI.color = new Color(0.7f, 0.5f, 1f);
+        y = FoodBtn(x, y, "Shadow Plort ×20 (Shadow Door testing)", "ShadowPlort");
+        GUI.color = new Color(0.5f, 0.9f, 1f);
+        y = FoodBtn(x, y, "Prisma Plort ×20 (Prismacore testing)", "StablePlort");
+        GUI.color = Color.white;
+
+        y = SectionLabel(x, y, "Food → Vacpack ×20 (?) [gordo testing]");
+        GUI.color = new Color(1f, 0.9f, 0.6f);
+        y = FoodBtn(x, y, "Hen ×20",            "Hen");
+        y = FoodBtn(x, y, "Rooster ×20",        "Rooster");
+        y = FoodBtn(x, y, "PogoFruit ×20",      "PogoFruit");
+        y = FoodBtn(x, y, "MoondewNectar ×20",  "MoondewNectar");
+        y = FoodBtn(x, y, "CarrotVeggie ×20",   "CarrotVeggie");
+        y = FoodBtn(x, y, "BeetVeggie ×20",     "BeetVeggie");
+        GUI.color = Color.white;
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
@@ -708,6 +758,13 @@ public class DebugPanel : MonoBehaviour
     {
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), label))
             ItemHandler.ApplyById(itemId, _debugItemIndex++);
+        return y + BtnH + Gap;
+    }
+
+    private float PlortBtn(float x, float y, string label, string typeName)
+    {
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), $"{label} Plort ×1"))
+            ItemHandler.DebugGrantFoodToVacpack(typeName, 1);
         return y + BtnH + Gap;
     }
 

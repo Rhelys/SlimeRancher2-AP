@@ -313,6 +313,7 @@ public class ArchipelagoClient
         _pendingMainThreadAction  = null;
         _pendingUpgradeValidation = false;
         GateReturnEnforcer.Clear();
+        PlortDoorPoller.Reset();
         TrapHandler.ClearDeferred();
         lock (_queueLock) { _itemQueue.Clear(); }
         // Reset the save-manager session pointer so HasActiveSession returns false.
@@ -534,8 +535,15 @@ public class ArchipelagoClient
                 $"_snapshotCount={_snapshotCount}, _connectTimeWatermark={_connectTimeWatermark}");
 #endif
 
-        foreach (var entry in pending)
+        // Per-frame time budget: stop processing items after 8ms so we don't stall the main
+        // thread when many items arrive at once (e.g. 100+ items on goal completion).
+        // Remaining items are requeued and processed across subsequent frames.
+        const double MaxMsPerFrame = 8.0;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+
+        for (int i = 0; i < pending.Count; i++)
         {
+            var entry = pending[i];
 #if DEBUG
             SlimeRancher2AP.Utils.DebugTrace.Once($"ProcessItemQueue.3 — first dequeued item id={entry.item.ItemId} idx={entry.index}");
 #endif
@@ -579,6 +587,21 @@ public class ArchipelagoClient
 #if DEBUG
             SlimeRancher2AP.Utils.DebugTrace.Once($"ProcessItemQueue.4 — Apply returned for first item idx={entry.index}");
 #endif
+
+            // Check time budget after each item. Requeue any unprocessed items for next frame.
+            if (sw.Elapsed.TotalMilliseconds > MaxMsPerFrame && i < pending.Count - 1)
+            {
+                int remaining = pending.Count - i - 1;
+                lock (_queueLock)
+                {
+                    for (int j = i + 1; j < pending.Count; j++)
+                        _itemQueue.Enqueue(pending[j]);
+                }
+                Logger.Info(
+                    $"[AP] ProcessItemQueue: budget exceeded ({sw.Elapsed.TotalMilliseconds:F1}ms), " +
+                    $"deferred {remaining} item(s) to next frame");
+                break;
+            }
         }
     }
 

@@ -5,7 +5,7 @@ namespace SlimeRancher2AP.Data;
 /// Base offset: 819000
 ///
 /// AUTHORITATIVE RANGES (see APWORLD_DESIGN.md for full table):
-///   819000â€“819199  Treasure Pods (all regions incl. Labyrinth) â€” 200 slots
+///   819000â€”819131  Treasure Pods (113 total; 819132â€”819199 spare â€” no GL pods) â€” 200 slots
 ///   819200â€“819249  Shadow Plort Doors (Grey Labyrinth)          â€”  50 slots
 ///   819250â€“819299  Gordo Slimes (wild/static)                   â€”  50 slots
 ///   819300â€“819349  Map Data Nodes                               â€”  50 slots
@@ -32,21 +32,15 @@ namespace SlimeRancher2AP.Data;
 public static class LocationConstants
 {
     // =========================================================================
-    // TREASURE PODS: 819000 â€“ 819199
-    // posKey format: "sceneName_X_Y_Z" (world position rounded to nearest int).
+    // TREASURE PODS: 819000 â€” 819131  (113 total — no GL pods exist)
+    // posKey format: “sceneName_X_Y_Z” (world position rounded to nearest int).
     //
-    // Per-region sub-ranges:
-    //   819000â€“819019  Conservatory     ( 3 confirmed âœ…, 17 spare)
-    //   819020â€“819037  Rainbow Fields   (18 confirmed âœ…,  0 spare)
-    //   819038â€“819059  Ember Valley     (36 confirmed âœ…,  0 spare â€” tight fit)
-    //   Wait, that doesn't work. Let me use:
-    //
-    //   819000â€“819019  Conservatory     ( 3 used of 20)
-    //   819020â€“819037  Rainbow Fields   (18 used of 18 â†’ extend if needed)
-    //   819038â€“819073  Ember Valley     (36 used of 36)
-    //   819074â€“819106  Starlight Strand (33 used of 33)
-    //   819107â€“819131  Powderfall Bluffs (25 used of 25)
-    //   819132â€“819199  Grey Labyrinth   (TBD)
+    //   819000â€”819019  Conservatory      ( 3 used of 20)
+    //   819020â€”819037  Rainbow Fields    (18 used of 18)
+    //   819038â€”819073  Ember Valley      (36 used of 36)
+    //   819074â€”819106  Starlight Strand  (33 used of 33)
+    //   819107â€”819131  Powderfall Bluffs (25 used of 25)
+    //   819132â€”819199  spare (no GL pods)
     // =========================================================================
 
     // Conservatory â€” 3 pods confirmed âœ…
@@ -703,11 +697,11 @@ public static class LocationConstants
     // Lookup key: posKey "sceneName_X_Y_Z" (same as TreasurePod).
     // =========================================================================
 
-    // Ember Valley (4 doors — excluding PB gate at zoneGorge_Area3_-645_34_681)
+    // Ember Valley (4 doors)
     public const long PlortDoor_EmberValley_1 = 819847; // zoneGorge_Area1_-193_-1_471
     public const long PlortDoor_EmberValley_2 = 819848; // zoneGorge_Area2_-332_10_285
     public const long PlortDoor_EmberValley_3 = 819849; // zoneGorge_Area3_-353_6_625
-    public const long PlortDoor_EmberValley_4 = 819850; // zoneGorge_Area4_-892_12_508
+    public const long PlortDoor_EmberValley_4 = 819850; // zoneGorge_Area3_-645_34_681 — also the PB region gate door
 
     // Rainbow Fields (1 door)
     public const long PlortDoor_RainbowFields_1 = 819851; // zoneFields_338_-2_348
@@ -738,5 +732,60 @@ public static class LocationConstants
     public const long PlortDoor_GreyLabyrinth_9  = 819872; // zoneLabyrinthHub_C_1469_88_-1057
     public const long PlortDoor_GreyLabyrinth_10 = 819873; // zoneLabyrinthTerrarium_JungleGlacier_1951_140_-854
     public const long PlortDoor_GreyLabyrinth_11 = 819874; // zoneLabyrinthTerrarium_JungleGlacier_2145_155_-856
-    // 819875–819895 spare
+    // =========================================================================
+    // CONSERVATORY EXPANSIONS: 819875 – 819879  (5 entries)
+    // Enabled by the "randomize_conservatory_expansions" apworld option.
+    // GameObjectName = AccessDoor._id (IdHandler string).
+    // Confirmed via F9 → Dumps → "Dump Access Doors" in the Conservatory.
+    // =========================================================================
+    public const long ConservatoryExpansion_Gully     = 819875;
+    public const long ConservatoryExpansion_Tidepools = 819876;
+    public const long ConservatoryExpansion_Archway   = 819877;
+    public const long ConservatoryExpansion_Den       = 819878;
+    public const long ConservatoryExpansion_Digsite   = 819879;
+    // 819880–819895 spare
+
+    // =========================================================================
+    // PLORT MARKET: 819896 – 819920  (25 entries)
+    // Enabled by the "randomize_plort_market" apworld option.
+    // GameObjectName = IdentifiableType.name (e.g. "PinkPlort").
+    // Lookup: LocationTable.TryGetPlortMarketByPlortName(id.name).
+    // IDs 819921–819925 reserved as buffer for future plort additions.
+    // =========================================================================
+
+    // Rainbow Fields (7)
+    public const long PlortMarket_Pink     = 819896;
+    public const long PlortMarket_Cotton   = 819897;
+    public const long PlortMarket_Phosphor = 819898;
+    public const long PlortMarket_Dervish  = 819899;
+    public const long PlortMarket_Gold     = 819900;
+    public const long PlortMarket_Tangle   = 819901;
+    public const long PlortMarket_Yolky    = 819902;
+
+    // Ember Valley (6)
+    public const long PlortMarket_Rock     = 819903;
+    public const long PlortMarket_Tabby    = 819904;
+    public const long PlortMarket_Crystal  = 819905;
+    public const long PlortMarket_Batty    = 819906;
+    public const long PlortMarket_Boom     = 819907;
+    public const long PlortMarket_Fire     = 819908;
+
+    // Starlight Strand (6)
+    public const long PlortMarket_Hunter   = 819909;
+    public const long PlortMarket_Honey    = 819910;
+    public const long PlortMarket_Ringtail = 819911;
+    public const long PlortMarket_Angler   = 819912;
+    public const long PlortMarket_Flutter  = 819913;
+    public const long PlortMarket_Puddle   = 819914;
+
+    // Powderfall Bluffs (1)
+    public const long PlortMarket_Saber    = 819915;
+
+    // Grey Labyrinth (5)
+    public const long PlortMarket_Shadow   = 819916;
+    public const long PlortMarket_Sloomber = 819917;
+    public const long PlortMarket_Twin     = 819918;
+    public const long PlortMarket_Hyper    = 819919;
+    public const long PlortMarket_Stable   = 819920;
+    // 819921–819925 reserved (5-ID buffer for future plort additions)
 }

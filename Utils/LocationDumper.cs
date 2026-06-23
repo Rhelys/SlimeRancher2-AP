@@ -697,7 +697,7 @@ public static class LocationDumper
             .ThenBy(d => d.gameObject.name))
         {
             var state = door._model != null ? door._model.state.ToString() : "(no model)";
-            log.LogInfo($"[AP-Dump] AccessDoor  scene='{door.gameObject.scene.name}'  name='{door.gameObject.name}'  state={state}  pos={PosStr(door.gameObject)}");
+            log.LogInfo($"[AP-Dump] AccessDoor  id='{door._id}'  scene='{door.gameObject.scene.name}'  name='{door.gameObject.name}'  state={state}  pos={PosStr(door.gameObject)}");
         }
     }
 
