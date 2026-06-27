@@ -480,6 +480,10 @@ internal static class OptionsMenuTabSelectedPatch
 /// When switching to any tab other than ours, hide our panel and ensure itemsPanel
 /// is active before the original runs.  When switching to ours, do nothing here —
 /// BindItemCategory's Prefix handles the show logic.
+///
+/// Note: keyboard/gamepad Q/E navigation is blocked separately in
+/// CheckThenSwapCategoryPatch. SwapCategory itself must NOT block direct tab clicks,
+/// which arrive here without going through CheckThenSwapCategory.
 /// </summary>
 [HarmonyPatch(typeof(OptionsUIRoot), "SwapCategory",
     new System.Type[] { typeof(int), typeof(bool) })]
@@ -493,12 +497,6 @@ internal static class OptionsMenuSwapCategoryPatch
         try
         {
             bool isOurTab = __0 == OptionsMenuInjectionPatch.OurCategoryIndex;
-
-            // Block SwapCategory when our panel is visible and Q/E tries to leave our tab.
-            // CheckThenSwapCategory is the primary gate but the game update may call
-            // SwapCategory more directly for keyboard/gamepad navigation.
-            if (Plugin.Instance.ConnectionUi?.IsVisible == true && !isOurTab)
-                return false;
 
             if (!isOurTab)
             {
@@ -529,24 +527,27 @@ internal static class OptionsMenuClosePatch
 }
 
 /// <summary>
-/// Prefix on OptionsUIRoot.CheckThenSwapCategory — suppresses Q/E tab navigation
-/// whenever the Archipelago panel is visible.
+/// Prefix on OptionsUIRoot.CheckThenSwapCategory — suppresses Q/E keyboard tab
+/// navigation only when the player is actively typing in one of the AP input fields.
 ///
-/// The player can still switch away from the AP tab by clicking another tab directly.
+/// Blocking on IsVisible alone was too broad: in the in-game pause menu, direct tab
+/// clicks also go through CheckThenSwapCategory (unlike the main menu which routes
+/// clicks through SwapCategory), so blocking on visibility prevented clicking away.
 ///
-/// Known behavior: typing 'q' or 'e' into a connection field will visually shift the
-/// tab-icon highlight (e.g. from "Archipelago" toward "Display") even though the page
-/// content never actually changes.  The visual shift is driven by the native
-/// categoryAdapter input pipeline which runs before this method is reached; no
-/// managed patch point has been found to suppress it cleanly.  Accepted as-is —
-/// the page content stays correct and clicking any tab resets the highlight.
+/// We now only block when a TMP_InputField has focus, which is true during keyboard
+/// entry but false when the user clicks a tab button.
 /// </summary>
 [HarmonyPatch(typeof(OptionsUIRoot), nameof(OptionsUIRoot.CheckThenSwapCategory))]
 internal static class OptionsMenuBlockTabNavWhileTypingPatch
 {
     private static bool Prefix()
     {
-        if (Plugin.Instance.ConnectionUi?.IsVisible == true)
+        if (Plugin.Instance.ConnectionUi?.IsVisible != true)
+            return true;
+
+        // Block only when an input field is focused (user is typing Q/E, not clicking a tab).
+        var selected = EventSystem.current?.currentSelectedGameObject;
+        if (selected != null && selected.GetComponent<TMP_InputField>() != null)
             return false;
 
         return true;
