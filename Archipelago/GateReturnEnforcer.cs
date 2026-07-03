@@ -28,8 +28,8 @@ public static class GateReturnEnforcer
     // Key: SceneGroup.ReferenceId of the zone the player is LEAVING.
     // Value: AP location ID that must be checked before the player may leave.
     //
-    // EV and SS connect directly back to Rainbow Fields.
-    // PB connects back to Ember Valley — checked on the PB→Gorge transition.
+    // EV and SS: catches zone-teleporter bypasses (gadget received without access item).
+    // PB: catches PB→RF exit via gadget bypass (PB→EV walk is handled separately above).
     // Grey Labyrinth has no AP gate check; omitted.
     private static readonly Dictionary<string, long> ZoneGateLocations = new()
     {
@@ -48,6 +48,10 @@ public static class GateReturnEnforcer
     // before the access item was received).  Cancel condition is IsRegionUnlocked rather
     // than IsChecked, because filling the door sends the check but does not grant access.
     private static bool    _isPBEntryBlock  = false;
+    // When true, skip the last-safe-position path and always use Teleport_ResetPlayer.
+    // Set for EV-from-PB enforcement: last safe position is inside PB, so returning there
+    // would put the player right back where they can re-enter EV — an infinite loop.
+    private static bool    _forceSpawnReset = false;
 
     // Last player position recorded while no enforcement was pending.
     // Used to return the player to where they came from rather than to spawn.
@@ -84,6 +88,26 @@ public static class GateReturnEnforcer
         var mode = Plugin.Instance.ApClient.SlotData?.RegionAccessMode ?? "vanilla";
         if (mode == "vanilla") return false;
 
+        // ── EV entry from PB (bundled-mode bypass) ───────────────────────────
+        // In bundled mode the PB zone teleporter is granted with "Powderfall Bluffs Access",
+        // so a player can reach PB without ever pressing the EV gate.  From there they can
+        // walk into Ember Valley through the Gorge portal — entering EV without the EV gate
+        // check being sent.  This also blocks EV from being added to the teleport trap pool.
+        if (newZone == "SceneGroup.RumblingGorge"
+            && previousZone == "SceneGroup.PowderfallBluffs"
+            && !Plugin.Instance.SaveManager.IsChecked(LocationConstants.RegionGate_EmberValley))
+        {
+            _returnLocId     = LocationConstants.RegionGate_EmberValley;
+            _returnAt        = Time.time + ReturnDelay;
+            _isPBEntryBlock  = false;
+            _forceSpawnReset = true;
+            Logger.Info(
+                $"[AP] GateReturnEnforcer: entered EV from PB without EV gate check " +
+                $"— resetting in {ReturnDelay}s");
+            UI.StatusHUD.Instance?.ShowNotification("Use the Ember Valley gate first to access Ember Valley!");
+            return true;
+        }
+
         // ── PB entry enforcement ──────────────────────────────────────────────
         // The PB gate is a plort door that opens permanently when filled; we
         // cannot block ActivateOnUnlock for native callers.  Instead, detect
@@ -107,10 +131,13 @@ public static class GateReturnEnforcer
         if (!ZoneGateLocations.TryGetValue(previousZone, out var locId)) return false;
         if (Plugin.Instance.SaveManager.IsChecked(locId)) return false;
 
-        // Gate check not sent — schedule the reset to Rainbow Fields spawn.
-        _returnLocId    = locId;
-        _returnAt       = Time.time + ReturnDelay;
-        _isPBEntryBlock = false;
+        // Gate check not sent — send the player to RF spawn so they can press the gate button.
+        // _forceSpawnReset: last safe position is inside the locked zone, so returning there
+        // would immediately re-trigger enforcement and create an infinite loop.
+        _returnLocId     = locId;
+        _returnAt        = Time.time + ReturnDelay;
+        _isPBEntryBlock  = false;
+        _forceSpawnReset = true;
 
         Logger.Info(
             $"[AP] GateReturnEnforcer: '{previousZone}' → '{newZone}' " +
@@ -155,14 +182,16 @@ public static class GateReturnEnforcer
 
 #if DEBUG
         Logger.Info(
-            $"[AP] GateReturnEnforcer: DEBUG — enforcement suppressed (would return to " +
-            (_hasSafePosition ? $"{_lastSafePosition}" : "spawn fallback") + ")");
+            $"[AP] GateReturnEnforcer: DEBUG — enforcement suppressed " +
+            $"(forceSpawn={_forceSpawnReset}, would return to " +
+            (_hasSafePosition && !_forceSpawnReset ? $"{_lastSafePosition}" : "spawn fallback") + ")");
         ClearPending();
-        return;
-#endif
-
+#else
         // Return the player to where they came from via the KCC motor.
-        if (_hasSafePosition)
+        // Skipped when _forceSpawnReset is set: the safe position is inside a zone the player
+        // isn't allowed to be in (e.g. PB for the EV-from-PB path), so sending them back there
+        // would restart the same illegal transition.
+        if (_hasSafePosition && !_forceSpawnReset)
         {
             var motor = playerGo
                 .GetComponent<Il2CppMonomiPark.SlimeRancher.Player.CharacterController.SRCharacterController>()
@@ -190,6 +219,7 @@ public static class GateReturnEnforcer
         network.Teleport_ResetPlayer(teleportable);
         Logger.Info("[AP] GateReturnEnforcer: fallback reset to Rainbow Fields spawn");
         ClearPending();
+#endif
     }
 
     /// <summary>
@@ -200,8 +230,9 @@ public static class GateReturnEnforcer
 
     private static void ClearPending()
     {
-        _returnLocId    = -1;
-        _returnAt       = -1f;
-        _isPBEntryBlock = false;
+        _returnLocId     = -1;
+        _returnAt        = -1f;
+        _isPBEntryBlock  = false;
+        _forceSpawnReset = false;
     }
 }

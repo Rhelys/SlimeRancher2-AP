@@ -208,6 +208,8 @@ internal static class AccessDoorPurchasePatch
 
         Plugin.Instance.ApClient.SendCheck(locInfo.Id);
         Logger.Info($"[AP] Conservatory expansion check sent: {locInfo.Name} (door='{doorId}')");
+        // If the AP item for this door already arrived before the check was sent, open the door now.
+        Archipelago.ItemHandler.TriggerPendingDoorUnlock(doorId);
         return false; // block original — no Newbucks spent, door stays locked until AP item received
     }
 }

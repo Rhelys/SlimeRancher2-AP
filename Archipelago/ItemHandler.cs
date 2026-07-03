@@ -332,6 +332,13 @@ public static class ItemHandler
             $"[AP] Region '{item.Name}' unlocked — press the gate button ('{switchName}') to open it.");
     }
 
+    // Doors where the AP item arrived before the player sent the check (pressed the terminal).
+    // Keyed by doorId → (itemName, itemIndex). The door must NOT be opened until the check is
+    // sent — otherwise OnInteract sees it's already OPEN and skips the purchase dialog.
+    // Populated by ApplyConservatoryExpansion when IsChecked == false.
+    // Consumed by TriggerPendingDoorUnlock (called from AccessDoorPurchasePatch after SendCheck).
+    private static readonly Dictionary<string, (string itemName, int itemIndex)> _pendingDoorUnlocks = new();
+
     // Doors that couldn't be opened yet because their sub-scene wasn't loaded.
     // Tick() polls these every few seconds until the door appears.
     private static readonly List<(string doorId, string itemName, int itemIndex)> _pendingExpansions = new();
@@ -363,6 +370,31 @@ public static class ItemHandler
     }
 
     /// <summary>
+    /// Called from <c>AccessDoorPurchasePatch</c> immediately after the check is sent.
+    /// If the AP item for this door arrived before the check was sent, this opens the door
+    /// and advances the watermark now that the ordering constraint is satisfied.
+    /// </summary>
+    internal static void TriggerPendingDoorUnlock(string doorId)
+    {
+        if (!_pendingDoorUnlocks.TryGetValue(doorId, out var pending)) return;
+        _pendingDoorUnlocks.Remove(doorId);
+
+        var door = Resources.FindObjectsOfTypeAll<AccessDoor>()
+                             .FirstOrDefault(d => d._id == doorId);
+        if (door == null)
+        {
+            // Sub-scene not loaded — promote to the normal deferred-open queue.
+            if (!_pendingExpansions.Exists(e => e.doorId == doorId))
+                _pendingExpansions.Add((doorId, pending.itemName, pending.itemIndex));
+            Logger.Info($"[AP] TriggerPendingDoorUnlock: door '{doorId}' not in scene — promoted to expansion poll");
+            return;
+        }
+
+        OpenDoor(door, doorId, pending.itemName);
+        Plugin.Instance.SaveManager.UpdateLastItemIndex(pending.itemIndex);
+    }
+
+    /// <summary>
     /// Opens the Conservatory expansion door corresponding to the received AP item.
     /// Returns false (without advancing watermark) when the door's sub-scene isn't loaded
     /// yet — the door is added to the pending list so TickExpansionDoors() retries each frame.
@@ -378,6 +410,26 @@ public static class ItemHandler
 
         Notify($"Received: {item.Name}");
 
+        // Look up the AP location so we can check whether the player already pressed the terminal.
+        if (!Data.LocationTable.TryGetByObjectName(doorId, out var locInfo) || locInfo == null)
+        {
+            Logger.Warning($"[AP] ApplyConservatoryExpansion: no LocationTable entry for door '{doorId}' — opening immediately.");
+            goto openNow;
+        }
+
+        // If the check hasn't been sent yet, the player hasn't pressed the terminal.
+        // Opening the door now would cause OnInteract to bail out (door already OPEN),
+        // so the purchase dialog would never show and the check would never be sent.
+        // Queue this door and let TriggerPendingDoorUnlock handle it after the check is sent.
+        if (!Plugin.Instance.SaveManager.IsChecked(locInfo.Id))
+        {
+            if (!_pendingDoorUnlocks.ContainsKey(doorId))
+                _pendingDoorUnlocks[doorId] = (item.Name, itemIndex);
+            Logger.Info($"[AP] Expansion '{item.Name}' received before terminal check — door '{doorId}' held until check is sent.");
+            return false; // watermark NOT advanced — TriggerPendingDoorUnlock will advance it
+        }
+
+        openNow:
         var door = Resources.FindObjectsOfTypeAll<AccessDoor>()
                              .FirstOrDefault(d => d._id == doorId);
         if (door == null)

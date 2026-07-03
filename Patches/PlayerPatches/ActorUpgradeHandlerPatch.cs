@@ -1,5 +1,6 @@
 ﻿using HarmonyLib;
 using Il2CppMonomiPark.SlimeRancher.DataModel;
+using Il2CppMonomiPark.SlimeRancher.Event.Query;
 using SlimeRancher2AP.Archipelago;
 using SlimeRancher2AP.Data;
 using SlimeRancher2AP.Patches.LocationPatches;
@@ -167,13 +168,35 @@ internal static class UpgradeModelGetLevelPatch
         if (FabricatorPatch.CraftingUpgradeName == upgradeName)
             checkedCount++;
 
-        // Floor at the actual model level so AP-granted upgrades (received without crafting at
-        // the Fabricator) are still visible to game logic such as
-        // PlayerUpgradeObtainedQueryComponent.IsSatisfied (which fires for the Prismacore fight).
-        // Without this, checkedCount=0 for an AP-granted Water Tank returns level=-1, causing
-        // Gigi to block the final fight even though the player has the upgrade.
-        int modelLevel = ItemHandler.GetTrackedLevel(upgradeName);
-        __result = System.Math.Max(checkedCount - 1, modelLevel);
+        // Return pure checked count, independent of the AP-granted model level.
+        // PlayerUpgradeObtainedQueryComponent.IsSatisfied (Prismacore fight prereq) is patched
+        // separately to use ItemHandler.GetTrackedLevel so it isn't affected by this change.
+        __result = checkedCount - 1;
+        return false;
+    }
+}
+
+/// <summary>
+/// Ensures <c>PlayerUpgradeObtainedQueryComponent.IsSatisfied</c> uses the actual AP-granted
+/// model level rather than the Fabricator checked count.
+/// </summary>
+/// <remarks>
+/// When <c>randomize_fabricator</c> is on, <see cref="UpgradeModelGetLevelPatch"/> returns
+/// <c>checkedCount - 1</c> from <c>UpgradeModel.GetUpgradeLevel</c>.  For an AP-granted upgrade
+/// that hasn't been crafted at the Fabricator (checkedCount = 0), that returns −1, which would
+/// cause prerequisite checks like the Prismacore fight to consider the upgrade absent even though
+/// the player physically has it.  This patch bypasses the override for that specific query by
+/// reading <c>ItemHandler.GetTrackedLevel</c> — the actual in-model level — directly.
+/// </remarks>
+[HarmonyPatch(typeof(PlayerUpgradeObtainedQueryComponent), "IsSatisfied")]
+internal static class UpgradeObtainedQueryPatch
+{
+    private static bool Prefix(PlayerUpgradeObtainedQueryComponent __instance, ref bool __result)
+    {
+        if (!FabricatorPatch.IsEnabled) return true;
+        var def = __instance._upgradeDefinition;
+        if (def == null || string.IsNullOrEmpty(def.name)) return true;
+        __result = ItemHandler.GetTrackedLevel(def.name) >= __instance._requiredLevel;
         return false;
     }
 }
