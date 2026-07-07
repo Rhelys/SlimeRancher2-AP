@@ -309,6 +309,33 @@ public class DebugPanel : MonoBehaviour
 
         GUI.color = Color.white;
 
+        y = SectionLabel(x, y, "Plort Market (debug)");
+        GUI.color = new Color(1f, 0.4f, 0.4f);
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Saturate Market (max saturation / min prices)"))
+        {
+            if (!SlimeRancher2AP.Patches.EconomyPatches.PlortMarketPatch.DebugForceSaturate())
+                Logger.Warning("[AP-Debug] Market: PlortEconomyDirector not ready — load into a game first.");
+        }
+        y += BtnH + Gap;
+
+        GUI.color = new Color(0.4f, 0.8f, 1f);
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Apply 20% Market Recovery"))
+        {
+            if (!SlimeRancher2AP.Patches.EconomyPatches.PlortMarketPatch.ApplyRecovery(0.20f))
+                Logger.Warning("[AP-Debug] Market: PlortEconomyDirector not ready — load into a game first.");
+        }
+        y += BtnH + Gap;
+
+        GUI.color = new Color(0.4f, 0.8f, 1f);
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Apply 10% Market Recovery"))
+        {
+            if (!SlimeRancher2AP.Patches.EconomyPatches.PlortMarketPatch.ApplyRecovery(0.10f))
+                Logger.Warning("[AP-Debug] Market: PlortEconomyDirector not ready — load into a game first.");
+        }
+        y += BtnH + Gap;
+
+        GUI.color = Color.white;
+
         y = SectionLabel(x, y, "DeathLink");
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Kill Player (DeathLink)"))
             DeathLinkHandler.KillPlayer();

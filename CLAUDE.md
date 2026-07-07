@@ -84,37 +84,70 @@ ApUpdateBehaviour           ← Injected MonoBehaviour for per-frame queue proce
 
 ---
 
+## Companion apworld — the source of truth
+
+The Python apworld lives in the sibling repo:
+`C:\Users\qlver\Documents\GitHub\Archipelago-SR2\worlds\slime_rancher_2\`
+
+**It is the authoritative spec for item IDs/names (`items.py`), location IDs/names
+(`locations.py`), option keys and semantics (`options.py`), and slot data keys
+(`fill_slot_data()` in `__init__.py`).** When checking intended behaviour, grep the apworld
+first — do not rely on this file's quick-reference tables or on memory. The old
+`APWORLD_DESIGN.md` planning document has been removed; it predated the implementation and
+had drifted from it.
+
+---
+
 ## Location / Item ID Scheme
 
-Base offset: **819000** — must match the companion Python `.apworld` exactly.
+Base offset: **819000** — the mod's `ItemTable.cs` / `LocationConstants.cs` /
+`LocationTable.cs` must match the apworld exactly. Item IDs and location IDs are
+**independent namespaces** in Archipelago — the same number can be both (e.g. 819630 is
+the "The Gully Access" item AND the "Slimepedia: Carrot" location).
 
-See **`APWORLD_DESIGN.md`** for the full authoritative ID table, goal definitions, and location category design. The ranges below are a quick reference only.
+Quick reference only — verify against the apworld before relying on a range.
+
+**Location IDs:**
 
 | Range | Category |
 |---|---|
-| 819000–819199 | Treasure Pods |
-| 819200–819249 | Shadow Plort Doors (Grey Labyrinth) |
-| 819250–819299 | Gordo Slimes |
-| 819300–819349 | Map Data Nodes |
-| 819350–819399 | Slimepedia Entries |
-| 819400–819449 | Fabricator — Vacpack Upgrade crafts |
-| 819450–819479 | Research Drones |
-| 819480–819494 | Ghostly Drones |
-| 819500–819509 | Region Access items |
-| 819510 | Special Access (Radiant Projector Blueprint) |
-| 819511–819514 | Crafting Components I (Archive Key Component, Sureshot Module, Tank Liner, Heart Cell) |
-| 819515–819529 | Progressive Vacpack Upgrades |
-| 819530–819536 | Crafting Components II (Power Chip, Dash Boot Module, Jetpack Drive, Storage Cell, Shadow Sureshot Module, Injector Module, Regen Module) |
-| 819537–819539 | Reserved |
-| 819540–819579 | Gadgets |
-| 819580–819609 | Filler (Newbucks / Plort / Craft Caches) |
-| 819610–819611 | Filler — Slime Ring, Weather Change |
-| 819612–819629 | Traps |
-| 819630–819699 | Reserved |
-| 819700–819714 | Conversations — Key Gifts (NPC functional gadgets) |
+| 819000–819131 | Treasure Pods (113) |
+| 819200–819224 | Shadow Plort Doors (25, Grey Labyrinth) |
+| 819250–819267 | Gordo Slimes (17; 819251 unused) |
+| 819300–819316 | Map Data Nodes (17) |
+| 819350–819378 | Slimepedia — Slimes (29) |
+| 819400–819437 | Fabricator — Vacpack Upgrade crafts (38) |
+| 819450–819472 | Research Drones (23) |
+| 819473–819479, 819490–819495 | Research Drone Archives (13) |
+| 819480–819489 | Ghostly Drones (10) |
+| 819630–819683 | Slimepedia — Resources (54) |
+| 819700–819716 | Conversations — Key Gifts + Intro Calls |
 | 819715–819762 | Conversations — Deco Gifts (decorative blueprints) |
 | 819763–819816 | Conversations — Non-Gifts (story, deflect, Gigi) |
-| 819817–819819 | Conversations — NPC Intro Calls (Thora/Ogden/Mochi) |
+| 819817–819820 | Conversations — NPC Intro Calls (Thora/Ogden/Mochi/BOb) |
+| 819821–819842 | Radiant Slimepedia (22) |
+| 819843–819845 | Region Gate Switches (3, locations/bundled mode) |
+| 819847–819874 | Plort Doors (28) |
+| 819875–819879 | Conservatory Expansion terminals (5) |
+| 819896–819920 | Plort Market (25) |
+
+**Item IDs:**
+
+| Range | Category |
+|---|---|
+| 819500–819502 | Region Access |
+| 819510 | Radiant Projector Blueprint |
+| 819511–819514, 819530–819536 | Crafting Components |
+| 819515–819529 | Progressive Vacpack Upgrades |
+| 819537 | Drone Station Module (×19, with ghostly drones) |
+| 819540–819557 | Gadgets (zone/home teleporters, warp depots, functional) |
+| 819558–819560 | Gadgets — Dash Pad, Spring Pad, Portable Water Tap (always in pool) |
+| 819561 | Disruption Detector (×3, prismacore/slimepedia goals) |
+| 819580–819605 | Filler (Newbucks / Plort / Craft Caches) |
+| 819610–819611 | Slime Ring (filler), Weather Change (useful) |
+| 819612–819616 | Traps (Tarr Spawn, Teleport, Tarr Rain, Vac Spew, Vac Fill) |
+| 819630–819634 | Conservatory Expansion Access |
+| 819635–819636 | Market Recovery (plort_market_mode — apworld WIP) |
 
 ---
 
@@ -192,9 +225,17 @@ Grant via: `SceneContext.Instance.GadgetDirector.AddBlueprint(gadgetDef, false)`
 
 ### Region Gates
 
-- Gate method: `WorldStatePrimarySwitch.SetStateForAll(SwitchHandler.State.DOWN, true)`
-  - Note: method is `SetStateForAll`, NOT `SetState` (which does not exist)
-- Gate patch: Prefix on `SetStateForAll` returns false (blocks original) unless `ApSaveManager.IsRegionUnlocked(switchName)`
+- EV / SS gates: `WorldStatePrimarySwitch` buttons in `zoneFields` (`ruinSwitch` / `ruinSwitch (2)`).
+  Patched via **`RegionGateActivatePatch`** — Prefix on `WorldStatePrimarySwitch.Activate()`
+  blocks the press (and sends the location check) while the region is locked, keeping
+  `_switchEnabled` untouched so the button stays pressable. The old `SetStateForAll` patch was
+  removed — its native prologue changed in the 5/13/2026 game update and crashed the trampoline.
+- PB gate: a `PuzzleSlotLockable` plort door (`RegionTable.PBGatePosKey`), NOT a
+  `WorldStatePrimarySwitch`. Opened from native code, so no Harmony patch fires —
+  **`PlortDoorPoller`** polls `ShouldUnlock()` from the Update loop; unauthorized entry is
+  reverted by **`GateReturnEnforcer`**.
+- Labyrinth entrances: beam puzzles → `WorldStateInvisibleSwitch.SetStateForAll` —
+  observed via **`InvisibleSwitchPatch`** (safe to patch; fires repeatedly while a beam is active).
 - Find switches: `Resources.FindObjectsOfTypeAll<WorldStatePrimarySwitch>()`
 
 ### Harmony Patch Rules
@@ -214,7 +255,9 @@ Grant via: `SceneContext.Instance.GadgetDirector.AddBlueprint(gadgetDef, false)`
 
 ### Map Nodes
 
-- Patch: `MapNodeActivator.Activate()` Postfix (confirmed class name from decompile)
+- Patch: `MapNodeActivator.SendMapNodeUnlockedAnalyticsEvent()` Postfix — fires only on genuine
+  new discoveries, not during scene-state restore. The old `Activate()` patch was removed
+  (CallerCount(0)/virtual; prologue changed in the 5/13/2026 update and crashed the trampoline).
 
 ---
 
@@ -235,79 +278,81 @@ The apworld sends a goal option via slot data. The mod reads this on connect and
 appropriate win condition detector. When the condition is met, the mod calls
 `session.SetGoalAchieved()`. All detectors live in `Archipelago/GoalHandler.cs`.
 
+The four goal keys (from `options.py` `Goal.current_key`, sent verbatim in slot data):
+
 | Goal | Slot Data Value | Mod Detection Method |
 |---|---|---|
-| Open Grey Labyrinth | `"labyrinth_open"` | ✅ **Verified in-game.** `InvisibleSwitchPatch` on `energyBeamReceiver` fires for `zoneStrandLabyrinthGate` and `zoneGorgeGateTransfer`; both must go DOWN. Goal fires correctly after both beams are solved. |
-| Newbucks Milestone | `"newbucks"` | ✅ **Implemented, untested.** Polls `PlayerState.GetCurrency(newbucksCurrency)` each frame (in `ApUpdateBehaviour.Update`) against threshold from slot data (`newbucks_goal_amount`). |
-| Enter Prismacore | `"prismacore_enter"` | ✅ **Implemented, untested.** Detects player entering the Prismacore scene group. |
-| Stabilize Prismacore | `"prismacore_stabilize"` | ⚠️ **Detection class TBD** — needs ILSpy research to identify the story completion event/method. |
+| Open Grey Labyrinth | `"labyrinth_open"` | ✅ **Verified in-game.** `InvisibleSwitchPatch` on `energyBeamReceiver` fires for `zoneStrandLabyrinthGate` and `zoneGorgeGateTransfer`; both must go DOWN. Note: progress is in-memory only — both switches must report DOWN within one connected session. |
+| Newbucks Milestone | `"newbucks"` | ✅ **Implemented, untested in-game.** `PlayerStateAddCurrencyPatch` accumulates every positive Newbucks `AddCurrency` into the persisted `ApSaveManager.NewbucksEarned` counter (the game's own `AmountEverCollected` is vestigial and never updated); `GoalHandler.Tick()` polls it against `newbucks_goal_amount`. |
+| Stabilize Prismacore | `"prismacore"` | ✅ **Implemented, untested in-game.** `CoreRoomControllerPatch` Postfix on `CoreRoomController.UpdateState` fires the goal on `POST_FIGHT` (boss complete, core stabilized). `PRE_FIGHT` fires on scene load and is ignored. |
+| Complete the Slimepedia | `"slimepedia"` | ✅ **Implemented, untested in-game.** `GoalHandler.Tick()` polls the Slimes / Resources / Radiant Slimes `PediaRuntimeCategory` groups — only categories enabled by the `randomize_slimepedia*` options count, and entries excluded by `disable_tarr` / `exclude_rng_slimes` / `exclude_weather_checks` are skipped (matching the apworld's location-pool exclusions). |
 
-Slot data key: `"goal"` — read in `SlotData.cs` and stored as `ApSaveManager.Goal`.
+Slot data key: `"goal"` — parsed in `SlotData.cs` (`SlotData.Goal`).
 
 ---
 
-## Drone Patches (mod side)
+## Drone & Door Detection (mod side)
 
-### Research Drones (~23, narrative/lore drones) ✅
-- **Patch file**: `ResearchDronePatch.cs` + `ResearchDroneArchivePatch.cs`
-- **What**: Gigi's journal drones; player approaches to trigger a dialogue log
-- **Check sent when**: Player first activates a Research Drone
-- **Patch class**: `ResearchDroneActivator` (`MonomiPark.SlimeRancher.World.ResearchDrone` namespace, in `Assembly-CSharp.dll`)
-- **Patch method**: `ResearchDroneActivator.OnInteract()` — Postfix
-- **Get drone identity from**: `__instance._researchDroneController.ResearchDroneEntry` (a `ResearchDroneEntry` asset with a stable name/ID)
-- **Dedup**: `ResearchDroneController._model` tracks whether it has been activated — check `_state == DroneState.ACTIVATED` or model already activated before sending check
-- **Lookup**: `ResearchDroneEntry` asset name → `LocationTable`
-- **Location IDs**: 819450–819479
-- **Using**: `Il2CppMonomiPark.SlimeRancher.World.ResearchDrone`
+Several natural Harmony targets became unsafe after the 5/13/2026 game update (native
+prologues changed → trampoline crashes), so some detection is done by **polling** from
+`ApUpdateBehaviour.Update()` instead of patching.
+
+### Research Drones (23, narrative/lore drones) ✅
+- **File**: `ResearchDronePatch.cs` — **polling, no Harmony patch.**
+  `ResearchDroneActivator.OnInteract()` and `ActivateDrone()` are both CallerCount(0) and
+  crash the trampoline since 5/13; `WakeDrone()` fires on proximity, not interaction.
+- **How**: every ~60 frames, scan `ResourceFindObjectsOfTypeAll<ResearchDroneController>()`
+  and send a check for any controller with `_state == DroneState.ACTIVATED`.
+  `SendCheck` idempotency is the dedup.
+- **Identity**: `_researchDroneEntry.name` (stable asset name) → `LocationTable`
+- **Location IDs**: 819450–819472
+
+### Research Drone Archives (13) ✅
+- **File**: `ResearchDroneArchivePatch.cs` — Postfix on `ResearchDroneUI.ToggleArchive`;
+  sends a check when the player first opens a drone's archive page (needs Drone Archive Key).
+- **Identity**: `mainEntry.archivedEntry.name` → `LocationTable`
+- **Location IDs**: 819473–819479, 819490–819495
 
 ### Ghostly Drones (10, collectible drones) ✅
-- **Patch file**: `TreasurePodPatch.cs` (`TreasurePodActivatePatch`)
-- **What**: Flying mechanical drone nodes (`nodeComponentAcqDrone`) that extend `TreasurePod` and call `Activate()` directly — do NOT use `TreasurePodUIInteractable`.
-- **Check sent when**: Player interacts with the drone node, triggering `TreasurePod.Activate()`
-- **Filter**: `gameObject.name.StartsWith("node")` — separates these from regular treasure pods in the same patch
-- **Lookup**: posKey via `WorldUtils.PositionKey()` → `LocationTable` (same as treasure pods)
-- **Location IDs**: 819480–819494
-- **Note**: The original plan was a separate `ComponentAcquisitionDroneUIInteractable` patch, but in practice these nodes use the `TreasurePod.Activate()` path and are fully covered by the existing pod patch.
+- **File**: `TreasurePodPatch.cs` (`TreasurePodActivatePatch`)
+- **What**: Flying drone nodes (`nodeComponentAcqDrone`) that extend `TreasurePod` and call
+  `Activate()` directly — they do NOT use `TreasurePodUIInteractable`.
+- **Filter**: `gameObject.name.StartsWith("node")` separates them from regular pods.
+- **Lookup**: posKey via `WorldUtils.PositionKey()` → `LocationTable`
+- **Location IDs**: 819480–819489
+- **Spawner fix**: `ComponentAcqDroneSpawnerFix.ForceSpawnAll()` (retried every 3 s for 60 s
+  after each scene change from `ApUpdateBehaviour`) force-spawns uncollected drones whose
+  vanilla spawn query waits on a WorldSwitch that AP region blocking prevents.
 
 ### Shadow Plort Doors (25, Grey Labyrinth) ✅
-- **Patch file**: `PlortDepositorPatch.cs`
-- **What**: Doors in the Grey Labyrinth opened by depositing Shadow Plorts
-- **Check sent when**: Door fully fills and opens
-- **Patch class**: `PlortDepositor` (root namespace, in `Assembly-CSharp.dll`)
-- **Patch method**: `PlortDepositor.ActivateOnFill()` — Postfix (fires exactly once when fill completes and the door activates)
-- **Get door identity from**: posKey via `WorldUtils.PositionKey()` — all doors share a generic `gameObject.name` so position is used
-- **Lookup**: posKey → `LocationTable` (Shadow Plort Door section)
-- **Location IDs**: 819200–819249
-- **Filter**: `__instance._catchIdentifiableType.name == "ShadowPlort"` — prevents false triggers on other plort locks (e.g. Gordo reward doors)
+- **File**: `PuzzleDoorLockPatch.cs` (`PuzzleSlotLockableActivatePatch`)
+- **How**: Prefix on `PuzzleSlotLockable.ActivateOnUnlock` — shadow doors have a managed
+  caller path so this fires reliably for them. (The old `PlortDepositor.ActivateOnFill` /
+  `OnTriggerEnter` patches were removed — stack overflow / trampoline crashes; see the note
+  in `PlortDepositorPatch.cs`.)
+- **Identity**: posKey via `WorldUtils.PositionKey()` — door object names are not unique.
+- **Location IDs**: 819200–819224
+
+### Plort Doors (28) + PB Region Gate ✅
+- **File**: `Archipelago/PlortDoorPoller.cs` — **polling.** These doors (and the PB gate)
+  are opened from native code, bypassing the `ActivateOnUnlock` patch; the poller checks
+  `ShouldUnlock()` on tracked `PuzzleSlotLockable` instances once per second.
+- **Location IDs**: 819847–819874 (plort doors), 819845 (PB region gate)
 
 ---
 
 ## Stubs / Known Incomplete Work
 
-Items still genuinely incomplete. Everything else previously listed here is done.
+Items still genuinely incomplete (history of completed work lives in git, not here):
 
 | Area | Status |
 |---|---|
-| `prismacore_stabilize` goal | Story completion detection class still TBD — needs ILSpy research to identify the event/method to patch. |
-| `newbucks` + `prismacore_enter` goals | ✅ Implemented in `GoalHandler.cs` — **untested in-game**. |
-| Fabricator upgrade names | A handful of `UpgradeDefinition.name` values in `LocationTable.cs` are educated guesses: `AmmoCapacity`, `TankGuard`, `GoldenSureshot`, `ShadowSureshot`, `ArchiveKey`, `EnergyDelay`, `EnergyRegen`. Need verification via `DumpUpgradeComponents` in the debug panel. |
-| `Patches/UiPatches/MainMenuPatch.cs` | Stub — `MainMenuUI` class/method TBD; "Archipelago" connect button is currently in `StatusHUD.OnGUI()` as a workaround. Cosmetic — does not affect functionality. |
-
-### Previously incomplete — now done ✅
-
-| Area | Notes |
-|---|---|
-| `Data/LocationTable.cs` GameObjectName values | All posKeys confirmed via in-game AP-Dump across all zones. |
-| Shadow Plort Doors patch | ✅ `PlortDepositorPatch.cs` — `PlortDepositor.ActivateOnFill()` Postfix, filters on `ShadowPlort`. |
-| Research Drone patch | ✅ `ResearchDronePatch.cs` + `ResearchDroneArchivePatch.cs` — identity via `ResearchDroneEntry` asset name. |
-| Ghostly Drone patch | ✅ Handled in `TreasurePodPatch.cs` (`TreasurePodActivatePatch`) — ghostly drone nodes extend `TreasurePod` and call `Activate()` directly; filtered by `gameObject.name.StartsWith("node")`. |
-| Slimepedia patch | ✅ `SlimepediaPatch.cs` — covers `SlimepediaEntry`, `SlimepediaResourceEntry`, and `SlimepediaRadiantEntry` via two Harmony patches on `PediaDirector.Unlock`. |
-| Fabricator craft checks | ✅ `FabricatorPatch.cs` implemented. |
-| Trap effects | ✅ All 4 traps in `TrapHandler` (Slime Rain, Tarr Spawn, Teleport, Weather Change). |
-| apworld (Python) | ✅ `worlds\slime_rancher_2` in companion Archipelago fork (`Archipelago-SR2`). |
-| `labyrinth_open` goal | ✅ Verified in-game. |
-| Grey Labyrinth region gate | ✅ Labyrinth entrances handled via `InvisibleSwitchPatch` on `energyBeamReceiver` (light-beam puzzles), not `WorldStatePrimarySwitch`. |
-| Radiant Slimepedia locations | ✅ 22 entries (819821–819842) confirmed via `DumpRadiantSlimes()`; spawn rate multiplier patch in `RadiantSlimePatch.cs`. |
+| Plort Market / Market Recovery | Implemented mod-side: first-sale checks in `PlortMarketPatch`; saturation, sale-override, immediate price refresh, and declarative Market Recovery in `PlortMarketModePatch`. In-development warnings removed from the apworld `options.py` (2026-07-06) to allow full testing — **in-game verification still in progress**. |
+| Unverified gadget asset names | `GadgetDefinition.name` guesses marked `(?)` in `ItemHandler.SimpleGadgets`: `MarketLink`, `SuperHydroTurret`, `PortableScareSlime`, `GordoSnareAdvanced`, `MedStation`. Verify via F9 → DumpGadgets; a wrong name logs "not found" instead of granting. (`DashPad`, `SpringPad`, `PortableWaterTap`, `PrismaDisruptionDetector`, `DreamLanternT2` are confirmed.) |
+| Unverified upgrade names | A handful of `UpgradeDefinition.name` values are educated guesses: `AmmoCapacity`, `TankGuard`, `GoldenSureshot`, `ShadowSureshot`, `ArchiveKey`, `EnergyDelay`, `EnergyRegen`. Verify via `DumpUpgradeComponents` in the debug panel. |
+| Goal testing | `newbucks`, `prismacore`, and `slimepedia` goal detectors are implemented but **untested in-game** (`labyrinth_open` is verified). |
+| `labyrinth_open` cross-session progress | Switch-open state is in-memory only; both beam gates must report DOWN within one connected session unless scene restore re-fires `SetStateForAll` (unverified). |
+| `Patches/UiPatches/MainMenuPatch.cs` | Stub — `MainMenuUI` class/method TBD; the "Archipelago" connect entry lives in Options → Archipelago instead. Cosmetic — does not affect functionality. |
 
 ---
 
