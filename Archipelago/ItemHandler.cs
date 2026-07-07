@@ -1034,6 +1034,20 @@ public static class ItemHandler
         if (item.Id == ItemTable.WeatherChange)
             return TrapHandler.Schedule(item.Id, apItem, itemIndex);
 
+        // Market Recovery — recomputes the declarative market saturation target from the
+        // total count of recovery items received (the snapshot already includes this one).
+        // Requeued when the market objects aren't ready yet (scene loading).
+        if (item.Id is ItemTable.MarketRecovery20 or ItemTable.MarketRecovery10)
+        {
+            if (!Patches.EconomyPatches.PlortMarketModePatch.ApplyRecovery())
+            {
+                if (apItem != null) Plugin.Instance.ApClient.RequeueItem(apItem, itemIndex);
+                return false;
+            }
+            Notify($"Received: {item.Name}");
+            return true;
+        }
+
         Logger.Warning($"[AP] Unhandled useful item ID: {item.Id}");
         return true;
     }
