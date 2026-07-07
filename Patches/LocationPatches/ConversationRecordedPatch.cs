@@ -46,6 +46,11 @@ internal static class ConversationRecordedPatch
     {
         if (!Plugin.Instance.ModEnabled) return;
 
+        // The conversation just completed — the UI tears down a frame or two from now.
+        // Kill any still-running award tweens (gift-page shake) before their target
+        // Transforms are destroyed, or DOTween spams null-target warnings after close.
+        ConversationActiveTrackerPatch.KillConversationTweens("RecordPlayed");
+
         // Always log at Info so we can see the conversation name and hasBeenPlayed state.
         var debugName = __instance.GetDebugName() ?? "";
         Logger.Info(

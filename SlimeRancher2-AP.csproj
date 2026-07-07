@@ -96,6 +96,11 @@
       <HintPath>$(LibsDir)Unity.InputSystem.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <!-- DOTween — used to kill lingering CommStation award tweens on conversation close -->
+    <Reference Include="DOTween">
+      <HintPath>$(LibsDir)DOTween.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <!-- Unity Localization — provides LocalizeStringEvent used by FabricatorItemDetails -->
     <Reference Include="Unity.Localization">
       <HintPath>$(LibsDir)Unity.Localization.dll</HintPath>
