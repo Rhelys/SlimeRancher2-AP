@@ -66,10 +66,15 @@ public class ArchipelagoClient
     // Also readable from ApSaveManager for offline sessions.
     private Dictionary<long, ScoutedItemInfo>? _liveScoutCache;
 
-    // Actions that must run on the Unity main thread after a successful login.
-    // Set on the network thread, consumed by ProcessItemQueue on the main thread.
-    // Volatile so the main thread always sees the latest write without a full lock.
-    private volatile Action? _pendingMainThreadAction;
+    // Actions that must run on the Unity main thread: the post-login init and ALL UI event
+    // callbacks (OnConnected / OnConnectionFailed / OnDisconnected — their handlers touch
+    // TMP_Text and other Unity APIs that are not thread-safe).
+    // Producers: the connection Task and the socket-closed callback (network threads).
+    // Consumer: ProcessItemQueue (main thread), which drains this queue every frame BEFORE
+    // the connection/session guards so failure and disconnect notifications still fire
+    // while offline. ConcurrentQueue provides the happens-before ordering the old volatile
+    // single-slot field relied on.
+    private readonly System.Collections.Concurrent.ConcurrentQueue<Action> _mainThreadActions = new();
 
 // When true, ProcessItemQueue will run ValidateAndRepairUpgrades() once as soon as
     // UpgradeHandler is non-null (i.e., the scene has loaded far enough).  Set on every
@@ -109,7 +114,8 @@ public class ArchipelagoClient
                 Session.Socket.SocketClosed += reason =>
                 {
                     Logger.Warning($"[AP] Disconnected: {reason}");
-                    OnDisconnected?.Invoke();
+                    // Fires on the socket thread — handlers touch Unity UI, so defer.
+                    _mainThreadActions.Enqueue(() => OnDisconnected?.Invoke());
                 };
 
                 var result = Session.TryConnectAndLogin(
@@ -198,8 +204,9 @@ public class ArchipelagoClient
                             enqueued++;
                         }
 
-                        // Re-queue any trap items that were rate-limited (deferred) last session
-                        // and whose watermark has already advanced past their index.
+                        // Re-queue any items that were deferred last session (rate-limited traps,
+                        // held conservatory expansions) and whose watermark has already advanced
+                        // past their index.
                         //
                         // Scenario: trap at idx=6 was deferred; live item at idx=7 was applied
                         // (advancing the watermark to 7); then the game disconnected before the
@@ -208,11 +215,21 @@ public class ArchipelagoClient
                         //
                         // We only need to re-queue deferred items at or below savedWatermark;
                         // those above the watermark are already handled by the replay loop above.
-                        var pendingDeferred = Plugin.Instance.SaveManager.GetPendingDeferredTraps();
+                        // Indices outside the server history (e.g. debug-panel grants that used
+                        // the internal 9000+ counter) are stale — prune them from the set.
+                        var pendingDeferred = Plugin.Instance.SaveManager.GetPendingDeferredItems();
                         int deferredRequeued = 0;
-                        foreach (var deferredIdx in pendingDeferred)
+                        foreach (var deferredIdx in pendingDeferred.ToList())
                         {
-                            if (deferredIdx < snapshot.Count && deferredIdx <= savedWatermark)
+                            if (deferredIdx < 0 || deferredIdx >= snapshot.Count)
+                            {
+                                Logger.Warning(
+                                    $"[AP] Deferred item idx={deferredIdx} is outside server history " +
+                                    $"({snapshot.Count} item(s)) — pruning stale entry.");
+                                Plugin.Instance.SaveManager.RemoveDeferredItem(deferredIdx);
+                                continue;
+                            }
+                            if (deferredIdx <= savedWatermark)
                             {
                                 _itemQueue.Enqueue((snapshot[deferredIdx], deferredIdx));
                                 deferredRequeued++;
@@ -220,8 +237,8 @@ public class ArchipelagoClient
                         }
                         if (deferredRequeued > 0)
                             Logger.Info(
-                                $"[AP] Re-queued {deferredRequeued} deferred trap(s) from previous session " +
-                                $"(below watermark={savedWatermark}, will fire this session).");
+                                $"[AP] Re-queued {deferredRequeued} deferred item(s) from previous session " +
+                                $"(below watermark={savedWatermark}, will apply this session).");
                         enqueued += deferredRequeued;
                     }
                     // _receivedCount stays at 0 (reset by Disconnect at the top of Connect).
@@ -256,26 +273,34 @@ public class ArchipelagoClient
                     _pendingUpgradeValidation = true;
 
                     // GoalHandler.Initialize(), WeatherPatch, and OnConnected touch Unity APIs — defer to main thread.
-                    _pendingMainThreadAction = () =>
+                    _mainThreadActions.Enqueue(() =>
                     {
                         GoalHandler.Initialize();
                         WeatherPatch.OnSlotDataReceived(); // applies WeatherFrequencyMultiplier to the persistent WeatherRegistry
+                        Patches.EconomyPatches.PlortMarketModePatch.OnSlotDataReceived(); // saturates the market when plort_market_mode is active
+                        // Bundled mode: verify every unlocked region has its zone teleporter
+                        // blueprint — heals saves where a bundled grant was lost mid-scene-load
+                        // in a previous session (the access item never replays below the watermark).
+                        ItemHandler.ScheduleBundledTeleporterValidation();
                         OnConnected?.Invoke();
-                    };
+                    });
                 }
                 else if (result is LoginFailure failure)
                 {
                     var errors = string.Join(", ", failure.Errors);
                     Logger.Error($"[AP] Login failed: {errors}");
                     // OnConnectionFailed also touches UI — defer to main thread.
-                    _pendingMainThreadAction = () => OnConnectionFailed?.Invoke(errors);
+                    _mainThreadActions.Enqueue(() => OnConnectionFailed?.Invoke(errors));
                     Session = null;
                 }
             }
             catch (Exception ex)
             {
                 Logger.Error($"[AP] Connection exception: {ex.Message}");
-                OnConnectionFailed?.Invoke(ex.Message);
+                // Running on the connection Task's thread — defer the UI callback like the
+                // LoginFailure path does (handlers set TMP_Text, which is main-thread-only).
+                var message = ex.Message;
+                _mainThreadActions.Enqueue(() => OnConnectionFailed?.Invoke(message));
                 Session = null;
             }
         });
@@ -307,14 +332,17 @@ public class ArchipelagoClient
         WeatherPatch.OnDisconnected();
         RadiantSlimeSpawnRatePatch.OnDisconnected();
         GoldLuckySpawnRatePatch.OnDisconnected();
+        Patches.EconomyPatches.PlortMarketModePatch.OnDisconnected();
         _receivedCount            = 0;
         _snapshotCount            = 0;
         _connectTimeWatermark     = -1;
-        _pendingMainThreadAction  = null;
+        while (_mainThreadActions.TryDequeue(out _)) { } // drop stale deferred actions
         _pendingUpgradeValidation = false;
         GateReturnEnforcer.Clear();
         PlortDoorPoller.Reset();
         TrapHandler.ClearDeferred();
+        ItemHandler.ResetUpgradeTracking();
+        ItemHandler.ResetRegionTeleporterRetries();
         lock (_queueLock) { _itemQueue.Clear(); }
         // Reset the save-manager session pointer so HasActiveSession returns false.
         // Without this, a reconnect would see the previous session's _saveFile as
@@ -336,8 +364,25 @@ public class ArchipelagoClient
     {
         try
         {
-            var ids = Data.LocationTable.All.Select(l => l.Id).ToArray();
-            if (ids.Length == 0) return;
+            // Only scout locations that exist in THIS seed. The local table always contains
+            // every possible location, but disabled options remove locations from the seed —
+            // scouting unknown IDs can fail the entire batch (one catch covers the whole call),
+            // silently degrading every check notification for the session.
+            var serverLocations = new HashSet<long>(session.Locations.AllLocations);
+            var ids = Data.LocationTable.All
+                          .Select(l => l.Id)
+                          .Where(serverLocations.Contains)
+                          .ToArray();
+            if (ids.Length == 0)
+            {
+                Logger.Warning(
+                    $"[AP] Scout skipped — none of the {Data.LocationTable.All.Count} known locations " +
+                    $"are present in this seed (server reports {serverLocations.Count}).");
+                return;
+            }
+            Logger.Info(
+                $"[AP] Scouting {ids.Length} location(s) present in this seed " +
+                $"(of {Data.LocationTable.All.Count} known).");
 
             var result = await session.Locations.ScoutLocationsAsync(
                 HintCreationPolicy.None, ids);
@@ -466,11 +511,18 @@ public class ArchipelagoClient
     /// </summary>
     public void ProcessItemQueue()
     {
-        // Drain the post-login action (if any) before processing items.
-        // Use Interlocked.Exchange so we see the write from the background thread and
-        // atomically clear the field so it only fires once.
-        var action = System.Threading.Interlocked.Exchange(ref _pendingMainThreadAction, null);
-        action?.Invoke();
+        // Drain deferred main-thread actions (post-login init, UI event callbacks) before the
+        // connection/session guards below — disconnect and connection-failure notifications
+        // must fire even when we are no longer connected. Each action is isolated so one
+        // throwing handler cannot swallow the rest of the queue.
+        while (_mainThreadActions.TryDequeue(out var action))
+        {
+            try { action(); }
+            catch (Exception ex)
+            {
+                Logger.Error($"[AP] Deferred main-thread action threw: {ex}");
+            }
+        }
 
         // Do not process items until the save file is open.
         //
@@ -479,10 +531,10 @@ public class ArchipelagoClient
         // completes, calls like UnlockRegion() silently no-op because _saveFile is null,
         // causing region unlocks to be lost across scene reloads.
         //
-        // The background thread always sets _saveFile BEFORE writing _pendingMainThreadAction
-        // (strong happens-before via the volatile write), so by the time the action above
-        // fires, HasActiveSession is guaranteed to be true.  Items are therefore held for at
-        // most one extra Update() frame beyond the frame the action fires — negligible.
+        // The background thread always sets _saveFile BEFORE enqueueing the post-login action
+        // (ConcurrentQueue.Enqueue provides the happens-before), so by the time the action
+        // above fires, HasActiveSession is guaranteed to be true.  Items are therefore held
+        // for at most one extra Update() frame beyond the frame the action fires — negligible.
         if (!IsConnected || !Plugin.Instance.SaveManager.HasActiveSession) return;
 
         // Don't drain the item queue until the game scene has a live Player object.
@@ -560,10 +612,16 @@ public class ArchipelagoClient
             // Using the live value caused items to be wrongly skipped when the disk watermark
             // was stale from an old AP slot (e.g. 9018) even though the sanity check had already
             // reset it to -1 so all historical items should replay.
-            // Exception: live items (idx >= _snapshotCount) were generated after login and
-            // must always be applied even if the saved watermark is stale.
-            bool isLiveItem = (entry.index >= _snapshotCount);
-            if (!isLiveItem && entry.index <= _connectTimeWatermark)
+            // Exceptions:
+            //  • live items (idx >= _snapshotCount) were generated after login and must always
+            //    be applied even if the saved watermark is stale.
+            //  • deferred items (in the persisted deferred set) were re-queued at connect time
+            //    precisely BECAUSE they sit at or below the watermark without ever having been
+            //    applied (rate-limited trap, held expansion) — skipping them here would defeat
+            //    that safety net and lose the item permanently.
+            bool isLiveItem     = (entry.index >= _snapshotCount);
+            bool isDeferredItem = Plugin.Instance.SaveManager.IsDeferredItem(entry.index);
+            if (!isLiveItem && !isDeferredItem && entry.index <= _connectTimeWatermark)
             {
                 Logger.Info(
                     $"[AP] Skipped item (secondary dedup): {entry.item.ItemName} (id={entry.item.ItemId}, idx={entry.index}, watermark={_connectTimeWatermark})");

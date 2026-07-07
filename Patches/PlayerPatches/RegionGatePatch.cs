@@ -58,7 +58,11 @@ internal static class RegionGateActivatePatch
 #endif
         __state = false;
 
-        if (!Plugin.Instance.ApClient.IsConnected) return true;
+        // Gate on the session, not the live socket: SlotData and the AP save survive a
+        // temporary disconnect, and SendCheck accumulates offline checks for the next flush.
+        // Gating on IsConnected let a briefly-offline player open locked gates for free.
+        if (!Plugin.Instance.ModEnabled || !Plugin.Instance.SaveManager.HasActiveSession)
+            return true;
 
         var teleMode = Plugin.Instance.ApClient.SlotData?.RegionAccessMode ?? "vanilla";
 
@@ -121,7 +125,8 @@ internal static class RegionGateActivatePatch
 
         // Send the location check now that the gate has actually opened.
         // Idempotent — SendCheck guards with IsChecked(). Only for locations/bundled mode.
-        var teleMode = Plugin.Instance.ApClient.IsConnected
+        // Session-based (not socket-based) so a temporary disconnect still records the check.
+        var teleMode = Plugin.Instance.SaveManager.HasActiveSession
             ? (Plugin.Instance.ApClient.SlotData?.RegionAccessMode ?? "vanilla")
             : "vanilla";
         if (teleMode != "vanilla" && RegionTable.TryGetLocationId(switchName, sceneName, out var locId))

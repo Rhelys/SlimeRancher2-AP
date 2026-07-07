@@ -66,7 +66,8 @@ internal static class SlimepediaPatch
 
         var slotData = Plugin.Instance.ApClient?.SlotData;
         if (slotData == null) return;
-        if (!slotData.RandomizeSlimepedia && !slotData.RandomizeSlimepediaResources) return;
+        if (!slotData.RandomizeSlimepedia && !slotData.RandomizeSlimepediaResources
+            && !slotData.RandomizeSlimepediaRadiant) return;
 
         SlimepediaPatchHelper.SendCheckForEntry(entry.name, slotData);
     }
@@ -120,7 +121,8 @@ internal static class SlimepediaIdentTypePatch
 
         var slotData = Plugin.Instance.ApClient?.SlotData;
         if (slotData == null) return;
-        if (!slotData.RandomizeSlimepedia && !slotData.RandomizeSlimepediaResources) return;
+        if (!slotData.RandomizeSlimepedia && !slotData.RandomizeSlimepediaResources
+            && !slotData.RandomizeSlimepediaRadiant) return;
 
         var entry = __instance.GetEntry(identifiableType);
         if (entry == null)

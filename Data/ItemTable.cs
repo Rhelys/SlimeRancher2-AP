@@ -88,6 +88,14 @@ public static class ItemTable
     public const long MedStation        = 819556; // MedStation        (?)
     public const long DreamLanternT2    = 819557; // DreamLanternT2    (confirmed: DreamLanternT2)
 
+    // Movement / utility gadgets — always in the apworld pool (items.py GADGET_ITEMS)
+    public const long DashPad           = 819558; // DashPad           (confirmed via DumpGadgets)
+    public const long SpringPad         = 819559; // SpringPad         (confirmed via DumpGadgets)
+    public const long PortableWaterTap  = 819560; // PortableWaterTap  (confirmed via DumpGadgets)
+
+    // Labyrinth goal gadget — in pool ×3 for prismacore/slimepedia goals (items.py)
+    public const long DisruptionDetector = 819561; // PrismaDisruptionDetector (confirmed via DumpGadgets)
+
     // Filler — Newbucks: 819580–819582
     public const long Newbucks250  = 819580;
     public const long Newbucks500  = 819581;
@@ -109,6 +117,12 @@ public static class ItemTable
     // Filler — Slime Ring & Weather Change: 819610–819611
     public const long SlimeRing     = 819610; // spawns common slimes in a ring around the player
     public const long WeatherChange = 819611; // triggers random Heavy/SlimeRain weather for 3 minutes
+
+    // Market Recovery: 819635–819636 — in pool when plort_market_mode is 5_items/10_items.
+    // Each reduces every plort's saturation by the stated fraction of its FullSaturation cap;
+    // implemented declaratively in Patches/EconomyPatches/PlortMarketModePatch.
+    public const long MarketRecovery20 = 819635; // Market Recovery (20%) ×5
+    public const long MarketRecovery10 = 819636; // Market Recovery (10%) ×10
 
     // Conservatory Expansions: 819630–819634
     // Received from AP pool; opens the corresponding AccessDoor in the Conservatory.
@@ -199,6 +213,15 @@ public static class ItemTable
         new(MedStation,         "Med Station",          ItemType.Gadget),
         new(DreamLanternT2,     "Dream Lantern T2",     ItemType.Gadget),
 
+        // Gadgets — Movement / utility (always in the apworld pool)
+        new(DashPad,            "Dash Pad",             ItemType.Gadget),
+        new(SpringPad,          "Spring Pad",           ItemType.Gadget),
+        new(PortableWaterTap,   "Portable Water Tap",   ItemType.Gadget),
+
+        // Gadgets — Labyrinth goal (×3 in pool for prismacore/slimepedia goals; duplicate
+        // receipts are skipped by GrantSingleGadget's blueprint-already-unlocked guard)
+        new(DisruptionDetector, "Disruption Detector",  ItemType.Gadget),
+
         // Conservatory Expansions
         new(ExpansionGully,     "The Gully Access",     ItemType.ConservatoryExpansion),
         new(ExpansionTidepools, "The Tidepools Access", ItemType.ConservatoryExpansion),
@@ -226,6 +249,10 @@ public static class ItemTable
 
         new(SlimeRing,     "Slime Ring",     ItemType.Filler),
         new(WeatherChange, "Weather Change", ItemType.Useful),
+
+        // Market Recovery (only in pool when plort_market_mode != disabled)
+        new(MarketRecovery20, "Market Recovery (20%)", ItemType.Useful),
+        new(MarketRecovery10, "Market Recovery (10%)", ItemType.Useful),
 
         // Traps
         new(TrapTarrSpawn,  "Tarr Spawn Trap",  ItemType.Trap),

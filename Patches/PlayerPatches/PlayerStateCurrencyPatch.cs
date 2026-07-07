@@ -30,6 +30,9 @@ internal static class PlayerStateAddCurrencyPatch
     private static void Postfix(ICurrency currencyDefinition, int adjust)
     {
         if (adjust <= 0) return;
+        // Newbucks granted BY the AP item pipeline (Newbucks filler) are not "earned" —
+        // counting them would give free goal progress for receiving your own filler items.
+        if (ItemHandler.IsGrantingCurrency) return;
         if (!Plugin.Instance.ApClient.IsConnected) return;
         if (Plugin.Instance.ApClient.SlotData?.Goal != "newbucks") return;
 

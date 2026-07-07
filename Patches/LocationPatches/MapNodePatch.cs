@@ -31,6 +31,12 @@ internal static class MapNodePatch
     {
         if (!Plugin.Instance.ModEnabled || !Plugin.Instance.SaveManager.HasActiveSession) return;
 
+        // randomize_map_nodes=false removes all map node locations from the seed — do not send
+        // checks. Only gate when slot data is available; when temporarily offline (SlotData null)
+        // the check still accumulates locally so a revealed node is never permanently lost.
+        var slotData = Plugin.Instance.ApClient.SlotData;
+        if (slotData != null && !slotData.RandomizeMapNodes) return;
+
         var posKey = WorldUtils.PositionKey(__instance.gameObject);
         if (!LocationTable.TryGetByObjectName(posKey, out var info) || info == null)
         {

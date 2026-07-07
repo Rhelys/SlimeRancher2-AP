@@ -4,7 +4,7 @@ namespace SlimeRancher2AP.Data;
 /// Numeric location IDs. These MUST match the IDs defined in the companion Python apworld.
 /// Base offset: 819000
 ///
-/// AUTHORITATIVE RANGES (see APWORLD_DESIGN.md for full table):
+/// RANGE ALLOCATIONS (authoritative source: Archipelago-SR2\worlds\slime_rancher_2\locations.py):
 ///   819000â€”819131  Treasure Pods (113 total; 819132â€”819199 spare â€” no GL pods) â€” 200 slots
 ///   819200â€“819249  Shadow Plort Doors (Grey Labyrinth)          â€”  50 slots
 ///   819250â€“819299  Gordo Slimes (wild/static)                   â€”  50 slots

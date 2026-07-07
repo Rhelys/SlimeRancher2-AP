@@ -18,16 +18,15 @@ namespace SlimeRancher2AP.Archipelago;
 /// Shadow plort doors (Grey Labyrinth, 819200-819224) are NOT tracked here — they have
 /// a managed caller path and are handled by PuzzleSlotLockableActivatePatch.
 ///
-/// State tracking: on first scan each door's initial ShouldUnlock() state is recorded.
-/// Any door that is already open on first scan (e.g. Boom Gordo door after defeat, or a
-/// door opened in a prior session) immediately triggers a check if not yet recorded in
-/// the save manager. Subsequent polls detect false→true transitions.
+/// Any door whose ShouldUnlock() is already true when polled (e.g. Boom Gordo door after
+/// defeat, or a door opened in a prior session) immediately triggers a check if not yet
+/// recorded in the save manager.
 /// </summary>
 public static class PlortDoorPoller
 {
     // A door may map to more than one AP location (e.g. the PB gate is both a plort door
     // check and a region gate check when both settings are active).
-    private record DoorEntry(PuzzleSlotLockable Psl, List<long> LocationIds, bool InitialState);
+    private record DoorEntry(PuzzleSlotLockable Psl, List<long> LocationIds);
 
     // posKey → tracked door entry. Built up across scans; not cleared on scene change
     // (scenes load additively so doors from previous sub-scenes stay valid).
@@ -104,32 +103,38 @@ public static class PlortDoorPoller
                 continue;
             }
 
-            bool initState;
-            try { initState = psl.ShouldUnlock(); }
-            catch { continue; }
-
-            _tracked[posKey] = new DoorEntry(psl, ids, initState);
+            _tracked[posKey] = new DoorEntry(psl, ids);
 #if DEBUG
-            Logger.Info($"[AP-PlortDoorPoller] Tracking posKey='{posKey}' ids=[{string.Join(",", ids)}] initState={initState}");
+            Logger.Info($"[AP-PlortDoorPoller] Tracking posKey='{posKey}' ids=[{string.Join(",", ids)}]");
 #endif
         }
     }
 
     private static void Poll()
     {
-        var toRemove = new List<string>();
+        var completed = new List<string>();  // checks sent / already checked → never re-track
+        var stale     = new List<string>();  // instance threw (collected on zone unload) → re-track on next Scan
 
         foreach (var (posKey, door) in _tracked)
         {
             if (door.LocationIds.TrueForAll(id => Plugin.Instance.SaveManager.IsChecked(id)))
             {
-                toRemove.Add(posKey);
+                completed.Add(posKey);
                 continue;
             }
 
             bool shouldUnlock;
             try { shouldUnlock = door.Psl.ShouldUnlock(); }
-            catch { toRemove.Add(posKey); continue; }
+            catch
+            {
+                // The tracked IL2CPP object was destroyed (typical after a zone unload).
+                // The check has NOT been sent — drop only the stale reference so Scan()
+                // re-tracks a live instance when the player returns to the zone.
+                // Marking it _done here would make the check silently unobtainable
+                // for the rest of the session.
+                stale.Add(posKey);
+                continue;
+            }
 
             if (!shouldUnlock) continue;
 
@@ -141,13 +146,15 @@ public static class PlortDoorPoller
                     Logger.Info($"[AP] Plort door check sent: posKey='{posKey}' id={id}");
                 }
             }
-            toRemove.Add(posKey);
+            completed.Add(posKey);
         }
 
-        foreach (var k in toRemove)
+        foreach (var k in completed)
         {
             _tracked.Remove(k);
             _done.Add(k);
         }
+        foreach (var k in stale)
+            _tracked.Remove(k);
     }
 }

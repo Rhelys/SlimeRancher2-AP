@@ -125,6 +125,23 @@ public class SlotData
     public bool DisableTarr { get; init; } = false;
 
     /// <summary>
+    /// When true, RNG-gated slime locations are excluded from the pool:
+    /// Slimepedia Gold/Lucky/Yolky, Radiant Yolky, and Fabricator Golden Sureshot I/II/III.
+    /// The slimepedia goal skips these entries when checking for completion.
+    /// Slot data key: <c>"exclude_rng_slimes"</c>.
+    /// </summary>
+    public bool ExcludeRngSlimes { get; init; } = false;
+
+    /// <summary>
+    /// When true, weather-dependent locations are excluded from the pool:
+    /// Slimepedia Tangle/Dervish, Radiant Tangle/Dervish, and Resources
+    /// Lightning Mote/Storm Glass/Drift Crystal.
+    /// The slimepedia goal skips these entries when checking for completion.
+    /// Slot data key: <c>"exclude_weather_checks"</c>.
+    /// </summary>
+    public bool ExcludeWeatherChecks { get; init; } = false;
+
+    /// <summary>
     /// When true, Tarr bites always kill the player instantly regardless of health or multiplier.
     /// Slot data key: <c>"tarr_instakill"</c>.
     /// </summary>
@@ -176,6 +193,14 @@ public class SlotData
     /// </summary>
     public bool RandomizeConservatoryExpansions { get; init; } = false;
 
+    /// <summary>
+    /// Controls plort market saturation at game start.
+    /// "disabled" = vanilla; "5_items" = full saturation + 5×20% recovery items;
+    /// "10_items" = full saturation + 10×10% recovery items.
+    /// Slot data key: <c>"plort_market_mode"</c>.
+    /// </summary>
+    public string PlortMarketMode { get; init; } = "disabled";
+
     public static SlotData Parse(Dictionary<string, object> raw)
     {
         return new SlotData
@@ -200,7 +225,9 @@ public class SlotData
             RandomizePlortMarket     = GetBool(raw, "randomize_plort_market",     defaultVal: false),
             RegionAccessMode            = GetString(raw, "region_access_mode", "vanilla"),
             ConversationChecks          = GetConversationCheckMode(raw, "conversation_checks"),
-            DisableTarr                 = GetBool(raw, "disable_tarr",   defaultVal: false),
+            DisableTarr                 = GetBool(raw, "disable_tarr",          defaultVal: false),
+            ExcludeRngSlimes            = GetBool(raw, "exclude_rng_slimes",    defaultVal: false),
+            ExcludeWeatherChecks        = GetBool(raw, "exclude_weather_checks", defaultVal: false),
             TarrInstakill               = GetBool(raw, "tarr_instakill", defaultVal: false),
             IncomingDamageMultiplier    = (int)GetLong(raw, "incoming_damage_multiplier", 1),
             ForceHeavyWeather              = GetBool(raw, "force_heavy_weather",              defaultVal: true),
@@ -208,6 +235,7 @@ public class SlotData
             StartWithResourceHarvester     = GetBool(raw, "start_with_resource_harvester",    defaultVal: false),
             GordoFeedRequirement           = (int)Math.Clamp(GetLong(raw, "gordo_feed_requirement", 100), 10, 200),
             RandomizeConservatoryExpansions = GetBool(raw, "randomize_conservatory_expansions", defaultVal: false),
+            PlortMarketMode                 = GetString(raw, "plort_market_mode", "disabled"),
         };
     }
 

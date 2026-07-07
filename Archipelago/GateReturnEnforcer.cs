@@ -82,7 +82,9 @@ public static class GateReturnEnforcer
     {
         if (newZone == null || previousZone == null) return false;
         if (!Plugin.Instance.ModEnabled) return false;
-        if (!Plugin.Instance.ApClient.IsConnected) return false;
+        // Session-based, not socket-based: enforcement must survive a temporary disconnect,
+        // otherwise a briefly-offline player can slip through gated zones unenforced.
+        if (!Plugin.Instance.SaveManager.HasActiveSession) return false;
 
         // Only enforce when gate checks are actual AP locations.
         var mode = Plugin.Instance.ApClient.SlotData?.RegionAccessMode ?? "vanilla";

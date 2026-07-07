@@ -79,10 +79,13 @@ public static class GoalHandler
     /// </summary>
     internal static int NewbucksPersistenceId => _newbucksDef?.PersistenceId ?? -1;
 
-    // Slimepedia goal: category names to search for.
-    // Asset names confirmed via DumpPedia() — Category 'Slimes' (29 entries), Category 'Resources' (54 entries).
-    private const string SlimesCategoryName     = "Slimes";
-    private const string ResourcesCategoryName  = "Resources";
+    // Slimepedia goal: PediaRuntimeCategory names confirmed via DumpPedia().
+    // 'Slimes' (29 entries), 'Resources' (54 entries), 'Radiant Slimes' (22 entries).
+    // With ExcludeRngSlimes / ExcludeWeatherChecks, some entries are skipped — counts vary.
+    // Goal fires when all entries in every *enabled* category are unlocked.
+    private const string SlimesCategoryName    = "Slimes";
+    private const string ResourcesCategoryName = "Resources";
+    private const string RadiantCategoryName   = "Radiant Slimes";
 
     // -------------------------------------------------------------------------
     // Lifecycle
@@ -211,14 +214,6 @@ public static class GoalHandler
         }
     }
 
-    /// <summary>
-    /// Checks whether BOTH the Slimes category and the Resources category are fully unlocked.
-    /// Goal fires only when both AllUnlocked() calls return true.
-    /// </summary>
-    // PediaEntry.name for the Tarr slimepedia entry — excluded from the goal check when
-    // DisableTarr is on, since it is removed from the AP location pool in that mode.
-    private const string TarrPediaEntryName = "Tarr";
-
     private static void CheckSlimepediaGoal()
     {
 #if DEBUG
@@ -236,61 +231,94 @@ public static class GoalHandler
         SlimeRancher2AP.Utils.DebugTrace.Once($"CheckSlimepediaGoal — step 2: list count={categories.Count}");
 #endif
 
-        bool disableTarr = Plugin.Instance.ApClient.SlotData?.DisableTarr ?? false;
+        var slotData = Plugin.Instance.ApClient.SlotData;
 
-        bool slimesUnlocked    = false;
-        bool resourcesUnlocked = false;
+        bool needSlimes    = slotData?.RandomizeSlimepedia          ?? false;
+        bool needResources = slotData?.RandomizeSlimepediaResources  ?? false;
+        bool needRadiant   = slotData?.RandomizeSlimepediaRadiant    ?? false;
+
+        // Build per-category exclusion sets from active slot data options.
+        // PediaEntry.name values are Unity ScriptableObject asset names confirmed via LocationTable.
+        // The apworld removes the same entries from the location pool (_RNG_SLIMES_EXCLUDED /
+        // _WEATHER_CHECKS_EXCLUDED in __init__.py), including the radiant variants.
+        var slimesExcluded    = new HashSet<string>();
+        var resourcesExcluded = new HashSet<string>();
+        var radiantExcluded   = new HashSet<string>();
+
+        if (slotData?.DisableTarr ?? false)
+            slimesExcluded.Add("Tarr");
+
+        if (slotData?.ExcludeRngSlimes ?? false)
+        {
+            slimesExcluded.Add("Gold");
+            slimesExcluded.Add("Lucky");
+            slimesExcluded.Add("Yolky");
+            radiantExcluded.Add("RadiantYolky");
+        }
+
+        if (slotData?.ExcludeWeatherChecks ?? false)
+        {
+            slimesExcluded.Add("Tangle");
+            slimesExcluded.Add("Dervish");
+            resourcesExcluded.Add("StormGlassCraft");
+            resourcesExcluded.Add("LightningMoteCraft");
+            resourcesExcluded.Add("DriftCrystalCraft");
+            radiantExcluded.Add("RadiantTangle");
+            radiantExcluded.Add("RadiantDervish");
+        }
+
+        // Track completion per enabled category.
+        // Disabled categories start true so they don't block the goal.
+        bool slimesUnlocked    = !needSlimes;
+        bool resourcesUnlocked = !needResources;
+        bool radiantUnlocked   = !needRadiant;
 
         for (int i = 0; i < categories.Count; i++)
         {
             var cat = categories[i];
-            var name = cat?._category?.name;
+            var catName = cat?._category?.name;
 
-            if (name == SlimesCategoryName)
-            {
-                // When DisableTarr is on, Tarr's slimepedia location is not in the AP pool.
-                // The player may never unlock it, so check each entry individually and skip Tarr.
-                if (disableTarr)
-                    slimesUnlocked = IsCategoryUnlockedExcluding(pedia, cat!, TarrPediaEntryName);
-                else
-                    slimesUnlocked = cat!.AllUnlocked();
-            }
-            else if (name == ResourcesCategoryName)
-            {
-                resourcesUnlocked = cat!.AllUnlocked();
-            }
+            if (needSlimes    && catName == SlimesCategoryName)
+                slimesUnlocked    = IsCategoryUnlockedExcluding(pedia, cat!, slimesExcluded);
+            else if (needResources && catName == ResourcesCategoryName)
+                resourcesUnlocked = IsCategoryUnlockedExcluding(pedia, cat!, resourcesExcluded);
+            else if (needRadiant   && catName == RadiantCategoryName)
+                radiantUnlocked   = IsCategoryUnlockedExcluding(pedia, cat!, radiantExcluded);
 
-            if (slimesUnlocked && resourcesUnlocked) break;
+            if (slimesUnlocked && resourcesUnlocked && radiantUnlocked) break;
         }
 #if DEBUG
         SlimeRancher2AP.Utils.DebugTrace.Once(
-            $"CheckSlimepediaGoal — slimes={slimesUnlocked} resources={resourcesUnlocked} disableTarr={disableTarr}");
+            $"CheckSlimepediaGoal — slimes={slimesUnlocked}(need={needSlimes}) " +
+            $"resources={resourcesUnlocked}(need={needResources}) " +
+            $"radiant={radiantUnlocked}(need={needRadiant})");
 #endif
 
-        if (slimesUnlocked && resourcesUnlocked)
+        if (slimesUnlocked && resourcesUnlocked && radiantUnlocked)
         {
-            Logger.Info(
-                "[AP] Slimepedia goal met: all Slimes and Resources entries unlocked");
+            Logger.Info("[AP] Slimepedia goal met: all enabled Slimepedia categories complete");
             NotifyGoalComplete();
         }
     }
 
     /// <summary>
-    /// Returns true if every entry in <paramref name="cat"/> is unlocked, ignoring any entry
-    /// whose <c>PediaEntry.name</c> matches <paramref name="excludeEntryName"/>.
-    /// Used so that the slimepedia goal still fires when Tarr is excluded from the AP pool.
+    /// Returns true if every entry in <paramref name="cat"/> is unlocked, skipping any whose
+    /// <c>PediaEntry.name</c> is in <paramref name="excludeNames"/>.
+    /// When <paramref name="excludeNames"/> is empty, falls back to the native
+    /// <c>AllUnlocked()</c> call (faster path, no per-entry iteration).
     /// </summary>
     private static bool IsCategoryUnlockedExcluding(PediaDirector pedia,
                                                      PediaRuntimeCategory cat,
-                                                     string excludeEntryName)
+                                                     HashSet<string> excludeNames)
     {
+        if (excludeNames.Count == 0) return cat.AllUnlocked();
         var items = cat._items;
         if (items == null) return false;
         for (int i = 0; i < items.Count; i++)
         {
             var entry = items[i];
             if (entry == null) continue;
-            if (entry.name == excludeEntryName) continue;   // skip excluded entry
+            if (excludeNames.Contains(entry.name)) continue;
             if (!pedia.IsUnlocked(entry)) return false;
         }
         return true;

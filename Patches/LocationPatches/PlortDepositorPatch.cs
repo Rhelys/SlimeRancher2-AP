@@ -19,6 +19,7 @@ namespace SlimeRancher2AP.Patches.LocationPatches;
 // Shadow Plort door detection is handled in PuzzleSlotLockableActivatePatch
 // (PuzzleSlotLockable.ActivateOnUnlock) in PuzzleDoorLockPatch.cs.
 //
-// Powderfall Bluffs region gate detection: the PB door is a PlortDepositor (not
-// PuzzleSlotLockable), so PuzzleSlotLockableActivatePatch does not fire for it.
-// Detection is handled via polling in ApUpdateBehaviour (PlortDepositorPoller).
+// Powderfall Bluffs region gate detection: the PB gate IS a PuzzleSlotLockable
+// (posKey confirmed via PlortDoorPoller debug dump 2026-06-21 — see RegionTable),
+// but it is opened from native code, so the ActivateOnUnlock patch never fires
+// for it. Detection is handled via ShouldUnlock() polling in PlortDoorPoller.

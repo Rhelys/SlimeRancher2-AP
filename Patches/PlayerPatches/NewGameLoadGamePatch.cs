@@ -104,7 +104,23 @@ internal static class LoadGamePatch
         if (slotIndex < 0) return;
 
         var binding = SaveBindingManager.Load(slotIndex);
-        if (binding == null) return;   // vanilla save — nothing to do
+        if (binding == null)
+        {
+            // Vanilla (unbound) save. If an AP session is live — e.g. the player connected in
+            // the main menu intending to start a new game, then pressed Continue on an old
+            // vanilla save — disconnect so no AP logic applies to it. Without this, treasure
+            // pod rewards get suppressed, restored research drones mass-send checks, damage
+            // multipliers apply, etc., all against a save that has no AP world.
+            if (Plugin.Instance.ApClient.IsConnected || Plugin.Instance.SaveManager.HasActiveSession)
+            {
+                Logger.Info(
+                    $"[AP] LoadGamePatch: slot {slotIndex} ({__0.GameName}) has no AP binding — " +
+                    "disconnecting so the vanilla save is not affected by the live AP session.");
+                Plugin.Instance.ApClient.Disconnect();
+                StatusHUD.Instance?.ShowNotification("Vanilla save loaded — Archipelago disconnected");
+            }
+            return;
+        }
 
         Logger.Info(
             $"[AP] LoadGamePatch: slot {slotIndex} ({__0.GameName}) has AP binding " +

@@ -6,7 +6,8 @@ namespace SlimeRancher2AP.Patches.PlayerPatches;
 
 /// <summary>
 /// Detects Prismacore room state transitions and notifies GoalHandler.
-/// Handles both the "prismacore_enter" goal (PRE_FIGHT) and "prismacore_stabilize" goal (POST_FIGHT).
+/// Drives the "prismacore" goal: it fires on POST_FIGHT (boss complete, core stabilized).
+/// PRE_FIGHT fires on scene load and is ignored by GoalHandler.
 /// </summary>
 [HarmonyPatch(typeof(CoreRoomController), nameof(CoreRoomController.UpdateState))]
 internal static class CoreRoomControllerPatch

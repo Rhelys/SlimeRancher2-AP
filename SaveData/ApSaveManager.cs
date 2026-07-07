@@ -40,16 +40,18 @@ public class ApSaveManager
     private ConfigEntry<string>? _visitedZones;
     private ConfigEntry<long>?   _newbucksEarned;
     private ConfigEntry<string>? _appliedEphemeralIndices;
-    private ConfigEntry<string>? _deferredTrapIndices;
+    private ConfigEntry<string>? _deferredItemIndices;
 
     private readonly HashSet<long>   _checkedSet      = new();
     private readonly HashSet<string> _regionSet       = new();
     private readonly HashSet<string> _visitedZoneSet  = new();
     private readonly HashSet<int>    _ephemeralSet    = new();
-    // Indices of trap items that have been rate-limited into TrapHandler._deferred but have
-    // not yet fired.  Persisted so that if the game disconnects while a trap is deferred
-    // (and the watermark has already advanced past its index), the trap is re-queued on the
-    // next session reconnect and fires before normal item processing continues.
+    // Indices of items that were received but could not be applied yet and whose application
+    // may outlive the session: rate-limited traps parked in TrapHandler's deferred queues, and
+    // conservatory expansions held until the player presses the terminal / the door's sub-scene
+    // loads.  Persisted so that if the game disconnects while an item is deferred (and the
+    // watermark has already advanced past its index), the item is re-queued on the next
+    // session reconnect instead of being silently lost below the watermark.
     private readonly HashSet<int>    _deferredSet     = new();
     // volatile: _lastItemIdx and _sessionActive are written on the background thread
     // (OnConnected / ResetSession) and read on the main thread (LoadGamePatch) and the
@@ -186,7 +188,7 @@ public class ApSaveManager
         _visitedZones            = null;
         _newbucksEarned          = null;
         _appliedEphemeralIndices = null;
-        _deferredTrapIndices     = null;
+        _deferredItemIndices     = null;
         _lastItemIdx             = -1;
         // Keep _checkedSet, _regionSet, _visitedZoneSet, _scoutData in memory —
         // they'll be re-loaded from the correct file by the next OnConnected call.
@@ -224,9 +226,10 @@ public class ApSaveManager
             "Cumulative newbucks earned this AP run (tracked via PlayerState.AddCurrency)");
         _appliedEphemeralIndices = _saveFile.Bind("Progress", "AppliedEphemeralIndices", "",
             "Comma-separated item indices of filler/trap items already applied — never re-applied on replay");
-        _deferredTrapIndices     = _saveFile.Bind("Progress", "DeferredTrapIndices", "",
-            "Comma-separated item indices of traps that are rate-limited and pending fire. " +
-            "Re-queued on reconnect if the watermark has already advanced past their index.");
+        _deferredItemIndices     = _saveFile.Bind("Progress", "DeferredItemIndices", "",
+            "Comma-separated item indices of received-but-not-yet-applied items (rate-limited " +
+            "traps, held conservatory expansions). Re-queued on reconnect if the watermark has " +
+            "already advanced past their index.");
 
         // Deserialize checked locations
         _checkedSet.Clear();
@@ -248,9 +251,9 @@ public class ApSaveManager
         foreach (var s in (_appliedEphemeralIndices.Value ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries))
             if (int.TryParse(s, out var idx)) _ephemeralSet.Add(idx);
 
-        // Deserialize pending deferred trap indices
+        // Deserialize pending deferred item indices
         _deferredSet.Clear();
-        foreach (var s in (_deferredTrapIndices.Value ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries))
+        foreach (var s in (_deferredItemIndices.Value ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries))
             if (int.TryParse(s, out var idx)) _deferredSet.Add(idx);
 
         _lastItemIdx        = _lastItemIndex.Value;
@@ -265,7 +268,7 @@ public class ApSaveManager
             $"[AP] Save file: {Path.GetFileName(_saveFile.ConfigFilePath)} — " +
             $"LastItemIndex on disk={_lastItemIndex.Value}, " +
             $"EphemeralIndices on disk='{_appliedEphemeralIndices!.Value}', " +
-            $"DeferredTraps on disk='{_deferredTrapIndices!.Value}'");
+            $"DeferredItems on disk='{_deferredItemIndices!.Value}'");
         Logger.Info(
             $"[AP] Save loaded: {_checkedSet.Count} locations checked, " +
             $"last item index {_lastItemIdx}, {_regionSet.Count} regions unlocked, " +
@@ -353,35 +356,39 @@ public class ApSaveManager
     }
 
     // -------------------------------------------------------------------------
-    // Deferred trap persistence
+    // Deferred item persistence
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// Returns the set of trap item indices that are currently rate-limited in the deferred
-    /// queue and have not yet fired. Used at reconnect to re-queue traps whose watermark was
-    /// already advanced past them before they could fire.
+    /// Returns the set of item indices that were received but have not yet been applied
+    /// (rate-limited traps, held conservatory expansions). Used at reconnect to re-queue
+    /// items whose watermark was already advanced past them before they could apply.
     /// </summary>
-    public IReadOnlyCollection<int> GetPendingDeferredTraps() => _deferredSet;
+    public IReadOnlyCollection<int> GetPendingDeferredItems() => _deferredSet;
+
+    /// <summary>True if the item at <paramref name="idx"/> is pending in the deferred set.</summary>
+    public bool IsDeferredItem(int idx) => _deferredSet.Contains(idx);
 
     /// <summary>
-    /// Records that the trap at <paramref name="idx"/> has been placed in the deferred queue
-    /// (rate-limited, pending fire). Persists immediately so a disconnect doesn't lose it.
+    /// Records that the item at <paramref name="idx"/> was received but its application is
+    /// deferred (trap rate-limit, expansion held for the terminal check or sub-scene load).
+    /// Persists immediately so a disconnect doesn't lose it.
     /// </summary>
-    public void AddDeferredTrap(int idx)
+    public void AddDeferredItem(int idx)
     {
         if (_saveFile == null || !_deferredSet.Add(idx)) return;
-        _deferredTrapIndices!.Value = string.Join(",", _deferredSet);
+        _deferredItemIndices!.Value = string.Join(",", _deferredSet);
         _saveFile.Save();
     }
 
     /// <summary>
-    /// Removes <paramref name="idx"/> from the deferred trap set once the trap has fired
-    /// (or been skipped as already-ephemeral). No-op if the index is not in the set.
+    /// Removes <paramref name="idx"/> from the deferred set once the item has been applied
+    /// (or confirmed already-applied). No-op if the index is not in the set.
     /// </summary>
-    public void RemoveDeferredTrap(int idx)
+    public void RemoveDeferredItem(int idx)
     {
         if (_saveFile == null || !_deferredSet.Remove(idx)) return;
-        _deferredTrapIndices!.Value = string.Join(",", _deferredSet);
+        _deferredItemIndices!.Value = string.Join(",", _deferredSet);
         _saveFile.Save();
     }
 

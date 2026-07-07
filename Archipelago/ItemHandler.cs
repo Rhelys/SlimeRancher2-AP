@@ -9,6 +9,7 @@ using Il2CppMonomiPark.SlimeRancher.Util;
 using Il2CppMonomiPark.SlimeRancher.Weather;
 using Il2CppMonomiPark.SlimeRancher.Weather.Activity;
 using Il2CppMonomiPark.SlimeRancher.SceneManagement;
+using Il2CppMonomiPark.SlimeRancher.World;
 using Il2CppMonomiPark.SlimeRancher.World.Teleportation;
 using SlimeRancher2AP.Data;
 using SlimeRancher2AP.Utils;
@@ -39,6 +40,13 @@ public static class ItemHandler
     /// Fabricator grants are blocked; AP pipeline grants are allowed.
     /// </summary>
     internal static bool IsApplyingItem { get; private set; }
+
+    /// <summary>
+    /// True while <c>ApplyNewbucks</c> is calling <c>PlayerState.AddCurrency</c> to grant a
+    /// Newbucks filler item. Read by <c>PlayerStateAddCurrencyPatch</c> so AP-granted Newbucks
+    /// do NOT count toward the "newbucks" goal — only money earned in-game does.
+    /// </summary>
+    internal static bool IsGrantingCurrency { get; private set; }
 
     // IdentifiableType names confirmed via AP-Dump log (GadgetDirector.RefineryTypeGroup).
     private static readonly string[] CommonPlorts =
@@ -113,7 +121,12 @@ public static class ItemHandler
         switch (item.Type)
         {
             case ItemType.RegionAccess:          ApplyRegionAccess(item);                        break;
-            case ItemType.ConservatoryExpansion: ApplyConservatoryExpansion(item, itemIndex);  break;
+            // itemIndex is the debug panel's internal 9000+ counter, unrelated to the AP server
+            // position. Pass -1 so the deferred-open paths (TickExpansionDoors /
+            // TriggerPendingDoorUnlock) skip UpdateLastItemIndex — writing 9000+ there would
+            // corrupt the watermark and skip all real items until the connect-time sanity
+            // check forces a full replay.
+            case ItemType.ConservatoryExpansion: ApplyConservatoryExpansion(item, -1);          break;
             case ItemType.Upgrade:               ApplyUpgrade(item, null, itemIndex);          break;
             case ItemType.Gadget:                ApplyGadget(item, null, itemIndex);           break;
             case ItemType.Filler:                ApplyFiller(item, null, itemIndex);           break;
@@ -179,6 +192,8 @@ public static class ItemHandler
                 $"[AP] Skipping already-applied {item.Type.ToString().ToLowerInvariant()}: " +
                 $"{item.Name} (idx={itemIndex})");
             Plugin.Instance.SaveManager.UpdateLastItemIndex(itemIndex);
+            // Confirmed already-applied — it no longer needs the deferred-item safety net.
+            Plugin.Instance.SaveManager.RemoveDeferredItem(itemIndex);
             return;
         }
 
@@ -235,12 +250,13 @@ public static class ItemHandler
             // Persist the index so this filler/trap is never re-applied on future replays.
             if (isEphemeral)
                 Plugin.Instance.SaveManager.MarkEphemeralApplied(itemIndex);
-        }
 
-        // Clear any pending-deferred entry: this item has now been applied (or confirmed
-        // already-applied), so it no longer needs the deferred-trap reconnect safety net.
-        // No-op for non-trap items and for items that were never deferred.
-        Plugin.Instance.SaveManager.RemoveDeferredTrap(itemIndex);
+            // The item has now been applied — clear its deferred-item safety-net entry.
+            // Must ONLY happen on the applied path: when advanceWatermark is false the item
+            // was just parked (trap rate-limit / expansion hold) and its AddDeferredItem entry
+            // is exactly what protects it from being lost below the watermark on reconnect.
+            Plugin.Instance.SaveManager.RemoveDeferredItem(itemIndex);
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -264,15 +280,25 @@ public static class ItemHandler
 
         var mode = Plugin.Instance.ApClient.SlotData?.RegionAccessMode ?? "vanilla";
 
-        // Bundled mode: the zone teleporter is bundled with the access item.
-        if (mode == "bundled")
-            GrantRegionTeleporter(item.Name);
+        // Bundled mode: the zone teleporter is bundled with the access item — and this grant
+        // is the ONLY source of the teleporter (the apworld does not put teleporter items in
+        // the pool in bundled mode). Region access items often apply mid-scene-load, where
+        // the grant can fail (GadgetDirector null, gadget assets not loaded, AddBlueprint
+        // analytics throw). The watermark advances regardless, so a failed grant must be
+        // parked for retry or the teleporter is permanently lost.
+        if (mode == "bundled" && !GrantRegionTeleporter(item.Name))
+        {
+            _pendingRegionTeleporters.Add(item.Name);
+            Logger.Info(
+                $"[AP] Zone teleporter for '{item.Name}' not grantable yet (scene loading?) — queued for retry.");
+        }
 
         // ── Powderfall Bluffs: PuzzleSlotLockable (plort door), not WorldStatePrimarySwitch ──
         // The plorts are already consumed when the door was filled; we can't "re-fill" it.
-        // Call ActivateOnUnlock() directly — PuzzleSlotLockableActivatePatch.Prefix will
-        // allow it through because IsRegionUnlocked now returns true (set by UnlockRegion above).
+        // Call ActivateOnUnlock() directly to open the door now that access is granted.
         // PB is a special case: there is no button to press again, so auto-activation is required.
+        // (Unauthorized entry before this item arrives is enforced by GateReturnEnforcer,
+        // not by blocking ActivateOnUnlock — the door opens from native code we can't patch.)
         if (item.Name == RegionTable.PBRegionItemName)
         {
             // Identify the PB gate by posKey, not object name — multiple doors share the
@@ -364,7 +390,11 @@ public static class ItemHandler
             if (door == null) continue;
 
             OpenDoor(door, doorId, itemName);
-            Plugin.Instance.SaveManager.UpdateLastItemIndex(idx);
+            if (idx >= 0) // -1 = debug-panel grant; no watermark/deferred entry to touch
+            {
+                Plugin.Instance.SaveManager.UpdateLastItemIndex(idx);
+                Plugin.Instance.SaveManager.RemoveDeferredItem(idx);
+            }
             _pendingExpansions.RemoveAt(i);
         }
     }
@@ -391,7 +421,11 @@ public static class ItemHandler
         }
 
         OpenDoor(door, doorId, pending.itemName);
-        Plugin.Instance.SaveManager.UpdateLastItemIndex(pending.itemIndex);
+        if (pending.itemIndex >= 0) // -1 = debug-panel grant; no watermark/deferred entry to touch
+        {
+            Plugin.Instance.SaveManager.UpdateLastItemIndex(pending.itemIndex);
+            Plugin.Instance.SaveManager.RemoveDeferredItem(pending.itemIndex);
+        }
     }
 
     /// <summary>
@@ -423,8 +457,16 @@ public static class ItemHandler
         // Queue this door and let TriggerPendingDoorUnlock handle it after the check is sent.
         if (!Plugin.Instance.SaveManager.IsChecked(locInfo.Id))
         {
-            if (!_pendingDoorUnlocks.ContainsKey(doorId))
+            // Upsert: also replace an existing entry that has the -1 debug sentinel so a real
+            // AP grant arriving after a debug grant records its true index.
+            if (!_pendingDoorUnlocks.TryGetValue(doorId, out var existing) || existing.itemIndex < 0)
                 _pendingDoorUnlocks[doorId] = (item.Name, itemIndex);
+            // Persist the index: later items can advance the watermark past this one while the
+            // door is held, and the hold can span sessions (player may not press the terminal
+            // this session). Without this the item would be lost below the watermark on reconnect.
+            // Skipped for the -1 debug sentinel (no real AP position to protect).
+            if (itemIndex >= 0)
+                Plugin.Instance.SaveManager.AddDeferredItem(itemIndex);
             Logger.Info($"[AP] Expansion '{item.Name}' received before terminal check — door '{doorId}' held until check is sent.");
             return false; // watermark NOT advanced — TriggerPendingDoorUnlock will advance it
         }
@@ -437,6 +479,11 @@ public static class ItemHandler
             // Only add to pending list once — reconnect replays will try again anyway
             if (!_pendingExpansions.Exists(e => e.doorId == doorId))
                 _pendingExpansions.Add((doorId, item.Name, itemIndex));
+            // Persist the index so the item survives a session ending before the door's
+            // sub-scene ever loads (see the pending-door-unlock case above).
+            // Skipped for the -1 debug sentinel (no real AP position to protect).
+            if (itemIndex >= 0)
+                Plugin.Instance.SaveManager.AddDeferredItem(itemIndex);
             Logger.Info($"[AP] AccessDoor '{doorId}' not in scene yet — queued for deferred open.");
             return false; // watermark NOT advanced — Tick() will advance it when door opens
         }
@@ -461,21 +508,103 @@ public static class ItemHandler
     internal static void TryGrantRegionTeleporterForSwitch(string switchName, string sceneName)
     {
         if (!RegionTable.TryGetRegionForSwitch(switchName, sceneName, out var regionName)) return;
-        GrantRegionTeleporter(regionName);
+        if (!GrantRegionTeleporter(regionName))
+            _pendingRegionTeleporters.Add(regionName); // retried by TickRegionTeleporters
     }
 
-    private static void GrantRegionTeleporter(string regionName)
+    /// <summary>
+    /// Attempts to grant the zone teleporter for <paramref name="regionName"/>.
+    /// Returns <c>true</c> when the blueprint is CONFIRMED unlocked (already was, or the
+    /// grant verifiably succeeded) and <c>false</c> when the grant could not complete yet —
+    /// director unavailable, gadget assets not loaded, or AddBlueprint threw with the
+    /// blueprint still locked. Callers must park a <c>false</c> result for retry: in bundled
+    /// mode this grant is the only source of the teleporter and the item's watermark has
+    /// already advanced.
+    /// </summary>
+    private static bool GrantRegionTeleporter(string regionName)
     {
-        if (!RegionToZoneTeleporter.TryGetValue(regionName, out var gadgetName)) return;
-        var director = SceneContext.Instance?.GadgetDirector;
-        if (director == null) return;
+        if (!RegionToZoneTeleporter.TryGetValue(regionName, out var gadgetName))
+            return true; // no teleporter mapped for this region — nothing to grant
 
-        // Idempotency: skip if already unlocked (handles reconnect replays and double-fires)
+        var director = SceneContext.Instance?.GadgetDirector;
+        if (director == null) return false; // scene loading — retry
+
         var gadgetDef = Resources.FindObjectsOfTypeAll<GadgetDefinition>()
                                  .FirstOrDefault(d => d.name == gadgetName);
-        if (gadgetDef != null && director.IsBlueprintUnlocked(gadgetDef)) return;
+        if (gadgetDef == null) return false; // gadget assets not loaded yet — retry
+
+        // Idempotency: skip if already unlocked (handles reconnect replays and double-fires)
+        if (director.IsBlueprintUnlocked(gadgetDef)) return true;
 
         GrantSingleGadget(director, gadgetName);
+
+        // Verify rather than assume: AddBlueprint can throw mid-scene-load (analytics ctor)
+        // with the blueprint still locked, and GrantSingleGadget swallows that failure.
+        return director.IsBlueprintUnlocked(gadgetDef);
+    }
+
+    // Region names whose zone teleporter grant failed and must be retried once the scene is
+    // further along. Populated by ApplyRegionAccess (bundled) and TryGrantRegionTeleporterForSwitch
+    // (vanilla); drained by TickRegionTeleporters.
+    private static readonly HashSet<string> _pendingRegionTeleporters = new();
+    private static int _teleporterTickCounter = 0;
+    private const int TeleporterTickInterval = 180; // ~3 seconds at 60 fps
+
+    // Set on every connect (from the post-login main-thread action). When true and the scene
+    // is ready, TickRegionTeleporters seeds _pendingRegionTeleporters with every unlocked
+    // region in bundled mode — healing saves where a bundled teleporter grant was lost in a
+    // previous session (the region access item never replays once below the watermark).
+    private static volatile bool _pendingBundledValidation;
+
+    /// <summary>Schedules a bundled-mode teleporter validation sweep. Safe from any thread.</summary>
+    public static void ScheduleBundledTeleporterValidation() => _pendingBundledValidation = true;
+
+    /// <summary>Clears retry state on disconnect (the next connect re-schedules validation).</summary>
+    public static void ResetRegionTeleporterRetries()
+    {
+        _pendingRegionTeleporters.Clear();
+        _pendingBundledValidation = false;
+    }
+
+    /// <summary>
+    /// Called every frame from <c>ApUpdateBehaviour.Update</c>; does work every ~3 seconds.
+    /// Retries failed zone-teleporter grants and runs the connect-time bundled validation.
+    /// </summary>
+    internal static void TickRegionTeleporters()
+    {
+        if (!_pendingBundledValidation && _pendingRegionTeleporters.Count == 0) return;
+        if (++_teleporterTickCounter < TeleporterTickInterval) return;
+        _teleporterTickCounter = 0;
+
+        // Connect-time validation: in bundled mode every unlocked region must have its
+        // teleporter blueprint. GrantRegionTeleporter is idempotent, so regions that already
+        // have it resolve to an immediate no-op on the first retry pass.
+        if (_pendingBundledValidation && SceneContext.Instance?.Player != null)
+        {
+            _pendingBundledValidation = false;
+            var mode = Plugin.Instance.ApClient.SlotData?.RegionAccessMode ?? "vanilla";
+            if (mode == "bundled")
+            {
+                foreach (var regionName in RegionToZoneTeleporter.Keys)
+                    if (Plugin.Instance.SaveManager.IsRegionUnlocked(regionName))
+                        _pendingRegionTeleporters.Add(regionName);
+                if (_pendingRegionTeleporters.Count > 0)
+                    Logger.Info(
+                        $"[AP] Bundled teleporter validation: checking {_pendingRegionTeleporters.Count} unlocked region(s).");
+            }
+        }
+
+        if (_pendingRegionTeleporters.Count == 0) return;
+
+        // Snapshot — GrantRegionTeleporter success mutates the set.
+        foreach (var regionName in _pendingRegionTeleporters.ToArray())
+        {
+            if (GrantRegionTeleporter(regionName))
+            {
+                _pendingRegionTeleporters.Remove(regionName);
+                Logger.Info($"[AP] Zone teleporter for '{regionName}' granted (retry/validation pass).");
+            }
+        }
     }
 
     /// <summary>
@@ -489,6 +618,16 @@ public static class ItemHandler
     /// <summary>Called by <c>ActorUpgradeHandlerPatch.OnUpgradeChangedPostfix</c>.</summary>
     public static void TrackUpgradeLevel(string upgradeName, int newLevel)
         => _upgradeLevels[upgradeName] = newLevel;
+
+    /// <summary>
+    /// Clears the tracked upgrade levels. Called on disconnect so a new game / different AP
+    /// slot in the same process does not inherit the previous session's levels — stale values
+    /// made <c>ApplyUpgrade</c> skip grants as "already maxed" and let
+    /// <c>UpgradeObtainedQueryPatch</c> report upgrades the fresh save doesn't have.
+    /// The cache is rebuilt by OnUpgradeChanged (save restore), ApplyUpgrade, and
+    /// ValidateAndRepairUpgrades on the next session.
+    /// </summary>
+    public static void ResetUpgradeTracking() => _upgradeLevels.Clear();
 
     /// <summary>
     /// Returns the last tracked model level for <paramref name="upgradeName"/>, or -1 if the
@@ -572,7 +711,14 @@ public static class ItemHandler
             int currentLevel = UpgradeHandler._model?.GetUpgradeLevel(upgradeDef) ?? -1;
             IsApplyingItem = false;
 
-            if (currentLevel >= targetLevel) continue; // SR2 save is correct
+            if (currentLevel >= targetLevel)
+            {
+                // SR2 save is correct — still record the level so the tracked cache is
+                // repopulated after ResetUpgradeTracking() (disconnect) even when no
+                // repair is needed. UpgradeObtainedQueryPatch reads this cache.
+                _upgradeLevels[upgradeName] = currentLevel;
+                continue;
+            }
 
             Logger.Info(
                 $"[AP] Upgrade repair: '{upgradeName}' SR2 level={currentLevel} < expected={targetLevel} — correcting");
@@ -713,6 +859,16 @@ public static class ItemHandler
         [ItemTable.GordoSnareAdvanced] = "GordoSnareAdvanced", // (?)
         [ItemTable.MedStation]         = "MedStation",         // (?)
         [ItemTable.DreamLanternT2]     = "DreamLanternT2",     // confirmed via DumpGadgets
+
+        // Movement / utility gadgets (confirmed via DumpGadgets)
+        [ItemTable.DashPad]            = "DashPad",
+        [ItemTable.SpringPad]          = "SpringPad",
+        [ItemTable.PortableWaterTap]   = "PortableWaterTap",
+
+        // Labyrinth goal gadget (confirmed via DumpGadgets).
+        // Received ×3 for prismacore/slimepedia goals; duplicates skip via the
+        // IsBlueprintUnlocked guard in GrantSingleGadget.
+        [ItemTable.DisruptionDetector] = "PrismaDisruptionDetector",
 
         // Radiant Projector Blueprint (Special Access — grants via AddBlueprint, not AddItem)
         [ItemTable.RadiantProjectorBlueprint] = "EnergyBeamNode",
@@ -951,7 +1107,15 @@ public static class ItemHandler
             return true; // asset issue — retrying won't help
         }
 
-        playerState.AddCurrency(currency.Cast<ICurrency>(), amount);
+        IsGrantingCurrency = true;
+        try
+        {
+            playerState.AddCurrency(currency.Cast<ICurrency>(), amount);
+        }
+        finally
+        {
+            IsGrantingCurrency = false;
+        }
         Notify($"Received: {amount} Newbucks");
         return true;
     }

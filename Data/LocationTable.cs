@@ -74,6 +74,15 @@ public enum LocationType
     /// Lookup key: <c>AccessDoor._id</c> (IdHandler string ID).
     /// </summary>
     ConservatoryExpansion,
+
+    /// <summary>
+    /// A region gate switch check (locations/bundled <c>region_access_mode</c> only).
+    /// Detection is handled by <c>RegionTable</c> + <c>RegionGateActivatePatch</c> (EV/SS)
+    /// and <c>PlortDoorPoller</c> (PB) — NOT via the GameObjectName dictionary. These rows
+    /// exist so the locations are scouted and resolvable by <see cref="LocationTable.GetById"/>
+    /// for check notifications.
+    /// </summary>
+    RegionGate,
 }
 
 /// <summary>
@@ -883,6 +892,17 @@ public static class LocationTable
         new(LocationConstants.ConservatoryExpansion_Archway,   "Conservatory Expansion: The Archway",   LocationType.ConservatoryExpansion, "zoneConservatory", "door0749608168"), // zoneConservatory_Garden
         new(LocationConstants.ConservatoryExpansion_Den,       "Conservatory Expansion: The Den",       LocationType.ConservatoryExpansion, "zoneConservatory", "door0010140679"), // zoneConservatory_Den
         new(LocationConstants.ConservatoryExpansion_Digsite,   "Conservatory Expansion: The Digsite",   LocationType.ConservatoryExpansion, "zoneConservatory", "door1356553442"), // zoneConservatory_Digsite
+
+        // =================================================================
+        // REGION GATE SWITCHES: 819843–819845 (locations/bundled mode only)
+        // Detection lives in RegionTable/RegionGateActivatePatch (EV/SS) and
+        // PlortDoorPoller (PB) — these rows exist for scouting and GetById only,
+        // and are EXCLUDED from _byGameObjectName (PB shares its posKey with the
+        // "Plort Door - Ember Valley 4" row above).
+        // =================================================================
+        new(LocationConstants.RegionGate_EmberValley,      "Region Gate - Ember Valley",      LocationType.RegionGate, "zoneFields",       "ruinSwitch"),
+        new(LocationConstants.RegionGate_StarlightStrand,  "Region Gate - Starlight Strand",  LocationType.RegionGate, "zoneFields",       "ruinSwitch (2)"),
+        new(LocationConstants.RegionGate_PowderfallBluffs, "Region Gate - Powderfall Bluffs", LocationType.RegionGate, "zoneGorge_Area3",  "zoneGorge_Area3_-645_34_681"),
     };
 
     // -------------------------------------------------------------------------
@@ -906,7 +926,8 @@ public static class LocationTable
                       && l.Type != LocationType.ConversationConditional
                       && l.Type != LocationType.ConversationKeyGift
                       && l.Type != LocationType.ConversationDecoGift
-                      && l.Type != LocationType.ConversationNonGift)
+                      && l.Type != LocationType.ConversationNonGift
+                      && l.Type != LocationType.RegionGate)              // detected via RegionTable/PlortDoorPoller; PB posKey duplicates PlortDoor_EmberValley_4
              .ToDictionary(l => l.GameObjectName);
 
     /// <summary>

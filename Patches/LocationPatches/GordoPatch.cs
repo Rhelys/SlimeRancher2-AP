@@ -18,6 +18,12 @@ internal static class GordoPatch
 #endif
         if (!Plugin.Instance.ModEnabled || !Plugin.Instance.SaveManager.HasActiveSession) return;
 
+        // randomize_gordos=false removes all gordo locations from the seed — do not send checks.
+        // Only gate when slot data is available; when temporarily offline (SlotData null) the
+        // check still accumulates locally so a popped gordo is never permanently lost.
+        var slotData = Plugin.Instance.ApClient.SlotData;
+        if (slotData != null && !slotData.RandomizeGordos) return;
+
         // Guard: PlayerModel is null while the world is still loading from save.
         if (SceneContext.Instance?.PlayerState?._model == null) return;
 

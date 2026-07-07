@@ -183,7 +183,16 @@ internal static class RadiantSlimeSpawnRatePatch
         if (slotData == null) return; // not connected yet — retry next frame
 
         var multiplier = slotData.RadiantSpawnRateMultiplier;
-        if (multiplier <= 1) { _bagSizesScaled = true; _livebagsSeeded = true; return; }
+        if (multiplier <= 1)
+        {
+            // Multiplier 1 for THIS session — but RadiantSlimeConfig is a ScriptableObject
+            // asset that persists across sessions in the same process; a previous session may
+            // have divided its bag sizes. Put the vanilla values back.
+            RestoreOriginalBagSizes();
+            _bagSizesScaled = true;
+            _livebagsSeeded = true;
+            return;
+        }
 
         // ── Stage 1: scale config bag sizes ───────────────────────────────────
         if (!_bagSizesScaled)
@@ -282,11 +291,45 @@ internal static class RadiantSlimeSpawnRatePatch
         }
     }
 
-    /// <summary>Called on disconnect so a reconnect with a different multiplier re-applies.</summary>
+    /// <summary>
+    /// Called on disconnect. Restores vanilla bag sizes to the persistent RadiantSlimeConfig
+    /// asset — without this the scaled sizes would carry into vanilla play or the next AP slot
+    /// for the rest of the process. Live bags already created with scaled sizes keep their
+    /// current size until drained (the config only governs newly created bags).
+    /// Must be called on the main thread (Disconnect is only invoked from main-thread paths).
+    /// </summary>
     internal static void OnDisconnected()
     {
+        RestoreOriginalBagSizes();
         _bagSizesScaled = false;
         _livebagsSeeded = false;
         _lastZoneRef = null; // force zone re-check on reconnect
+    }
+
+    /// <summary>Writes the cached vanilla bag sizes back to every RadiantSlimeConfig. No-op if never scaled.</summary>
+    private static void RestoreOriginalBagSizes()
+    {
+        if (_origBagSizes == null) return; // originals never cached → nothing was ever modified
+
+        var configs = Resources.FindObjectsOfTypeAll<RadiantSlimeConfig>();
+        int restored = 0;
+        for (int c = 0; c < configs.Length; c++)
+        {
+            var config = configs[c];
+            if (config == null) continue;
+            var bags = config._radiantShuffleBagSizes;
+            if (bags == null) continue;
+
+            for (int i = 0; i < bags.Length && i < _origBagSizes.Length; i++)
+            {
+                var entry = bags[i];
+                if (entry == null || _origBagSizes[i] <= 0) continue;
+                entry.BagSize = _origBagSizes[i];
+                restored++;
+            }
+        }
+
+        if (restored > 0)
+            Logger.Info($"[AP-Radiant] Restored vanilla bag sizes on {restored} config entry(ies)");
     }
 }
