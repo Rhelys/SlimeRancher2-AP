@@ -1474,6 +1474,10 @@ public static class TrapHandler
     // The WeatherDirectors we applied the state to — cached on activation.
     private static WeatherDirector[]? _cachedDirectors = null;
 
+    // The IWeatherPattern instance passed to RunPatternState per director — cached for StopPatternState on expiry.
+    // Null for Tarr Rain (which uses RunState directly and doesn't need registry stop).
+    private static IWeatherPattern[]? _cachedPatterns = null;
+
     // SpawnActorActivity.ActorType values overridden by the Slime Rain trap; restored on weather reset.
     private static System.Collections.Generic.Dictionary<SpawnActorActivity, IdentifiableType>?
         _savedSlimeRainActorTypes = null;
@@ -1501,6 +1505,10 @@ public static class TrapHandler
             _sceneReadySince = UnityEngine.Time.time;
             Logger.Info(
                 $"[AP] TrapHandler: scene ready — trap grace period begins ({SceneGracePeriod}s)");
+
+            // If a weather trap is active, apply it to any directors that just loaded.
+            if (_activeWeatherState != null && _weatherResetAt >= 0f && UnityEngine.Time.time < _weatherResetAt)
+                ReapplyWeatherToNewZone();
         }
 
         // Weather-trap expiry.
@@ -1598,7 +1606,7 @@ public static class TrapHandler
                 // Persist the deferred index so a disconnect before the trap fires doesn't
                 // lose it permanently (the watermark may advance past this index before Tick()
                 // promotes it; without persistence the trap would be silently skipped on reconnect).
-                Plugin.Instance.SaveManager.AddDeferredTrap(itemIndex);
+                Plugin.Instance.SaveManager.AddDeferredItem(itemIndex);
                 Logger.Info(
                     $"[AP] Trap deferred ({deferGroup.Value} group, queue depth: {q.Count})");
             }
@@ -1925,49 +1933,64 @@ public static class TrapHandler
         }
         Logger.Info($"[AP] WeatherChange: {allStates.Count} state(s) available: {sb}");
 
-        // Only pick the most impactful weather states:
-        // - "Heavy" variants (Thunder Heavy, Rain Heavy, Pollen Heavy)
-        // - "Slime Rain" (no intensity modifier; inherently severe)
-        // Excluded: Wind (crashes with null ZoneWeatherParameters), Snow (zone-specific),
-        //           Light/Medium variants (not impactful enough as a trap).
+        // Only pick Heavy-tier states (MapTier 3: Thunder Heavy, Rain Heavy, Pollen Heavy, Wind Heavy).
+        // Wind Heavy is safe via the registry path (RunPatternState passes proper ZoneWeatherParameters
+        // internally). It is only unsafe when called via director.RunState(state, null) — see fallback guard.
+        // Snow is excluded — zone-specific, not available everywhere.
+        // Flat patterns (Slime Rain, MapTier 0) are excluded to keep only true Heavy variants.
         var eligible = new System.Collections.Generic.List<WeatherStateDefinition>();
         for (int i = 0; i < allStates.Count; i++)
         {
             var s = allStates[i];
+            if (s == null) continue;
             var sn = (s.StateName ?? s.name) ?? "";
-            if (sn.IndexOf("Wind",  System.StringComparison.OrdinalIgnoreCase) >= 0) continue;
-            if (sn.IndexOf("Snow",  System.StringComparison.OrdinalIgnoreCase) >= 0) continue;
-            if (sn.IndexOf("Light",  System.StringComparison.OrdinalIgnoreCase) >= 0) continue;
-            if (sn.IndexOf("Medium", System.StringComparison.OrdinalIgnoreCase) >= 0) continue;
+            if (sn.IndexOf("Snow", System.StringComparison.OrdinalIgnoreCase) >= 0) continue;
+            if (s.MapTier != 3) continue;
             eligible.Add(s);
         }
 
         if (eligible.Count == 0)
         {
-            Logger.Warning("[AP] WeatherChange: no eligible weather states after filtering — trap skipped");
+            Logger.Warning("[AP] WeatherChange: no eligible Heavy weather states — trap skipped");
             return true; // filtering issue; don't retry
         }
 
-        // Pick a random state.
-        var chosen = eligible[_rng.Next(eligible.Count)];
+        // Deduplicate by StateName — some states have multiple asset instances (one per zone).
+        // Without deduplication, duplicated states dominate the random pick.
+        var seenNames = new System.Collections.Generic.HashSet<string>(System.StringComparer.Ordinal);
+        var unique    = new System.Collections.Generic.List<WeatherStateDefinition>(eligible.Count);
+        for (int i = 0; i < eligible.Count; i++)
+        {
+            var key = eligible[i].StateName ?? eligible[i].name ?? "";
+            if (seenNames.Add(key)) unique.Add(eligible[i]);
+        }
+
+        var chosen      = unique[_rng.Next(unique.Count)];
+        var chosenName  = chosen.StateName ?? chosen.name ?? "";
+        var chosenState = chosen.Cast<IWeatherState>();
+
         _activeWeatherState = chosen;
 
-        // Cache directors once — reused by Tick() expiry / ResetWeather().
+        // Cache directors and one IWeatherPattern instance per director for later StopPatternState.
         _cachedDirectors = new WeatherDirector[found.Count];
+        _cachedPatterns  = new IWeatherPattern[found.Count];
         for (int i = 0; i < found.Count; i++) _cachedDirectors[i] = found[i];
 
 #if DEBUG
-        const float durationSeconds = 20f;
+        const float durationSeconds = 120f;
 #else
         const float durationSeconds = 180f;
 #endif
         _weatherResetAt = UnityEngine.Time.time + durationSeconds;
 
-        // On each director: stop all currently running states, then start ours.
-        // This integrates with the game's own weather system — WeatherDirector.FixedUpdate()
-        // drives the active states, so no per-frame re-application is needed from our side.
-        foreach (var director in _cachedDirectors)
+        // On each director: stop all currently running states, then start ours via the registry
+        // so the map weather overlay updates.  The pattern is looked up per-director from
+        // ZoneWeatherConfig.Patterns so it is always zone-appropriate (e.g. "Rain Pattern Gorge"
+        // for Rumbling Gorge, not "Rain Pattern Fields").  Falls back to RunState if the pattern
+        // is not found for this zone.
+        for (int di = 0; di < _cachedDirectors.Length; di++)
         {
+            var director = _cachedDirectors[di];
             if (director == null) continue;
 
             // Snapshot current states to avoid modifying the list while iterating it.
@@ -1980,11 +2003,32 @@ public static class TrapHandler
                     if (s != null) director.StopState(s, null, immediate: true);
             }
 
-            director.RunState(chosen.Cast<IWeatherState>(), null, immediate: false);
+            var registry       = director._registry;
+            var zone           = director.Zone;
+            var zonePatternDef = (registry != null && zone != null)
+                ? FindPatternForZone(registry, zone, chosenName) : null;
+
+            if (registry != null && zone != null && zonePatternDef != null)
+            {
+                var pattern = zonePatternDef.CreatePattern();
+                _cachedPatterns[di] = pattern;
+                Logger.Info($"[AP] WeatherChange: director[{di}] zone='{zone.name}' pattern='{zonePatternDef.name}' → registry.RunPatternState");
+                registry.RunPatternState(zone, pattern, chosenState, true);
+            }
+            else
+            {
+                // Wind Heavy crashes when RunState is called with null ZoneWeatherParameters.
+                // Only fall back to the direct path for non-Wind states.
+                Logger.Warning($"[AP] WeatherChange: director[{di}] fallback (registry={registry != null}, zone={zone != null}, pattern={zonePatternDef != null})");
+                if (chosenName.IndexOf("Wind", System.StringComparison.OrdinalIgnoreCase) < 0)
+                    director.RunState(chosenState, null, immediate: false);
+                else
+                    Logger.Warning($"[AP] WeatherChange: skipping Wind Heavy on director {di} — no zone pattern found, direct RunState would crash");
+            }
         }
 
         _lastGroupFiredAt[(int)TrapGroup.Weather] = UnityEngine.Time.time;
-        string label = chosen.StateName ?? chosen.name;
+        string label = chosen.StateName ?? chosen.name ?? "Unknown";
         Logger.Info($"[AP] WeatherChange: started '{label}' on {found.Count} director(s) for {durationSeconds}s");
         SlimeRancher2AP.UI.StatusHUD.Instance?.ShowNotification($"Weather Change: {label} for {(int)(durationSeconds / 60)}m!");
         return true;
@@ -2038,13 +2082,27 @@ public static class TrapHandler
         new("TeleporterBluffsToGorgeMain",      "SceneGroup.PowderfallBluffs", "Ember Valley Access", "Powderfall Bluffs Access"),      // confirmed
     };
 
+    // Region access item name → SceneGroup.ReferenceId of the zone it opens.
+    // Used for visited-zone inference: physically having been in a zone proves it is
+    // reachable, even when the gate opened in a previous session in vanilla mode
+    // (where UnlockRegion is never called and _runtimeOpenRegions resets each session).
+    private static readonly System.Collections.Generic.Dictionary<string, string> _regionToSceneGroupRef = new()
+    {
+        ["Ember Valley Access"]      = "SceneGroup.RumblingGorge",
+        ["Starlight Strand Access"]  = "SceneGroup.LuminousStrand",
+        ["Powderfall Bluffs Access"] = "SceneGroup.PowderfallBluffs",
+    };
+
     /// <summary>
     /// Returns true if the named region gate (by AP item name, e.g. "Ember Valley Access") is
     /// considered open. Checks in order: AP save, runtime gate-open events, visited zone inference.
     /// </summary>
     private static bool IsRegionGateOpen(string regionItemName)
         => Plugin.Instance.SaveManager.IsRegionUnlocked(regionItemName)
-        || _runtimeOpenRegions.Contains(regionItemName);
+        || _runtimeOpenRegions.Contains(regionItemName)
+        || (_regionToSceneGroupRef.TryGetValue(regionItemName, out var sgRef)
+            && (Plugin.Instance.SaveManager.HasVisitedZone(sgRef)
+                || _visitedSceneGroupRefs.Contains(sgRef)));
 
     /// <summary>
     /// Teleports the player to a random accessible zone entrance.
@@ -2217,6 +2275,7 @@ public static class TrapHandler
 
         _activeWeatherState = slimeRainDef;
         _cachedDirectors    = new WeatherDirector[found.Count];
+        _cachedPatterns     = null; // Tarr Rain uses RunState directly; no registry stop needed
         for (int i = 0; i < found.Count; i++) _cachedDirectors[i] = found[i];
 
 #if DEBUG
@@ -2247,6 +2306,59 @@ public static class TrapHandler
         return true;
     }
 
+    // Returns the WeatherPatternDefinition from the zone's own config that contains
+    // the given state (matched by StateName).  Uses ZoneWeatherConfig.Patterns so the pattern
+    // is always zone-appropriate rather than a mis-matched pattern from another zone.
+    private static WeatherPatternDefinition? FindPatternForZone(
+        WeatherRegistry registry, ZoneDefinition zone, string stateName)
+    {
+        var configs = registry.ZoneConfigList;
+        if (configs == null) return null;
+        for (int ci = 0; ci < configs.Count; ci++)
+        {
+            var config = configs[ci];
+            if (config?.Zone?.Pointer != zone?.Pointer) continue; // wrong zone
+            var patterns = config!.Patterns;
+            if (patterns == null) break;
+            for (int pi = 0; pi < patterns.Count; pi++)
+            {
+                if (WeatherPatternContainsState(patterns[pi], stateName)) return patterns[pi];
+            }
+            break; // found the zone config but state not in any of its patterns
+        }
+        return null;
+    }
+
+    // Returns true if the pattern's transition graph contains a state with the given StateName.
+    private static bool WeatherPatternContainsState(WeatherPatternDefinition? pat, string stateName)
+    {
+        if (pat == null) return false;
+        var startTrans = pat.StartingTransitions;
+        if (startTrans != null)
+            for (int j = 0; j < startTrans.Count; j++)
+            {
+                var sd = startTrans[j]?.ToState?.TryCast<WeatherStateDefinition>();
+                if (sd != null && (sd.StateName ?? sd.name ?? "") == stateName) return true;
+            }
+        var runTrans = pat.RunningTransitions;
+        if (runTrans == null) return false;
+        for (int j = 0; j < runTrans.Count; j++)
+        {
+            var tl = runTrans[j];
+            if (tl == null) continue;
+            var fromSd = tl.FromState?.TryCast<WeatherStateDefinition>();
+            if (fromSd != null && (fromSd.StateName ?? fromSd.name ?? "") == stateName) return true;
+            var tls = tl.Transitions;
+            if (tls == null) continue;
+            for (int k = 0; k < tls.Count; k++)
+            {
+                var toSd = tls[k]?.ToState?.TryCast<WeatherStateDefinition>();
+                if (toSd != null && (toSd.StateName ?? toSd.name ?? "") == stateName) return true;
+            }
+        }
+        return false;
+    }
+
     private static void RestoreSlimeRainActorTypes()
     {
         if (_savedSlimeRainActorTypes == null) return;
@@ -2255,25 +2367,114 @@ public static class TrapHandler
         _savedSlimeRainActorTypes = null;
     }
 
+    /// <summary>
+    /// Called when a new zone loads while a weather trap is active.
+    /// Refreshes <see cref="_cachedDirectors"/> and <see cref="_cachedPatterns"/> to include
+    /// any directors that weren't loaded when the trap originally fired, then starts the active
+    /// weather state on any newly-discovered directors.
+    /// </summary>
+    private static void ReapplyWeatherToNewZone()
+    {
+        if (_activeWeatherState == null || _weatherResetAt < 0f) return;
+
+        var found = Resources.FindObjectsOfTypeAll<WeatherDirector>();
+        if (found == null || found.Count == 0) return;
+
+        // Build an updated director+pattern cache.
+        var newDirectors = new WeatherDirector[found.Count];
+        var newPatterns  = new IWeatherPattern[found.Count];
+        for (int i = 0; i < found.Count; i++) newDirectors[i] = found[i];
+
+        var chosenState = _activeWeatherState.Cast<IWeatherState>();
+        int applied = 0;
+
+        for (int di = 0; di < newDirectors.Length; di++)
+        {
+            var director = newDirectors[di];
+            if (director == null) continue;
+
+            // Check if this director was already in the previous cache (already running our state).
+            bool alreadyTracked = false;
+            if (_cachedDirectors != null)
+            {
+                for (int ci = 0; ci < _cachedDirectors.Length; ci++)
+                    if (_cachedDirectors[ci] != null && _cachedDirectors[ci].Pointer == director.Pointer)
+                    {
+                        // Preserve its cached pattern so ResetWeather can stop it cleanly.
+                        newPatterns[di] = _cachedPatterns?[ci]!;
+                        alreadyTracked  = true;
+                        break;
+                    }
+            }
+            if (alreadyTracked) continue;
+
+            // New director — stop whatever it's running and apply our weather.
+            var running = director._runningStates;
+            if (running != null && running.Count > 0)
+            {
+                var toStop = new IWeatherState[running.Count];
+                for (int i = 0; i < running.Count; i++) toStop[i] = running[i];
+                foreach (var s in toStop)
+                    if (s != null) director.StopState(s, null, immediate: true);
+            }
+
+            var registry       = director._registry;
+            var zone           = director.Zone;
+            var activeName     = _activeWeatherState.StateName ?? _activeWeatherState.name ?? "";
+            var zonePatternDef = (registry != null && zone != null)
+                ? FindPatternForZone(registry, zone, activeName) : null;
+
+            if (registry != null && zone != null && zonePatternDef != null)
+            {
+                var pattern = zonePatternDef.CreatePattern();
+                newPatterns[di] = pattern;
+                registry.RunPatternState(zone, pattern, chosenState, true);
+                Logger.Info($"[AP] WeatherChange: re-applied '{activeName}' (pattern='{zonePatternDef.name}') to new director zone='{zone.name}'");
+            }
+            else
+            {
+                if (activeName.IndexOf("Wind", System.StringComparison.OrdinalIgnoreCase) < 0)
+                    director.RunState(chosenState, null, immediate: false);
+                Logger.Info($"[AP] WeatherChange: re-applied '{activeName}' (fallback) to new director zone='{zone?.name ?? "?"}'");
+            }
+            applied++;
+        }
+
+        _cachedDirectors = newDirectors;
+        _cachedPatterns  = newPatterns;
+
+        if (applied > 0)
+            Logger.Info($"[AP] WeatherChange: zone change — {applied} new director(s) added to weather trap");
+    }
+
     private static void ResetWeather()
     {
         if (_cachedDirectors == null || _activeWeatherState == null)
         {
             _cachedDirectors    = null;
             _activeWeatherState = null;
+            _cachedPatterns     = null;
             return;
         }
 
         var stateAsIWeather = _activeWeatherState.Cast<IWeatherState>();
-        foreach (var director in _cachedDirectors)
+        for (int di = 0; di < _cachedDirectors.Length; di++)
         {
+            var director = _cachedDirectors[di];
             if (director == null) continue;
-            director.StopState(stateAsIWeather, null, immediate: false);
+            var pattern  = _cachedPatterns?[di];
+            var registry = director._registry;
+            var zone     = director.Zone;
+            if (pattern != null && registry != null && zone != null)
+                registry.StopPatternState(zone, pattern, stateAsIWeather);
+            else
+                director.StopState(stateAsIWeather, null, immediate: false);
         }
 
         string label = _activeWeatherState.StateName ?? _activeWeatherState.name;
         _cachedDirectors    = null;
         _activeWeatherState = null;
+        _cachedPatterns     = null;
 
         // Restore any SpawnActorActivity overrides made by the Slime Rain trap.
         RestoreSlimeRainActorTypes();
