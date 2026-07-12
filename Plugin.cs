@@ -115,6 +115,7 @@ public class ApUpdateBehaviour : MonoBehaviour
         SlimeRancher2AP.Patches.LocationPatches.AccessDoorUITextPatch.Tick();
         SlimeRancher2AP.Patches.LocationPatches.ConversationActiveTrackerPatch.Tick();
         SlimeRancher2AP.Patches.LocationPatches.ConversationCalloutOverridePatch.Tick();
+        SlimeRancher2AP.Patches.UiPatches.ShopUiHelper.Tick();
         SlimeRancher2AP.UI.PauseMenuGoalDisplay.Tick();
         SlimeRancher2AP.Archipelago.ItemHandler.TickExpansionDoors();
         SlimeRancher2AP.Archipelago.ItemHandler.TickRegionTeleporters();

@@ -245,9 +245,11 @@ internal static class ConversationPageGiftBlueprintPatch
     private static bool Prefix(ConversationPageGiftBlueprint __instance, out bool __state)
     {
         // __state must be set before any early return so Harmony can pass it to Postfix.
+        // HasBlueprint = possession (the set AddBlueprint writes); IsBlueprintUnlocked reads
+        // the separate availability set and is wrong for "does the player already have this".
         var director = SceneContext.Instance?.GadgetDirector;
         __state = director != null && __instance.gadget != null
-                  && director.IsBlueprintUnlocked(__instance.gadget);
+                  && director.HasBlueprint(__instance.gadget);
 
         if (ConversationActiveTrackerPatch.ShouldSuppressGift())
         {

@@ -130,6 +130,7 @@ Quick reference only — verify against the apworld before relying on a range.
 | 819847–819874 | Plort Doors (28) |
 | 819875–819879 | Conservatory Expansion terminals (5) |
 | 819896–819920 | Plort Market (25) |
+| 819926–820074 | Polestar Provisions Shop (149 defined: 84 base + 65 zone-gated; per-seed random subset active via `randomize_shop`) |
 
 **Item IDs:**
 
@@ -139,7 +140,7 @@ Quick reference only — verify against the apworld before relying on a range.
 | 819510 | Radiant Projector Blueprint |
 | 819511–819514, 819530–819536 | Crafting Components |
 | 819515–819529 | Progressive Vacpack Upgrades |
-| 819537 | Drone Station Module (×19, with ghostly drones) |
+| 819537 | Quantum Drone Station (×19, with ghostly drones; blueprint+station first copy, then modules) |
 | 819540–819557 | Gadgets (zone/home teleporters, warp depots, functional) |
 | 819558–819560 | Gadgets — Dash Pad, Spring Pad, Portable Water Tap (always in pool) |
 | 819561 | Disruption Detector (×3, prismacore/slimepedia goals) |

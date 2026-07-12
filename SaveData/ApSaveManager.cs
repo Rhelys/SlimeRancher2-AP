@@ -41,6 +41,7 @@ public class ApSaveManager
     private ConfigEntry<long>?   _newbucksEarned;
     private ConfigEntry<string>? _appliedEphemeralIndices;
     private ConfigEntry<string>? _deferredItemIndices;
+    private ConfigEntry<string>? _associatedSaveName;
 
     private readonly HashSet<long>   _checkedSet      = new();
     private readonly HashSet<string> _regionSet       = new();
@@ -189,9 +190,23 @@ public class ApSaveManager
         _newbucksEarned          = null;
         _appliedEphemeralIndices = null;
         _deferredItemIndices     = null;
+        _associatedSaveName      = null;
         _lastItemIdx             = -1;
         // Keep _checkedSet, _regionSet, _visitedZoneSet, _scoutData in memory —
         // they'll be re-loaded from the correct file by the next OnConnected call.
+    }
+
+    /// <summary>
+    /// The SR2 save-game name this AP slot is bound to, or "" when no save has been
+    /// associated yet. Read/written by <c>SaveGuard</c>.
+    /// </summary>
+    public string AssociatedSaveName => _associatedSaveName?.Value ?? "";
+
+    /// <summary>Binds this AP slot to <paramref name="saveName"/> (persisted).</summary>
+    public void AssociateSave(string saveName)
+    {
+        if (_associatedSaveName == null) return;
+        _associatedSaveName.Value = saveName;
     }
 
     /// <summary>
@@ -230,6 +245,10 @@ public class ApSaveManager
             "Comma-separated item indices of received-but-not-yet-applied items (rate-limited " +
             "traps, held conservatory expansions). Re-queued on reconnect if the watermark has " +
             "already advanced past their index.");
+        _associatedSaveName      = _saveFile.Bind("Progress", "AssociatedSaveName", "",
+            "The SR2 save game this AP slot is bound to (set on the first in-save session). " +
+            "Loading a different save while connected pauses item delivery and checks. " +
+            "Clear this value to re-associate the slot with the next save you load.");
 
         // Deserialize checked locations
         _checkedSet.Clear();

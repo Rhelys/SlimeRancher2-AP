@@ -58,8 +58,10 @@ public static class ItemTable
     public const long ResourceHarvester   = 819528; // ResourceNodeHarvester × 1
     public const long DroneArchiveKey     = 819529; // ArchiveKey            × 1
 
-    // Useful — Drone Station Module: 819537
-    public const long DroneStationModule = 819537; // ComponentAcqDrone × 1
+    // Useful — Quantum Drone Station: 819537 (formerly "Drone Station Module").
+    // First copy grants the DroneStation blueprint + one placeable station; each copy
+    // also adds one ComponentAcqDrone module (another craftable station).
+    public const long QuantumDroneStation = 819537;
 
     // Gadgets: 819540–819557
     // Zone Teleporters — one per region (confirmed via DumpGadgets)
@@ -184,8 +186,9 @@ public static class ItemTable
         new(ResourceHarvester,         "Resource Harvester",          ItemType.Upgrade),
         new(DroneArchiveKey,           "Drone Archive Key",           ItemType.Upgrade),
 
-        // Useful — Drone Station Module (confirmed IdentType: ComponentAcqDrone, max 19 in game)
-        new(DroneStationModule, "Drone Station Module", ItemType.Useful),
+        // Useful — Quantum Drone Station (blueprint+station on first copy, then modules;
+        // module IdentType confirmed: ComponentAcqDrone, max 19 in game)
+        new(QuantumDroneStation, "Quantum Drone Station", ItemType.Useful),
 
         // Gadgets — Zone Teleporters
         new(TeleporterEmberValley,      "Teleporter (Ember Valley)",      ItemType.Gadget),

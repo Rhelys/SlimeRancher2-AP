@@ -210,7 +210,7 @@ public class DebugPanel : MonoBehaviour
     private float DrawPageFiller(float x, float y)
     {
         y = SectionLabel(x, y, "Useful");
-        y = ItemBtn(x, y, "Drone Station Module", ItemTable.DroneStationModule);
+        y = ItemBtn(x, y, "Quantum Drone Station", ItemTable.QuantumDroneStation);
 
         y = SectionLabel(x, y, "Newbucks");
         y = ItemBtn(x, y, "250 Newbucks",  ItemTable.Newbucks250);
@@ -340,6 +340,11 @@ public class DebugPanel : MonoBehaviour
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Kill Player (DeathLink)"))
             DeathLinkHandler.KillPlayer();
         y += BtnH + Gap;
+
+        y = SectionLabel(x, y, "Save Guard");
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Associate current save with AP slot"))
+            SaveGuard.ForceAssociateCurrentSave();
+        y += BtnH + Gap;
     }
 
     // Page 6: Radiant slime tools + Weather dumps
@@ -454,6 +459,15 @@ public class DebugPanel : MonoBehaviour
         y += BtnH + Gap;
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Scene Groups"))
             LocationDumper.DumpSceneGroups();
+        y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Shop Items (open shop UI first)"))
+            LocationDumper.DumpShopItems();
+        y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Shop UI Images (select item first)"))
+            LocationDumper.DumpShopUiImages();
+        y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Shop Conditions (open shop UI first)"))
+            LocationDumper.DumpShopItemConditions();
         y += BtnH + Gap;
 
         y = SectionLabel(x, y, "Spawn Weights");

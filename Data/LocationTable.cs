@@ -76,6 +76,18 @@ public enum LocationType
     ConservatoryExpansion,
 
     /// <summary>
+    /// First purchase of a specific item at the Polestar Provisions shop (Conservatory).
+    /// Included (as a per-seed random subset) when
+    /// <see cref="SlimeRancher2AP.Archipelago.SlotData.RandomizeShop"/> is true — only
+    /// locations present in the seed (<c>IsLocationInSeed</c>) are active checks.
+    /// Lookup key: <c>ShopRuntimeItem.AssetGuid</c> (stable addressables GUID —
+    /// <c>ShopItemId</c> is NOT stable: it degrades to a GUID while unloaded and some
+    /// entries use hand-authored GUIDs even when loaded).
+    /// <c>EntryName</c> holds the GadgetDefinition asset name for logs/debugging.
+    /// </summary>
+    PolestarShop,
+
+    /// <summary>
     /// A region gate switch check (locations/bundled <c>region_access_mode</c> only).
     /// Detection is handled by <c>RegionTable</c> + <c>RegionGateActivatePatch</c> (EV/SS)
     /// and <c>PlortDoorPoller</c> (PB) — NOT via the GameObjectName dictionary. These rows
@@ -903,6 +915,175 @@ public static class LocationTable
         new(LocationConstants.RegionGate_EmberValley,      "Region Gate - Ember Valley",      LocationType.RegionGate, "zoneFields",       "ruinSwitch"),
         new(LocationConstants.RegionGate_StarlightStrand,  "Region Gate - Starlight Strand",  LocationType.RegionGate, "zoneFields",       "ruinSwitch (2)"),
         new(LocationConstants.RegionGate_PowderfallBluffs, "Region Gate - Powderfall Bluffs", LocationType.RegionGate, "zoneGorge_Area3",  "zoneGorge_Area3_-645_34_681"),
+
+        // =================================================================
+        // POLESTAR PROVISIONS SHOP: 819926-820074 (149, randomize_shop)
+        // 819926-820009: always-available base items (84).
+        // 820010-820074: only appear in the shop after visiting their zone —
+        // the apworld gives them matching regional logic (docs/shop-location-logic.md).
+        // GameObjectName = ShopRuntimeItem.AssetGuid (stable addressables GUID);
+        // EntryName = GadgetDefinition asset name (debugging only).
+        // Checked via TryGetShopByAssetGuid() in ShopPatch. Only the per-seed
+        // random subset chosen by the apworld is active (IsLocationInSeed).
+        // Source: docs/dumps/shop.txt (2026-07-09), in-game category order.
+        // =================================================================
+        new(LocationConstants.PolestarShop_PinkAnemoneCluster, "Polestar Provisions: Pink Anemone Cluster", LocationType.PolestarShop, "", "007be6eaa1e0cdf46824dd2344cfee3a", "PinkAnemoneCluster"),  // 20nb
+        new(LocationConstants.PolestarShop_Seashells, "Polestar Provisions: Seashells", LocationType.PolestarShop, "", "2f6abf164c092244999fd36fc11001de", "Seashells"),  // 20nb
+        new(LocationConstants.PolestarShop_Seaweed, "Polestar Provisions: Seaweed", LocationType.PolestarShop, "", "35635f8c62a094942a745c9e5d121fea", "Seaweed"),  // 20nb
+        new(LocationConstants.PolestarShop_SeashellCollection, "Polestar Provisions: Seashell Collection", LocationType.PolestarShop, "", "5a59f82a0e401654688b26f381d0d7c2", "SeashellCollection"),  // 20nb
+        new(LocationConstants.PolestarShop_PinkAnemone, "Polestar Provisions: Pink Anemone", LocationType.PolestarShop, "", "90d5c49982f83c242a8afcd139b2cbad", "PinkAnemone"),  // 20nb
+        new(LocationConstants.PolestarShop_CurlySeaweed, "Polestar Provisions: Curly Seaweed", LocationType.PolestarShop, "", "c0da3f3290101ad43a624e1caa36ae1e", "CurlySeaweed"),  // 20nb
+        new(LocationConstants.PolestarShop_BlueAnemone, "Polestar Provisions: Blue Anemone", LocationType.PolestarShop, "", "c16eda45370c5fb4c8f35c5797446010", "BlueAnemone"),  // 20nb
+        new(LocationConstants.PolestarShop_YellowReefBush, "Polestar Provisions: Yellow Reef Bush", LocationType.PolestarShop, "", "ea5617aaa11591740b19952835c9e15d", "YellowReefBush"),  // 20nb
+        new(LocationConstants.PolestarShop_SeaGrass, "Polestar Provisions: Sea Grass", LocationType.PolestarShop, "", "f2e2b6edfa24ede47aa16eba45b4ddd1", "SeaGrass"),  // 20nb
+        new(LocationConstants.PolestarShop_BlueReefBush, "Polestar Provisions: Blue Reef Bush", LocationType.PolestarShop, "", "0b84a211c9a798843a1748a22152df8c", "BlueReefBush"),  // 40nb
+        new(LocationConstants.PolestarShop_PinkReefBush, "Polestar Provisions: Pink Reef Bush", LocationType.PolestarShop, "", "1af7ecc47a79e85479e00198711d741b", "PinkReefBush"),  // 40nb
+        new(LocationConstants.PolestarShop_PinwheelSmallPinkLemonade, "Polestar Provisions: Small Pink Lemonade Pinwheel", LocationType.PolestarShop, "", "2d7092ae56e7665498986a2c59ccd9e5", "PinwheelSmallPinkLemonade"),  // 40nb
+        new(LocationConstants.PolestarShop_PrideFlag, "Polestar Provisions: Pride Flag", LocationType.PolestarShop, "", "34ce6bcd75e13064aaf2b89a4bfb2cd7", "PrideFlag"),  // 40nb
+        new(LocationConstants.PolestarShop_TallPinkReefTree, "Polestar Provisions: Tall Pink Reef Tree", LocationType.PolestarShop, "", "36e002b3c496f504d96cdd539edaf50f", "TallPinkReefTree"),  // 40nb
+        new(LocationConstants.PolestarShop_BlueSwirlTree, "Polestar Provisions: Blue Swirl Tree", LocationType.PolestarShop, "", "3fb05027da1619d43b53e01432c32d10", "BlueSwirlTree"),  // 40nb
+        new(LocationConstants.PolestarShop_PinwheelLargeTeal, "Polestar Provisions: Large Teal Pinwheel", LocationType.PolestarShop, "", "4094a67db675bdd45b63b9dedb3c950f", "PinwheelLargeTeal"),  // 40nb
+        new(LocationConstants.PolestarShop_SandyYellowCoral, "Polestar Provisions: Sandy Yellow Coral", LocationType.PolestarShop, "", "40cafbd5bd19cd847bc04abffd649e88", "SandyYellowCoral"),  // 40nb
+        new(LocationConstants.PolestarShop_PinkReefTree, "Polestar Provisions: Pink Reef Tree", LocationType.PolestarShop, "", "46f2c4aeec213554581fc0a94c6884fd", "PinkReefTree"),  // 40nb
+        new(LocationConstants.PolestarShop_FlagHive, "Polestar Provisions: Hive Resource Flag", LocationType.PolestarShop, "", "6104146d15505e54da62240ecfe88ebd", "FlagHive"),  // 40nb
+        new(LocationConstants.PolestarShop_PinwheelSmallTeal, "Polestar Provisions: Small Teal Pinwheel", LocationType.PolestarShop, "", "6e5a61c2a3a14cc4e9fcfabcfba85437", "PinwheelSmallTeal"),  // 40nb
+        new(LocationConstants.PolestarShop_FlagMineral, "Polestar Provisions: Mineral Resource Flag", LocationType.PolestarShop, "", "8662dbcce8e24a24eb0c53e845c00a15", "FlagMineral"),  // 40nb
+        new(LocationConstants.PolestarShop_ShortPinkFlowerReef, "Polestar Provisions: Short Pink Flower Reef", LocationType.PolestarShop, "", "881cf0d53b628624f97f3ee22a79d61d", "ShortPinkFlowerReef"),  // 40nb
+        new(LocationConstants.PolestarShop_PinwheelLargePinkLemonade, "Polestar Provisions: Large Pink Lemonade Pinwheel", LocationType.PolestarShop, "", "8b8ce6c3228b11341995c06c1097989e", "PinwheelLargePinkLemonade"),  // 40nb
+        new(LocationConstants.PolestarShop_PinkFlowerReef, "Polestar Provisions: Pink Flower Reef", LocationType.PolestarShop, "", "95625cafeeea30d46b36c4336fc9885e", "PinkFlowerReef"),  // 40nb
+        new(LocationConstants.PolestarShop_FlagSpout, "Polestar Provisions: Spout Resource Flag", LocationType.PolestarShop, "", "a39e061449ead6744abb50aeb0812bed", "FlagSpout"),  // 40nb
+        new(LocationConstants.PolestarShop_SlimeFlag, "Polestar Provisions: Slime Flag", LocationType.PolestarShop, "", "ddced4470f6092444aafef3c53233af8", "SlimeFlag"),  // 40nb
+        new(LocationConstants.PolestarShop_TallPinkFlowerReef, "Polestar Provisions: Tall Pink Flower Reef", LocationType.PolestarShop, "", "f38cb8ec99473304a83372b479da159e", "TallPinkFlowerReef"),  // 40nb
+        new(LocationConstants.PolestarShop_PinkReefTreeCluster, "Polestar Provisions: Pink Reef Tree Cluster", LocationType.PolestarShop, "", "f55cb33042cadac4ab291d2025e019cf", "PinkReefTreeCluster"),  // 40nb
+        new(LocationConstants.PolestarShop_ScientistChair, "Polestar Provisions: Scientist's Chair", LocationType.PolestarShop, "", "2af4514c6e65ffe4ab559185fdb5a4ec", "ScientistChair"),  // 100nb
+        new(LocationConstants.PolestarShop_MusicPillar, "Polestar Provisions: Music Pillar", LocationType.PolestarShop, "", "65215ec386b484f4aac1b61ccdbed5d5", "MusicPillar"),  // 100nb
+        new(LocationConstants.PolestarShop_CouchSeat, "Polestar Provisions: Short Comfy Couch", LocationType.PolestarShop, "", "882c213ab61f6564796bb337add10a64", "CouchSeat"),  // 100nb
+        new(LocationConstants.PolestarShop_DoubleCouchSeat, "Polestar Provisions: Long Comfy Couch", LocationType.PolestarShop, "", "e4f6b393dddf7404db91f1364056b9e2", "DoubleCouchSeat"),  // 100nb
+        new(LocationConstants.PolestarShop_MusicTile, "Polestar Provisions: Music Tile", LocationType.PolestarShop, "", "f86907fe3fd5a8544ab5c2d775a4998b", "MusicTile"),  // 100nb
+        new(LocationConstants.PolestarShop_PinkStripedLampMint, "Polestar Provisions: Mint Striped Lamp", LocationType.PolestarShop, "", "0a1fc65d471fc7a4a9b2af2b363eb6e6", "PinkStripedLampMint"),  // 150nb
+        new(LocationConstants.PolestarShop_WarpDepotGreen, "Polestar Provisions: Green Warp Depot", LocationType.PolestarShop, "", "192f4344f5c75bc4f8454db2a35563d3", "WarpDepotGreen"),  // 150nb
+        new(LocationConstants.PolestarShop_WarpDepotAmber, "Polestar Provisions: Amber Warp Depot", LocationType.PolestarShop, "", "2888c46188773984789b9c99541aa5e5", "WarpDepotAmber"),  // 150nb
+        new(LocationConstants.PolestarShop_ReefChair, "Polestar Provisions: Reef Chair", LocationType.PolestarShop, "", "32a30fdecd52ffd4b942ac811aa23df4", "ReefChair"),  // 150nb
+        new(LocationConstants.PolestarShop_UmbrellaBeachPinkLemonade, "Polestar Provisions: Pink Lemonade Beach Umbrella", LocationType.PolestarShop, "", "581dea18abd675f4f818c211d2fe5f25", "UmbrellaBeachPinkLemonade"),  // 150nb
+        new(LocationConstants.PolestarShop_WarpDepotGold, "Polestar Provisions: Gold Warp Depot", LocationType.PolestarShop, "", "613306f42de27c64e882b6f800e4e408", "WarpDepotGold"),  // 150nb
+        new(LocationConstants.PolestarShop_ReefTable, "Polestar Provisions: Reef Table", LocationType.PolestarShop, "", "66832d462da0c284687e994b140d9f1b", "ReefTable"),  // 150nb
+        new(LocationConstants.PolestarShop_PinkStripedLampBlue, "Polestar Provisions: Blue Striped Lamp", LocationType.PolestarShop, "", "804d8f81d6667794d9d8d72452301978", "PinkStripedLampBlue"),  // 150nb
+        new(LocationConstants.PolestarShop_WarpDepotRed, "Polestar Provisions: Red Warp Depot", LocationType.PolestarShop, "", "c093717d767797546a1e3808d24c362a", "WarpDepotRed"),  // 150nb
+        new(LocationConstants.PolestarShop_UmbrellaBeachTeal, "Polestar Provisions: Teal Beach Umbrella", LocationType.PolestarShop, "", "ec4f8f41ad367944c9ee71f091831b56", "UmbrellaBeachTeal"),  // 150nb
+        new(LocationConstants.PolestarShop_SlimeStageMonochromatic, "Polestar Provisions: Monochromatic #1 Slime Stage", LocationType.PolestarShop, "", "037ef518bee8ca740b35272a31ffcf5d", "SlimeStageMonochromatic"),  // 250nb
+        new(LocationConstants.PolestarShop_SlimeStagePastel, "Polestar Provisions: Pastel #1 Slime Stage", LocationType.PolestarShop, "", "b3ecbf2d7327e2a42ab3e5403e981763", "SlimeStagePastel"),  // 250nb
+        new(LocationConstants.PolestarShop_TeacupLargeMint, "Polestar Provisions: Bountiful Mint Teacup", LocationType.PolestarShop, "", "1007a47ca02bd6643ab978836cf43dc6", "TeacupLargeMint"),  // 300nb
+        new(LocationConstants.PolestarShop_LargeSimpleBench, "Polestar Provisions: Large Simple Bench", LocationType.PolestarShop, "", "2b00c5e26a1b9004f81caccb00432f51", "LargeSimpleBench"),  // 300nb
+        new(LocationConstants.PolestarShop_TeacupLargeBlue, "Polestar Provisions: Bountiful Blue Teacup", LocationType.PolestarShop, "", "364c01f42fa4397459379006ed7326ef", "TeacupLargeBlue"),  // 300nb
+        new(LocationConstants.PolestarShop_BumperBlue, "Polestar Provisions: Blue Round Bumper", LocationType.PolestarShop, "", "5575d3075825b5b4380cbd323a6a17ca", "BumperBlue"),  // 300nb
+        new(LocationConstants.PolestarShop_TeacupSmallMint, "Polestar Provisions: Dainty Mint Teacup", LocationType.PolestarShop, "", "6db1a227106536146957fa44b175d975", "TeacupSmallMint"),  // 300nb
+        new(LocationConstants.PolestarShop_ScientistDesk, "Polestar Provisions: Scientist's Desk", LocationType.PolestarShop, "", "70e289375d61648439616861bc657c60", "ScientistDesk"),  // 300nb
+        new(LocationConstants.PolestarShop_FanTarr, "Polestar Provisions: Tarr Fan", LocationType.PolestarShop, "", "970d49f8ff1be714bb8ff79ac84018d7", "FanTarr"),  // 300nb
+        new(LocationConstants.PolestarShop_BumperMint, "Polestar Provisions: Mint Round Bumper", LocationType.PolestarShop, "", "9cee065f0c4d32c45977e6ff10e1d5ba", "BumperMint"),  // 300nb
+        new(LocationConstants.PolestarShop_SlimeJailStandie, "Polestar Provisions: Slime Jail Standee", LocationType.PolestarShop, "", "c734072472794344f8c06f9d3a097389", "SlimeJailStandie"),  // 300nb
+        new(LocationConstants.PolestarShop_FanPink, "Polestar Provisions: Pink Easy Breezy Fan", LocationType.PolestarShop, "", "f2bf4581a38502d4fb4731cbd989b9d3", "FanPink"),  // 300nb
+        new(LocationConstants.PolestarShop_TeacupSmallBlue, "Polestar Provisions: Dainty Blue Teacup", LocationType.PolestarShop, "", "f5a24d91706c14946b928b390734bc4f", "TeacupSmallBlue"),  // 300nb
+        new(LocationConstants.PolestarShop_LinkedCannonGrey, "Polestar Provisions: Grey Linked Cannon", LocationType.PolestarShop, "", "0ef9cadcf3475f0428ccca96bc51308c", "LinkedCannonGrey"),  // 500nb
+        new(LocationConstants.PolestarShop_LinkedCannon, "Polestar Provisions: Blue Linked Cannon", LocationType.PolestarShop, "", "14e6142a2a5ec5649b80084c16fe2492", "LinkedCannon"),  // 500nb
+        new(LocationConstants.PolestarShop_LavaLampGreen, "Polestar Provisions: Green Lava Lamp", LocationType.PolestarShop, "", "28020f3f5b796564c99893ab728c8000", "LavaLampGreen"),  // 500nb
+        new(LocationConstants.PolestarShop_BoomboxPink, "Polestar Provisions: Pink Boombox", LocationType.PolestarShop, "", "33762c55bc00e9b47ba270a1cdade01d", "BoomboxPink"),  // 500nb
+        new(LocationConstants.PolestarShop_SeesawMint, "Polestar Provisions: Mint Seesaw", LocationType.PolestarShop, "", "56162c9e62a2a9d4f96855b803bae1bb", "SeesawMint"),  // 500nb
+        new(LocationConstants.PolestarShop_SwingMint, "Polestar Provisions: Mint Swing", LocationType.PolestarShop, "", "565e6f13c4d313640bc6b06811ecf934", "SwingMint"),  // 500nb
+        new(LocationConstants.PolestarShop_SwingBlue, "Polestar Provisions: Blue Swing", LocationType.PolestarShop, "", "67465f42a55bed64b9d31321a74dc890", "SwingBlue"),  // 500nb
+        new(LocationConstants.PolestarShop_LavaLampRed, "Polestar Provisions: Red Lava Lamp", LocationType.PolestarShop, "", "7a1766e1728db4e489be1874e64ffe29", "LavaLampRed"),  // 500nb
+        new(LocationConstants.PolestarShop_CannonBlue, "Polestar Provisions: Blue Stunt Cannon", LocationType.PolestarShop, "", "7ac32dfa17e5ac444b12958e084e22cc", "CannonBlue"),  // 500nb
+        new(LocationConstants.PolestarShop_SeesawBlue, "Polestar Provisions: Blue Seesaw", LocationType.PolestarShop, "", "8d93414dd24b9ae4982bf4dab16f8a03", "SeesawBlue"),  // 500nb
+        new(LocationConstants.PolestarShop_LinkedCannonPink, "Polestar Provisions: Pink Linked Cannon", LocationType.PolestarShop, "", "a3aaa45a3b693e74584df4e671be4f3a", "LinkedCannonPink"),  // 500nb
+        new(LocationConstants.PolestarShop_CannonMint, "Polestar Provisions: Mint Stunt Cannon", LocationType.PolestarShop, "", "b45c60fbcf0ef534ba90a36eb19a0e99", "CannonMint"),  // 500nb
+        new(LocationConstants.PolestarShop_LavaLampBlue, "Polestar Provisions: Blue Lava Lamp", LocationType.PolestarShop, "", "cb62bbb8302756646bc6f564ff0d9925", "LavaLampBlue"),  // 500nb
+        new(LocationConstants.PolestarShop_LinkedCannonRed, "Polestar Provisions: Red Linked Cannon", LocationType.PolestarShop, "", "cc8a7da2d05add64cb4471468953b2fa", "LinkedCannonRed"),  // 500nb
+        new(LocationConstants.PolestarShop_LavaLampGold, "Polestar Provisions: Gold Lava Lamp", LocationType.PolestarShop, "", "cf82bd9021b34264381b388b44c0d873", "LavaLampGold"),  // 500nb
+        new(LocationConstants.PolestarShop_Seesaw, "Polestar Provisions: Seesaw", LocationType.PolestarShop, "", "e62952fa2c73cf54992415ce92ec1ece", "Seesaw"),  // 500nb
+        new(LocationConstants.PolestarShop_LinkedCannonGreen, "Polestar Provisions: Green Linked Cannon", LocationType.PolestarShop, "", "f261ac424d04f784d857bcfd3cd83f23", "LinkedCannonGreen"),  // 500nb
+        new(LocationConstants.PolestarShop_BoomboxGrey, "Polestar Provisions: Grey Boombox", LocationType.PolestarShop, "", "ffa627108e235e2409b0c3290e53dcd3", "BoomboxGrey"),  // 500nb
+        new(LocationConstants.PolestarShop_SlimeballGoal, "Polestar Provisions: Slimeball Goal", LocationType.PolestarShop, "", "2e08c84745bd4b1439f021ccda4b9c2e", "SlimeballGoal"),  // 2500nb
+        new(LocationConstants.PolestarShop_ShipInABottle, "Polestar Provisions: Ship in a Bottle", LocationType.PolestarShop, "", "8f71ee5fbd9d47a408666d6ccdddfd8e", "ShipInABottle"),  // 3000nb
+        new(LocationConstants.PolestarShop_CarouselMint, "Polestar Provisions: Mint Carousel", LocationType.PolestarShop, "", "1b1f4298de69a6e44927ec2e1529ea1d", "CarouselMint"),  // 3500nb
+        new(LocationConstants.PolestarShop_CarouselBlue, "Polestar Provisions: Blue Carousel", LocationType.PolestarShop, "", "423e82db376a02e46a46a6f6d4010b2a", "CarouselBlue"),  // 3500nb
+        new(LocationConstants.PolestarShop_FerrisWheelMint, "Polestar Provisions: Mint Ferris Wheel", LocationType.PolestarShop, "", "95c70eb4a285aa543b46ddcd318dabf4", "FerrisWheelMint"),  // 3500nb
+        new(LocationConstants.PolestarShop_FerrisWheelBlue, "Polestar Provisions: Blue Ferris Wheel", LocationType.PolestarShop, "", "e582694e62a80f14987be5d13ad0dd7a", "FerrisWheelBlue"),  // 3500nb
+        new(LocationConstants.PolestarShop_LaZeeDistributor, "Polestar Provisions: Distributor", LocationType.PolestarShop, "", "5b4ac9e5158b89849814ab8e9f095be2", "LaZeeDistributor"),  // 4000nb
+        new(LocationConstants.PolestarShop_DreamLantern, "Polestar Provisions: Dream Lantern", LocationType.PolestarShop, "", "363b57fea0c6eba458387ba847f2ead5", "DreamLantern"),  // 5000nb
+        new(LocationConstants.PolestarShop_GoldenYolkyStatue, "Polestar Provisions: Golden Yolky Statue", LocationType.PolestarShop, "", "f5de8886c775d454baafa036b5e0790d", "GoldenYolkyStatue"),  // 10000nb
+        new(LocationConstants.PolestarShop_WarpDepotBerry, "Polestar Provisions: Berry Warp Depot", LocationType.PolestarShop, "", "44e1d1c30e0654747bf8636bc6bd4194", "WarpDepotBerry"),  // 150nb
+
+        // --- Requires visited Ember Valley → region EmberValley ---
+        new(LocationConstants.PolestarShop_BeachBlanketStriped, "Polestar Provisions: Striped Beach Blanket", LocationType.PolestarShop, "", "6493f2c93efb8744280bb61c82006bad", "BeachBlanketStriped"),  // 80nb
+        new(LocationConstants.PolestarShop_UmbrellaCherryBlossom, "Polestar Provisions: Sakura Umbrella", LocationType.PolestarShop, "", "300f5442285fce84282bed1d11f35b21", "UmbrellaCherryBlossom"),  // 150nb
+        new(LocationConstants.PolestarShop_trellisSmall, "Polestar Provisions: Small Trellis", LocationType.PolestarShop, "", "aa327acf1b1d9e040b69d8c014b16c0b", "trellisSmall"),  // 80nb
+        new(LocationConstants.PolestarShop_EmeraldVineTrellisLarge, "Polestar Provisions: Wide Emerald Trellis", LocationType.PolestarShop, "", "6d42a5af6494bf14798c000be71c95e8", "EmeraldVineTrellisLarge"),  // 150nb
+        new(LocationConstants.PolestarShop_TarrStandie, "Polestar Provisions: Tarr Standee", LocationType.PolestarShop, "", "8917f059e6d20ec4bb8557ec03498161", "TarrStandie"),  // 300nb
+        new(LocationConstants.PolestarShop_UmbrellaSunflower, "Polestar Provisions: Sunflower Umbrella", LocationType.PolestarShop, "", "632f29c2d6c09644896aee526a93bbd9", "UmbrellaSunflower"),  // 150nb
+        new(LocationConstants.PolestarShop_UmbrellaMoonflower, "Polestar Provisions: Moonflower Umbrella", LocationType.PolestarShop, "", "5c93cb94f1a3f1643919daff7d9e2d87", "UmbrellaMoonflower"),  // 150nb
+        new(LocationConstants.PolestarShop_UmbrellaSunflowerPeach, "Polestar Provisions: Peach Sunflower Umbrella", LocationType.PolestarShop, "", "f13a4dd259d7cf847bf7ced40f44bb0b", "UmbrellaSunflowerPeach"),  // 150nb
+        new(LocationConstants.PolestarShop_AcceleratorGold, "Polestar Provisions: Gold Accelerator", LocationType.PolestarShop, "", "424e93686557a0846af66c10cc2ff4b0", "AcceleratorGold"),  // 50nb
+        new(LocationConstants.PolestarShop_AcceleratorGreen, "Polestar Provisions: Green Accelerator", LocationType.PolestarShop, "", "6e04645e3cb40ff46b070caff0270132", "AcceleratorGreen"),  // 50nb
+        new(LocationConstants.PolestarShop_AcceleratorGrey, "Polestar Provisions: Grey Accelerator", LocationType.PolestarShop, "", "746a66c26b170134e85b7bab55687d7b", "AcceleratorGrey"),  // 50nb
+        new(LocationConstants.PolestarShop_AcceleratorPink, "Polestar Provisions: Pink Accelerator", LocationType.PolestarShop, "", "10ab4cca9cf7b94419e9aecdead7e6eb", "AcceleratorPink"),  // 50nb
+        new(LocationConstants.PolestarShop_AcceleratorPurple, "Polestar Provisions: Purple Accelerator", LocationType.PolestarShop, "", "dae9fb8bf027efc40b0507b273e02bd6", "AcceleratorPurple"),  // 50nb
+        new(LocationConstants.PolestarShop_AcceleratorRed, "Polestar Provisions: Red Accelerator", LocationType.PolestarShop, "", "5d80e466ed17862478826fbfececa2fd", "AcceleratorRed"),  // 50nb
+
+        // --- Requires visited Starlight Strand → region StarlightStrand ---
+        new(LocationConstants.PolestarShop_SmallSandcastle, "Polestar Provisions: Small Sandcastle", LocationType.PolestarShop, "", "ecde008e19a76a04e8ac3417e34503a5", "SmallSandcastle"),  // 300nb
+        new(LocationConstants.PolestarShop_LargeSandcastle, "Polestar Provisions: Large Sandcastle", LocationType.PolestarShop, "", "7d92ba926a5547944894c860f9bc5c17", "LargeSandcastle"),  // 300nb
+        new(LocationConstants.PolestarShop_ClamThrone, "Polestar Provisions: Clam Throne", LocationType.PolestarShop, "", "b403754831d88f74e87fa1f3f4871032", "ClamThrone"),  // 300nb
+        new(LocationConstants.PolestarShop_BeachBlanketWaves, "Polestar Provisions: Wavey Beach Blanket", LocationType.PolestarShop, "", "a922eaf69d10cdd449ae14b9e1208e07", "BeachBlanketWaves"),  // 80nb
+        new(LocationConstants.PolestarShop_Net, "Polestar Provisions: Medium Net", LocationType.PolestarShop, "", "faafd1b0ce79398408420861e9221bd9", "Net"),  // 300nb
+        new(LocationConstants.PolestarShop_NetPost, "Polestar Provisions: Small Net", LocationType.PolestarShop, "", "75e2ea89876e7944eae3eb6478eef78c", "NetPost"),  // 200nb
+        new(LocationConstants.PolestarShop_NetTall, "Polestar Provisions: Large Net", LocationType.PolestarShop, "", "c1cf6c1832f68b749badba105c212fb5", "NetTall"),  // 500nb
+
+        // --- Requires visited Powderfall Bluffs → region PowderfallBluffs ---
+        new(LocationConstants.PolestarShop_SnowmanStandie, "Polestar Provisions: Snowman Standee", LocationType.PolestarShop, "", "568b60421d741a546958878ced2d1658", "SnowmanStandie"),  // 300nb
+
+        // --- Requires visited any Grey Labyrinth zone → region GreyLabyrinth ---
+        new(LocationConstants.PolestarShop_AncientRoundPillar, "Polestar Provisions: Ancient Round Pillar", LocationType.PolestarShop, "", "efe79f4e9a3e3114abc4659524a1420d", "AncientRoundPillar"),  // 80nb
+        new(LocationConstants.PolestarShop_ExcavationLights, "Polestar Provisions: Excavation Lights", LocationType.PolestarShop, "", "d10fa78deb1756f4c9d41114cc5e8f4d", "ExcavationLights"),  // 80nb
+        new(LocationConstants.PolestarShop_AncientArchedWall, "Polestar Provisions: Ancient Arched Wall", LocationType.PolestarShop, "", "1594d88b7e86b0640bc47ddd06929356", "AncientArchedWall"),  // 80nb
+        new(LocationConstants.PolestarShop_GoldSlimeFloorPanel, "Polestar Provisions: Gold Slime Floor Panel", LocationType.PolestarShop, "", "a7ae5454dab81ab4c93a3460c2f4889f", "GoldSlimeFloorPanel"),  // 500nb
+        new(LocationConstants.PolestarShop_ShadowSureShotComponent, "Polestar Provisions: Shadow Sureshot Module", LocationType.PolestarShop, "", "af8d1fe5fa05ff143a0af27e74ad8438", "ShadowSureShotComponent"),  // 5000nb
+        new(LocationConstants.PolestarShop_WoodenFence, "Polestar Provisions: Wooden Fence", LocationType.PolestarShop, "", "684056d0f15a6c94f86d96217540db71", "WoodenFence"),  // 100nb
+        new(LocationConstants.PolestarShop_StraightStoneFence, "Polestar Provisions: Straight Stone Fence", LocationType.PolestarShop, "", "7563a5fd89d35f948baa6d7ae6339833", "StraightStoneFence"),  // 160nb
+        new(LocationConstants.PolestarShop_CurvedStoneFence, "Polestar Provisions: Curved Stone Fence", LocationType.PolestarShop, "", "0b500f09404502744a9187745f2b4ddb", "CurvedStoneFence"),  // 160nb
+        new(LocationConstants.PolestarShop_TwistyOvergrownTree, "Polestar Provisions: Giant Stalks", LocationType.PolestarShop, "", "2dbf5724259cf7444bd9f0a3f36a33fe", "TwistyOvergrownTree"),  // 160nb
+        new(LocationConstants.PolestarShop_OvergrownLilypad, "Polestar Provisions: Overgrown Lilypad", LocationType.PolestarShop, "", "329d1fc3b908b0148b231b8a97b22a23", "OvergrownLilypad"),  // 160nb
+        new(LocationConstants.PolestarShop_BlueSwampFlower, "Polestar Provisions: Azure Water Flower", LocationType.PolestarShop, "", "650f45cc59f4beb4fa13426ebc088106", "BlueSwampFlower"),  // 160nb
+        new(LocationConstants.PolestarShop_SlimeStageFloral, "Polestar Provisions: Pink Floral Slime Stage", LocationType.PolestarShop, "", "892efe2143f473d4d9c0739d07c70d00", "SlimeStageFloral"),  // 750nb
+        new(LocationConstants.PolestarShop_FlowerSlimeTree, "Polestar Provisions: Blue Floral Slime Tree", LocationType.PolestarShop, "", "904f25e4e6b57cf4e8381fd4ad9ff9fc", "FlowerSlimeTree"),  // 800nb
+        new(LocationConstants.PolestarShop_FlowerPillowSmall, "Polestar Provisions: Small Pink Flower Pillow", LocationType.PolestarShop, "", "aead1e021f51bac4189e01a73c647040", "FlowerPillowSmall"),  // 150nb
+        new(LocationConstants.PolestarShop_FlowerPillowLarge, "Polestar Provisions: Large Blue Flower Pillow", LocationType.PolestarShop, "", "4cfb1db894581534a873890a8ae12c16", "FlowerPillowLarge"),  // 200nb
+        new(LocationConstants.PolestarShop_FlowerLamp, "Polestar Provisions: Blue Flower Lamp", LocationType.PolestarShop, "", "07744a8b90a3c404b9a70b567bf5477b", "FlowerLamp"),  // 800nb
+        new(LocationConstants.PolestarShop_LinkedCannonGold, "Polestar Provisions: Gold Linked Cannon", LocationType.PolestarShop, "", "cc0f0d81d2178ff45baef3a79d646382", "LinkedCannonGold"),  // 500nb
+        new(LocationConstants.PolestarShop_LinkedCannonViolet, "Polestar Provisions: Violet Linked Cannon", LocationType.PolestarShop, "", "c86ed8d23cc7aba4d82dba3651691d53", "LinkedCannonViolet"),  // 500nb
+        new(LocationConstants.PolestarShop_GordoSnareMaster, "Polestar Provisions: Master Gordo Snare", LocationType.PolestarShop, "", "a0ef3480839951e48943a616deb34356", "GordoSnareMaster"),  // 1200nb
+        new(LocationConstants.PolestarShop_FlowerLampOrange, "Polestar Provisions: Orange Flower Lamp", LocationType.PolestarShop, "", "7ab315037583f764c9e60a6d3866a1d1", "FlowerLampOrange"),  // 800nb
+        new(LocationConstants.PolestarShop_FlowerLampPink, "Polestar Provisions: Pink Flower Lamp", LocationType.PolestarShop, "", "f956c736893fcd447b9e5d665bfc3af8", "FlowerLampPink"),  // 800nb
+        new(LocationConstants.PolestarShop_FlowerLampPurple, "Polestar Provisions: Purple Flower Lamp", LocationType.PolestarShop, "", "ad7b4dda010b4ba4fa847b6565c3ec40", "FlowerLampPurple"),  // 800nb
+        new(LocationConstants.PolestarShop_FlowerPillowLargeCoral, "Polestar Provisions: Large Coral Flower Pillow", LocationType.PolestarShop, "", "ea1a8752468e3b544a8bd7a5b87b33f9", "FlowerPillowLargeCoral"),  // 200nb
+        new(LocationConstants.PolestarShop_FlowerPillowLargePurple, "Polestar Provisions: Large Purple Flower Pillow", LocationType.PolestarShop, "", "e1ee58917d7d0b645859375f6fea0ac6", "FlowerPillowLargePurple"),  // 200nb
+        new(LocationConstants.PolestarShop_FlowerPillowLargeYellow, "Polestar Provisions: Large Yellow Flower Pillow", LocationType.PolestarShop, "", "9b79cd1a1b53c8d479915f9209bfe653", "FlowerPillowLargeYellow"),  // 200nb
+        new(LocationConstants.PolestarShop_FlowerPillowSmallBlue, "Polestar Provisions: Small Blue Flower Pillow", LocationType.PolestarShop, "", "2330917b630f468479a222ba199072af", "FlowerPillowSmallBlue"),  // 150nb
+        new(LocationConstants.PolestarShop_FlowerPillowSmallPurple, "Polestar Provisions: Small Purple Flower Pillow", LocationType.PolestarShop, "", "e42f15a21a4f5194c8cb1f0d76007077", "FlowerPillowSmallPurple"),  // 150nb
+        new(LocationConstants.PolestarShop_FlowerPillowSmallYellow, "Polestar Provisions: Small Yellow Flower Pillow", LocationType.PolestarShop, "", "eb46350230a99614088da8e4d1bd6a58", "FlowerPillowSmallYellow"),  // 150nb
+        new(LocationConstants.PolestarShop_FlowerSlimeTreeCoral, "Polestar Provisions: Coral Floral Slime Tree", LocationType.PolestarShop, "", "5f5eeed9e36546e4ca7ef57f99385bd7", "FlowerSlimeTreeCoral"),  // 800nb
+        new(LocationConstants.PolestarShop_FlowerSlimeTreePurple, "Polestar Provisions: Purple Floral Slime Tree", LocationType.PolestarShop, "", "472ba983c6ede8e4687c03745d53efcd", "FlowerSlimeTreePurple"),  // 800nb
+        new(LocationConstants.PolestarShop_FlowerSlimeTreeYellow, "Polestar Provisions: Yellow Floral Slime Tree", LocationType.PolestarShop, "", "2e442bd596803dd4c9d6c539cec0fa04", "FlowerSlimeTreeYellow"),  // 800nb
+        new(LocationConstants.PolestarShop_SlimeStageFloralBlue, "Polestar Provisions: Blue Floral Slime Stage", LocationType.PolestarShop, "", "6acdca2f391bc9c43892b943045f6cd0", "SlimeStageFloralBlue"),  // 750nb
+        new(LocationConstants.PolestarShop_SlimeStageFloralPurple, "Polestar Provisions: Purple Floral Slime Stage", LocationType.PolestarShop, "", "0c315d04d970fef4da8ecbea3a41f478", "SlimeStageFloralPurple"),  // 750nb
+        new(LocationConstants.PolestarShop_SlimeStageFloralYellow, "Polestar Provisions: Yellow Floral Slime Stage", LocationType.PolestarShop, "", "cc8f0bc4756c42541897d1e6c30a64d4", "SlimeStageFloralYellow"),  // 750nb
+        new(LocationConstants.PolestarShop_IndigoCypress, "Polestar Provisions: Indigo Cypress", LocationType.PolestarShop, "", "ef815d15935fbaa4bbc8768c4847a3a7", "IndigoCypress"),  // 40nb
+        new(LocationConstants.PolestarShop_IndigoCypressCluster, "Polestar Provisions: Indigo Cypress Cluster", LocationType.PolestarShop, "", "ffc0a16a820f10e41a86b51712efb4a3", "IndigoCypressCluster"),  // 50nb
+        new(LocationConstants.PolestarShop_IndigoFlowers, "Polestar Provisions: Indigo Flowers", LocationType.PolestarShop, "", "bfaf8912aee5eb84d8deed4d7da8d5d9", "IndigoFlowers"),  // 25nb
+        new(LocationConstants.PolestarShop_IndigoGrass, "Polestar Provisions: Indigo Grass", LocationType.PolestarShop, "", "9d6e63671f5a844429c1651997bfe345", "IndigoGrass"),  // 25nb
+        new(LocationConstants.PolestarShop_IndigoShrubs, "Polestar Provisions: Indigo Shrubs", LocationType.PolestarShop, "", "a268b832833f7b14d9731835e9dae00a", "IndigoShrubs"),  // 40nb
+        new(LocationConstants.PolestarShop_LabyrinthStandingLamp, "Polestar Provisions: Labyrinth Standing Lamp", LocationType.PolestarShop, "", "f521adf6488957b45b9e1aead5624881", "LabyrinthStandingLamp"),  // 150nb
+        new(LocationConstants.PolestarShop_LabyrinthWallLamp, "Polestar Provisions: Labyrinth Wall Lamp", LocationType.PolestarShop, "", "2d22058532d2adb4fb956399a7aac726", "LabyrinthWallLamp"),  // 150nb
+        new(LocationConstants.PolestarShop_TallIndigoCypress, "Polestar Provisions: Tall Indigo Cypress", LocationType.PolestarShop, "", "6497fe4cc7110324cbcacf0c2858559c", "TallIndigoCypress"),  // 40nb
+        new(LocationConstants.PolestarShop_LavaLampGrey, "Polestar Provisions: Shadow Lava Lamp", LocationType.PolestarShop, "", "0e4bb9bdf192b0945abf54de809608b9", "LavaLampGrey"),  // 500nb
     };
 
     // -------------------------------------------------------------------------
@@ -923,6 +1104,7 @@ public static class LocationTable
                       && l.Type != LocationType.SlimepediaRadiantEntry   // keyed by EntryName, GameObjectName is ""
                       && l.Type != LocationType.FabricatorCraft
                       && l.Type != LocationType.PlortMarket               // keyed by GameObjectName via _byPlortName
+                      && l.Type != LocationType.PolestarShop              // keyed by GameObjectName via _byShopAssetGuid
                       && l.Type != LocationType.ConversationConditional
                       && l.Type != LocationType.ConversationKeyGift
                       && l.Type != LocationType.ConversationDecoGift
@@ -936,6 +1118,14 @@ public static class LocationTable
     /// </summary>
     private static readonly Dictionary<string, LocationInfo> _byPlortName
         = All.Where(l => l.Type == LocationType.PlortMarket)
+             .ToDictionary(l => l.GameObjectName);
+
+    /// <summary>
+    /// Keyed by <c>ShopRuntimeItem.AssetGuid</c> (addressables GUID).
+    /// Used by <c>ShopPatch</c> to map a purchased Polestar Provisions item to its location.
+    /// </summary>
+    private static readonly Dictionary<string, LocationInfo> _byShopAssetGuid
+        = All.Where(l => l.Type == LocationType.PolestarShop)
              .ToDictionary(l => l.GameObjectName);
 
     /// <summary>
@@ -992,6 +1182,12 @@ public static class LocationTable
     /// </summary>
     public static bool TryGetPlortMarketByPlortName(string plortName, out LocationInfo? info)
         => _byPlortName.TryGetValue(plortName, out info);
+
+    /// <summary>
+    /// Looks up a Polestar Provisions shop location by the item's addressables asset GUID.
+    /// </summary>
+    public static bool TryGetShopByAssetGuid(string assetGuid, out LocationInfo? info)
+        => _byShopAssetGuid.TryGetValue(assetGuid, out info);
 
     /// <summary>
     /// Returns all Fabricator craft entries for a given upgrade type, in ID order.

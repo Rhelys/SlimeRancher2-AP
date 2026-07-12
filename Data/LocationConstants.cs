@@ -788,4 +788,168 @@ public static class LocationConstants
     public const long PlortMarket_Hyper    = 819919;
     public const long PlortMarket_Stable   = 819920;
     // 819921–819925 reserved (5-ID buffer for future plort additions)
+
+    // =====================================================================
+    // POLESTAR PROVISIONS SHOP: 819926–820074 (149, randomize_shop option)
+    // 819926–820009: always-available base items (84), in-game category order.
+    // 820010–820074: zone-gated items (65), grouped by required zone visit
+    // (see docs/shop-location-logic.md).
+    // =====================================================================
+    public const long PolestarShop_PinkAnemoneCluster = 819926;
+    public const long PolestarShop_Seashells = 819927;
+    public const long PolestarShop_Seaweed = 819928;
+    public const long PolestarShop_SeashellCollection = 819929;
+    public const long PolestarShop_PinkAnemone = 819930;
+    public const long PolestarShop_CurlySeaweed = 819931;
+    public const long PolestarShop_BlueAnemone = 819932;
+    public const long PolestarShop_YellowReefBush = 819933;
+    public const long PolestarShop_SeaGrass = 819934;
+    public const long PolestarShop_BlueReefBush = 819935;
+    public const long PolestarShop_PinkReefBush = 819936;
+    public const long PolestarShop_PinwheelSmallPinkLemonade = 819937;
+    public const long PolestarShop_PrideFlag = 819938;
+    public const long PolestarShop_TallPinkReefTree = 819939;
+    public const long PolestarShop_BlueSwirlTree = 819940;
+    public const long PolestarShop_PinwheelLargeTeal = 819941;
+    public const long PolestarShop_SandyYellowCoral = 819942;
+    public const long PolestarShop_PinkReefTree = 819943;
+    public const long PolestarShop_FlagHive = 819944;
+    public const long PolestarShop_PinwheelSmallTeal = 819945;
+    public const long PolestarShop_FlagMineral = 819946;
+    public const long PolestarShop_ShortPinkFlowerReef = 819947;
+    public const long PolestarShop_PinwheelLargePinkLemonade = 819948;
+    public const long PolestarShop_PinkFlowerReef = 819949;
+    public const long PolestarShop_FlagSpout = 819950;
+    public const long PolestarShop_SlimeFlag = 819951;
+    public const long PolestarShop_TallPinkFlowerReef = 819952;
+    public const long PolestarShop_PinkReefTreeCluster = 819953;
+    public const long PolestarShop_ScientistChair = 819954;
+    public const long PolestarShop_MusicPillar = 819955;
+    public const long PolestarShop_CouchSeat = 819956;
+    public const long PolestarShop_DoubleCouchSeat = 819957;
+    public const long PolestarShop_MusicTile = 819958;
+    public const long PolestarShop_PinkStripedLampMint = 819959;
+    public const long PolestarShop_WarpDepotGreen = 819960;
+    public const long PolestarShop_WarpDepotAmber = 819961;
+    public const long PolestarShop_ReefChair = 819962;
+    public const long PolestarShop_UmbrellaBeachPinkLemonade = 819963;
+    public const long PolestarShop_WarpDepotGold = 819964;
+    public const long PolestarShop_ReefTable = 819965;
+    public const long PolestarShop_PinkStripedLampBlue = 819966;
+    public const long PolestarShop_WarpDepotRed = 819967;
+    public const long PolestarShop_UmbrellaBeachTeal = 819968;
+    public const long PolestarShop_SlimeStageMonochromatic = 819969;
+    public const long PolestarShop_SlimeStagePastel = 819970;
+    public const long PolestarShop_TeacupLargeMint = 819971;
+    public const long PolestarShop_LargeSimpleBench = 819972;
+    public const long PolestarShop_TeacupLargeBlue = 819973;
+    public const long PolestarShop_BumperBlue = 819974;
+    public const long PolestarShop_TeacupSmallMint = 819975;
+    public const long PolestarShop_ScientistDesk = 819976;
+    public const long PolestarShop_FanTarr = 819977;
+    public const long PolestarShop_BumperMint = 819978;
+    public const long PolestarShop_SlimeJailStandie = 819979;
+    public const long PolestarShop_FanPink = 819980;
+    public const long PolestarShop_TeacupSmallBlue = 819981;
+    public const long PolestarShop_LinkedCannonGrey = 819982;
+    public const long PolestarShop_LinkedCannon = 819983;
+    public const long PolestarShop_LavaLampGreen = 819984;
+    public const long PolestarShop_BoomboxPink = 819985;
+    public const long PolestarShop_SeesawMint = 819986;
+    public const long PolestarShop_SwingMint = 819987;
+    public const long PolestarShop_SwingBlue = 819988;
+    public const long PolestarShop_LavaLampRed = 819989;
+    public const long PolestarShop_CannonBlue = 819990;
+    public const long PolestarShop_SeesawBlue = 819991;
+    public const long PolestarShop_LinkedCannonPink = 819992;
+    public const long PolestarShop_CannonMint = 819993;
+    public const long PolestarShop_LavaLampBlue = 819994;
+    public const long PolestarShop_LinkedCannonRed = 819995;
+    public const long PolestarShop_LavaLampGold = 819996;
+    public const long PolestarShop_Seesaw = 819997;
+    public const long PolestarShop_LinkedCannonGreen = 819998;
+    public const long PolestarShop_BoomboxGrey = 819999;
+    public const long PolestarShop_SlimeballGoal = 820000;
+    public const long PolestarShop_ShipInABottle = 820001;
+    public const long PolestarShop_CarouselMint = 820002;
+    public const long PolestarShop_CarouselBlue = 820003;
+    public const long PolestarShop_FerrisWheelMint = 820004;
+    public const long PolestarShop_FerrisWheelBlue = 820005;
+    public const long PolestarShop_LaZeeDistributor = 820006;
+    public const long PolestarShop_DreamLantern = 820007;
+    public const long PolestarShop_GoldenYolkyStatue = 820008;
+    public const long PolestarShop_WarpDepotBerry = 820009;
+
+    // visited Ember Valley (14)
+    public const long PolestarShop_BeachBlanketStriped = 820010;
+    public const long PolestarShop_UmbrellaCherryBlossom = 820011;
+    public const long PolestarShop_trellisSmall = 820012;
+    public const long PolestarShop_EmeraldVineTrellisLarge = 820013;
+    public const long PolestarShop_TarrStandie = 820014;
+    public const long PolestarShop_UmbrellaSunflower = 820015;
+    public const long PolestarShop_UmbrellaMoonflower = 820016;
+    public const long PolestarShop_UmbrellaSunflowerPeach = 820017;
+    public const long PolestarShop_AcceleratorGold = 820018;
+    public const long PolestarShop_AcceleratorGreen = 820019;
+    public const long PolestarShop_AcceleratorGrey = 820020;
+    public const long PolestarShop_AcceleratorPink = 820021;
+    public const long PolestarShop_AcceleratorPurple = 820022;
+    public const long PolestarShop_AcceleratorRed = 820023;
+
+    // visited Starlight Strand (7)
+    public const long PolestarShop_SmallSandcastle = 820024;
+    public const long PolestarShop_LargeSandcastle = 820025;
+    public const long PolestarShop_ClamThrone = 820026;
+    public const long PolestarShop_BeachBlanketWaves = 820027;
+    public const long PolestarShop_Net = 820028;
+    public const long PolestarShop_NetPost = 820029;
+    public const long PolestarShop_NetTall = 820030;
+
+    // visited Powderfall Bluffs (1)
+    public const long PolestarShop_SnowmanStandie = 820031;
+
+    // visited any Grey Labyrinth zone (43)
+    public const long PolestarShop_AncientRoundPillar = 820032;
+    public const long PolestarShop_ExcavationLights = 820033;
+    public const long PolestarShop_AncientArchedWall = 820034;
+    public const long PolestarShop_GoldSlimeFloorPanel = 820035;
+    public const long PolestarShop_ShadowSureShotComponent = 820036;
+    public const long PolestarShop_WoodenFence = 820037;
+    public const long PolestarShop_StraightStoneFence = 820038;
+    public const long PolestarShop_CurvedStoneFence = 820039;
+    public const long PolestarShop_TwistyOvergrownTree = 820040;
+    public const long PolestarShop_OvergrownLilypad = 820041;
+    public const long PolestarShop_BlueSwampFlower = 820042;
+    public const long PolestarShop_SlimeStageFloral = 820043;
+    public const long PolestarShop_FlowerSlimeTree = 820044;
+    public const long PolestarShop_FlowerPillowSmall = 820045;
+    public const long PolestarShop_FlowerPillowLarge = 820046;
+    public const long PolestarShop_FlowerLamp = 820047;
+    public const long PolestarShop_LinkedCannonGold = 820048;
+    public const long PolestarShop_LinkedCannonViolet = 820049;
+    public const long PolestarShop_GordoSnareMaster = 820050;
+    public const long PolestarShop_FlowerLampOrange = 820051;
+    public const long PolestarShop_FlowerLampPink = 820052;
+    public const long PolestarShop_FlowerLampPurple = 820053;
+    public const long PolestarShop_FlowerPillowLargeCoral = 820054;
+    public const long PolestarShop_FlowerPillowLargePurple = 820055;
+    public const long PolestarShop_FlowerPillowLargeYellow = 820056;
+    public const long PolestarShop_FlowerPillowSmallBlue = 820057;
+    public const long PolestarShop_FlowerPillowSmallPurple = 820058;
+    public const long PolestarShop_FlowerPillowSmallYellow = 820059;
+    public const long PolestarShop_FlowerSlimeTreeCoral = 820060;
+    public const long PolestarShop_FlowerSlimeTreePurple = 820061;
+    public const long PolestarShop_FlowerSlimeTreeYellow = 820062;
+    public const long PolestarShop_SlimeStageFloralBlue = 820063;
+    public const long PolestarShop_SlimeStageFloralPurple = 820064;
+    public const long PolestarShop_SlimeStageFloralYellow = 820065;
+    public const long PolestarShop_IndigoCypress = 820066;
+    public const long PolestarShop_IndigoCypressCluster = 820067;
+    public const long PolestarShop_IndigoFlowers = 820068;
+    public const long PolestarShop_IndigoGrass = 820069;
+    public const long PolestarShop_IndigoShrubs = 820070;
+    public const long PolestarShop_LabyrinthStandingLamp = 820071;
+    public const long PolestarShop_LabyrinthWallLamp = 820072;
+    public const long PolestarShop_TallIndigoCypress = 820073;
+    public const long PolestarShop_LavaLampGrey = 820074;
 }

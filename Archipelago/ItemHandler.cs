@@ -514,18 +514,39 @@ public static class ItemHandler
 
     /// <summary>
     /// Attempts to grant the zone teleporter for <paramref name="regionName"/>.
-    /// Returns <c>true</c> when the blueprint is CONFIRMED unlocked (already was, or the
-    /// grant verifiably succeeded) and <c>false</c> when the grant could not complete yet —
-    /// director unavailable, gadget assets not loaded, or AddBlueprint threw with the
-    /// blueprint still locked. Callers must park a <c>false</c> result for retry: in bundled
-    /// mode this grant is the only source of the teleporter and the item's watermark has
-    /// already advanced.
+    /// Returns <c>false</c> when the grant could not be confirmed yet — callers must park
+    /// that for retry: in bundled mode this grant is the only source of the teleporter and
+    /// the item's watermark has already advanced.
     /// </summary>
     private static bool GrantRegionTeleporter(string regionName)
     {
         if (!RegionToZoneTeleporter.TryGetValue(regionName, out var gadgetName))
             return true; // no teleporter mapped for this region — nothing to grant
 
+        return EnsureGadgetBlueprint(gadgetName);
+    }
+
+    /// <summary>
+    /// Ensures the blueprint for <paramref name="gadgetName"/> is in the player's possession.
+    /// Returns <c>true</c> when the blueprint is CONFIRMED possessed (already was, or the
+    /// grant verifiably succeeded) and <c>false</c> when the grant could not complete yet —
+    /// director unavailable, gadget assets not loaded, or AddBlueprint threw with the
+    /// blueprint still missing.
+    ///
+    /// <para>
+    /// Verification uses <c>HasBlueprint</c>, NOT <c>IsBlueprintUnlocked</c>. GadgetsModel
+    /// keeps separate sets: <c>blueprints</c> (possessed — what AddBlueprint writes and
+    /// HasBlueprint reads) and <c>availBlueprints</c> (available-to-acquire — what
+    /// IsBlueprintUnlocked reads). AP-granted blueprints only enter <c>availBlueprints</c>
+    /// via vanilla unlock events, which never fire in AP mode — so verifying with
+    /// IsBlueprintUnlocked after a successful AddBlueprint returned false forever,
+    /// re-queuing the grant every 3 seconds for the whole session and re-running
+    /// AddBlueprint/AddItem on each retry (player-reported log spam + inflated teleporter
+    /// unit counts).
+    /// </para>
+    /// </summary>
+    private static bool EnsureGadgetBlueprint(string gadgetName)
+    {
         var director = SceneContext.Instance?.GadgetDirector;
         if (director == null) return false; // scene loading — retry
 
@@ -533,20 +554,27 @@ public static class ItemHandler
                                  .FirstOrDefault(d => d.name == gadgetName);
         if (gadgetDef == null) return false; // gadget assets not loaded yet — retry
 
-        // Idempotency: skip if already unlocked (handles reconnect replays and double-fires)
-        if (director.IsBlueprintUnlocked(gadgetDef)) return true;
+        // Idempotency: skip if already possessed (handles reconnect replays and double-fires)
+        if (director.HasBlueprint(gadgetDef)) return true;
 
         GrantSingleGadget(director, gadgetName);
 
         // Verify rather than assume: AddBlueprint can throw mid-scene-load (analytics ctor)
-        // with the blueprint still locked, and GrantSingleGadget swallows that failure.
-        return director.IsBlueprintUnlocked(gadgetDef);
+        // with the blueprint still missing, and GrantSingleGadget swallows that failure.
+        return director.HasBlueprint(gadgetDef);
     }
 
     // Region names whose zone teleporter grant failed and must be retried once the scene is
     // further along. Populated by ApplyRegionAccess (bundled) and TryGrantRegionTeleporterForSwitch
     // (vanilla); drained by TickRegionTeleporters.
     private static readonly HashSet<string> _pendingRegionTeleporters = new();
+    // Retry attempts per pending region. Retrying is only meant to bridge scene loading
+    // (seconds); if a grant still can't be verified after MaxTeleporterRetries the failure is
+    // systemic — give up until the next connect-time validation instead of re-running
+    // AddBlueprint/AddItem every 3 seconds for the rest of the session (which a broken
+    // verification check once did for hours, inflating the player's gadget inventory).
+    private static readonly Dictionary<string, int> _teleporterRetryCounts = new();
+    private const int MaxTeleporterRetries = 40; // ~2 minutes at one attempt per 3 s
     private static int _teleporterTickCounter = 0;
     private const int TeleporterTickInterval = 180; // ~3 seconds at 60 fps
 
@@ -556,14 +584,32 @@ public static class ItemHandler
     // previous session (the region access item never replays once below the watermark).
     private static volatile bool _pendingBundledValidation;
 
-    /// <summary>Schedules a bundled-mode teleporter validation sweep. Safe from any thread.</summary>
-    public static void ScheduleBundledTeleporterValidation() => _pendingBundledValidation = true;
+    // The DroneStation gadget blueprint's only vanilla source is a treasure pod, which AP
+    // replaces with a location check — so Quantum Drone Station items bundle the blueprint
+    // instead (see ApplyUseful). This connect-time validation heals saves from before that
+    // fix, where modules were received without the blueprint (those item indices sit below
+    // the watermark and never replay).
+    private const string DroneStationGadgetName = "DroneStation"; // confirmed via DumpGadgets
+    private static volatile bool _pendingDroneBlueprintValidation;
+    private static int _droneBlueprintRetryCount;
+
+    /// <summary>Schedules the connect-time gadget validation sweep (bundled zone teleporters
+    /// and the DroneStation blueprint). Safe from any thread.</summary>
+    public static void ScheduleBundledTeleporterValidation()
+    {
+        _pendingBundledValidation = true;
+        _pendingDroneBlueprintValidation = true;
+        _droneBlueprintRetryCount = 0;
+    }
 
     /// <summary>Clears retry state on disconnect (the next connect re-schedules validation).</summary>
     public static void ResetRegionTeleporterRetries()
     {
         _pendingRegionTeleporters.Clear();
+        _teleporterRetryCounts.Clear();
         _pendingBundledValidation = false;
+        _pendingDroneBlueprintValidation = false;
+        _droneBlueprintRetryCount = 0;
     }
 
     /// <summary>
@@ -572,9 +618,34 @@ public static class ItemHandler
     /// </summary>
     internal static void TickRegionTeleporters()
     {
-        if (!_pendingBundledValidation && _pendingRegionTeleporters.Count == 0) return;
+        if (!_pendingBundledValidation && !_pendingDroneBlueprintValidation
+            && _pendingRegionTeleporters.Count == 0) return;
         if (++_teleporterTickCounter < TeleporterTickInterval) return;
         _teleporterTickCounter = 0;
+
+        // Connect-time DroneStation blueprint validation: any received Quantum Drone
+        // Station implies the blueprint must be possessed (its vanilla treasure pod source
+        // is suppressed in AP mode). EnsureGadgetBlueprint is idempotent — an already-owned
+        // blueprint resolves to an immediate no-op.
+        if (_pendingDroneBlueprintValidation && SceneContext.Instance?.Player != null)
+        {
+            if (!HasReceivedQuantumDroneStation())
+            {
+                _pendingDroneBlueprintValidation = false;
+            }
+            else if (EnsureGadgetBlueprint(DroneStationGadgetName))
+            {
+                _pendingDroneBlueprintValidation = false;
+                Logger.Info("[AP] DroneStation blueprint verified (connect-time validation).");
+            }
+            else if (++_droneBlueprintRetryCount >= MaxTeleporterRetries)
+            {
+                _pendingDroneBlueprintValidation = false;
+                Logger.Warning(
+                    $"[AP] DroneStation blueprint could not be verified after {_droneBlueprintRetryCount} attempts — " +
+                    "giving up until the next connection.");
+            }
+        }
 
         // Connect-time validation: in bundled mode every unlocked region must have its
         // teleporter blueprint. GrantRegionTeleporter is idempotent, so regions that already
@@ -602,9 +673,36 @@ public static class ItemHandler
             if (GrantRegionTeleporter(regionName))
             {
                 _pendingRegionTeleporters.Remove(regionName);
+                _teleporterRetryCounts.Remove(regionName);
                 Logger.Info($"[AP] Zone teleporter for '{regionName}' granted (retry/validation pass).");
+                continue;
+            }
+
+            int attempts = _teleporterRetryCounts.GetValueOrDefault(regionName) + 1;
+            _teleporterRetryCounts[regionName] = attempts;
+            if (attempts >= MaxTeleporterRetries)
+            {
+                _pendingRegionTeleporters.Remove(regionName);
+                _teleporterRetryCounts.Remove(regionName);
+                Logger.Warning(
+                    $"[AP] Zone teleporter for '{regionName}' could not be verified after {attempts} attempts — " +
+                    "giving up until the next connection (bundled validation will retry it).");
             }
         }
+    }
+
+    /// <summary>
+    /// True when at least one Quantum Drone Station appears in the session's full
+    /// received-item snapshot (same pattern as the Market Recovery count in
+    /// <c>PlortMarketModePatch</c>).
+    /// </summary>
+    private static bool HasReceivedQuantumDroneStation()
+    {
+        var items = Plugin.Instance.ApClient.Session?.Items?.AllItemsReceived;
+        if (items == null) return false;
+        for (int i = 0; i < items.Count; i++)
+            if (items[i].ItemId == ItemTable.QuantumDroneStation) return true;
+        return false;
     }
 
     /// <summary>
@@ -710,6 +808,13 @@ public static class ItemHandler
             IsApplyingItem = true;
             int currentLevel = UpgradeHandler._model?.GetUpgradeLevel(upgradeDef) ?? -1;
             IsApplyingItem = false;
+
+            // Always log the comparison — this is the first thing to look at when a player
+            // reports a missing upgrade tier (e.g. "crafted Extra Tank II but only have one
+            // extra tank"): expected = items received via AP, actual = SR2 save state.
+            Logger.Info(
+                $"[AP] Upgrade validation: '{upgradeName}' items received={kvp.Value} " +
+                $"(expected level {targetLevel}), SR2 model level={currentLevel}");
 
             if (currentLevel >= targetLevel)
             {
@@ -867,7 +972,7 @@ public static class ItemHandler
 
         // Labyrinth goal gadget (confirmed via DumpGadgets).
         // Received ×3 for prismacore/slimepedia goals; duplicates skip via the
-        // IsBlueprintUnlocked guard in GrantSingleGadget.
+        // HasBlueprint guard in GrantSingleGadget.
         [ItemTable.DisruptionDetector] = "PrismaDisruptionDetector",
 
         // Radiant Projector Blueprint (Special Access — grants via AddBlueprint, not AddItem)
@@ -924,34 +1029,40 @@ public static class ItemHandler
             return;
         }
 
-        // Idempotency guard: if the blueprint is already unlocked the grant was already applied
-        // in a previous session (persisted in the SR2 save) or earlier in this replay.
-        // Skipping AddItem prevents duplicate units being added to the player's inventory when
-        // items are re-queued (e.g., RequestFullReplay on a new game from an existing AP slot).
-        if (director.IsBlueprintUnlocked(gadgetDef))
+        // Idempotency guard: if the player already possesses the blueprint the grant was
+        // already applied in a previous session (persisted in the SR2 save) or earlier in
+        // this replay. Skipping AddItem prevents duplicate units being added to the player's
+        // inventory when items are re-queued (e.g., RequestFullReplay on a new game from an
+        // existing AP slot).
+        //
+        // HasBlueprint (possession — the set AddBlueprint writes), NOT IsBlueprintUnlocked
+        // (availability — a separate set only populated by vanilla unlock events that never
+        // fire in AP mode). The old IsBlueprintUnlocked guard returned false even after a
+        // successful grant, letting retry loops re-run AddBlueprint/AddItem indefinitely.
+        if (director.HasBlueprint(gadgetDef))
         {
-            Logger.Info($"[AP] Gadget '{gadgetName}' blueprint already unlocked — skipping");
+            Logger.Info($"[AP] Gadget '{gadgetName}' blueprint already owned — skipping");
             return;
         }
 
         // AddBlueprint and AddItem can throw when their internal analytics event constructors
         // try to read the player's location component before it is initialised (e.g. during
         // scene load).  The actual blueprint/inventory update runs BEFORE the analytics call,
-        // so we catch, verify via IsBlueprintUnlocked, and suppress the cosmetic crash.
+        // so we catch, verify via HasBlueprint, and suppress the cosmetic crash.
         try
         {
             director.AddBlueprint(gadgetDef, false);
         }
         catch (Exception ex)
         {
-            if (!director.IsBlueprintUnlocked(gadgetDef))
+            if (!director.HasBlueprint(gadgetDef))
             {
                 Logger.Warning(
-                    $"[AP] AddBlueprint threw and blueprint is still locked for '{gadgetName}' — grant failed: {ex.Message}");
+                    $"[AP] AddBlueprint threw and blueprint is still missing for '{gadgetName}' — grant failed: {ex.Message}");
                 return;
             }
             Logger.Warning(
-                $"[AP] AddBlueprint threw (analytics? player location not ready) but '{gadgetName}' IS unlocked — OK: {ex.Message}");
+                $"[AP] AddBlueprint threw (analytics? player location not ready) but '{gadgetName}' IS owned — OK: {ex.Message}");
         }
 
         try
@@ -1010,12 +1121,23 @@ public static class ItemHandler
     {
         Logger.Info($"[AP] Applying useful: {item.Name} (id={item.Id}, idx={itemIndex})");
 
-        // Drone Station Module — adds one ComponentAcqDrone unit to the player's inventory
-        if (item.Id == ItemTable.DroneStationModule)
+        // Quantum Drone Station — the first copy grants the DroneStation gadget blueprint
+        // plus one placeable station (its only vanilla blueprint source is a treasure pod,
+        // which AP replaces with a location check); every copy also adds one
+        // ComponentAcqDrone module, i.e. one more craftable station.
+        // EnsureGadgetBlueprint is idempotent, so copies 2+ only add the module.
+        if (item.Id == ItemTable.QuantumDroneStation)
         {
             var director = SceneContext.Instance?.GadgetDirector;
             if (director == null)
             {
+                if (apItem != null) Plugin.Instance.ApClient.RequeueItem(apItem, itemIndex);
+                return false;
+            }
+            if (!EnsureGadgetBlueprint(DroneStationGadgetName))
+            {
+                // Blueprint not confirmable yet (gadget assets still loading) — retry the
+                // whole grant so the blueprint and the module unit arrive together.
                 if (apItem != null) Plugin.Instance.ApClient.RequeueItem(apItem, itemIndex);
                 return false;
             }
@@ -1027,7 +1149,7 @@ public static class ItemHandler
                 return true;
             }
             director.AddItem(identType, 1);
-            Notify("Received: Drone Station Module");
+            Notify("Received: Quantum Drone Station");
             return true;
         }
 
@@ -1409,6 +1531,13 @@ public static class TrapHandler
     private const float SceneGracePeriod = 10f;
 
     /// <summary>
+    /// Milliseconds to hold traps after the player's most recent location check, so a trap
+    /// rewarded by that very check cannot interrupt the interaction that sent it
+    /// (map node activation, gordo pop, treasure pod opening, …).
+    /// </summary>
+    private const int CheckInteractionGraceMs = 5000;
+
+    /// <summary>
     /// Per-group minimum interval (seconds) between consecutive fires within that group.
     /// Index matches <see cref="TrapGroup"/> ordinal.
     /// </summary>
@@ -1458,6 +1587,16 @@ public static class TrapHandler
             return false;
         }
 
+        if (InCheckInteractionGrace())
+        {
+#if DEBUG
+            Logger.Info(
+                $"[AP] Trap '{trapName}' deferred — within the {CheckInteractionGraceMs} ms " +
+                "interaction grace after a location check");
+#endif
+            return false;
+        }
+
         float lastFired = _lastGroupFiredAt[(int)group];
         if (lastFired >= 0f)
         {
@@ -1473,6 +1612,22 @@ public static class TrapHandler
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// True while the post-check hold window is active. A trap that is the reward of the
+    /// player's OWN check arrives ~100-300 ms after the interaction that sent it; firing
+    /// immediately (especially the Teleport Trap) interrupts the still-running interaction —
+    /// a map node was left visually unactivated when its trap teleported the player
+    /// mid-activation (player-reported). Checked both when a trap first applies
+    /// (<see cref="IsTrapAllowed"/>) and before promoting deferred traps in <see cref="Tick"/> —
+    /// promoting during the grace just bounces the trap back to the deferred queue every
+    /// frame, spamming the log.
+    /// </summary>
+    private static bool InCheckInteractionGrace()
+    {
+        int msSinceCheck = System.Environment.TickCount - ArchipelagoClient.LastCheckSentTickMs;
+        return msSinceCheck >= 0 && msSinceCheck < CheckInteractionGraceMs;
     }
 
     // -------------------------------------------------------------------------
@@ -1540,7 +1695,8 @@ public static class TrapHandler
         if (_sceneReadySince >= 0f)
         {
             float now     = UnityEngine.Time.time;
-            bool  graceOk = now >= _sceneReadySince + SceneGracePeriod;
+            bool  graceOk = now >= _sceneReadySince + SceneGracePeriod
+                         && !InCheckInteractionGrace();
             if (graceOk)
             {
                 for (int g = 0; g < _deferredByGroup.Length; g++)

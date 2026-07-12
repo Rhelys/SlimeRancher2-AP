@@ -81,6 +81,15 @@ public class SlotData
     public bool   RandomizePlortMarket     { get; init; } = false;
 
     /// <summary>
+    /// When true, a per-seed random subset of Polestar Provisions shop items are Archipelago
+    /// location checks (the apworld picks the subset; the mod activates only the locations
+    /// that exist in the seed). First purchase sends the check with the vanilla blueprint
+    /// grant suppressed; the slot then reads as sold out.
+    /// Slot data key: <c>"randomize_shop"</c>.
+    /// </summary>
+    public bool   RandomizeShop            { get; init; } = false;
+
+    /// <summary>
     /// Controls how region gate switches and zone teleporters are handled.
     /// <list type="bullet">
     ///   <item><term>"vanilla"</term><description>
@@ -223,6 +232,7 @@ public class SlotData
             RandomizeGhostlyDrones   = GetBool(raw, "randomize_ghostly_drones",  defaultVal: false),
             RandomizePlortDoors      = GetString(raw, "randomize_plort_doors", "vanilla"),
             RandomizePlortMarket     = GetBool(raw, "randomize_plort_market",     defaultVal: false),
+            RandomizeShop            = GetBool(raw, "randomize_shop",             defaultVal: false),
             RegionAccessMode            = GetString(raw, "region_access_mode", "vanilla"),
             ConversationChecks          = GetConversationCheckMode(raw, "conversation_checks"),
             DisableTarr                 = GetBool(raw, "disable_tarr",          defaultVal: false),

@@ -1,0 +1,581 @@
+[Info   :SlimeRancher2-AP] [AP-Dump] ========== PEDIA DUMP (10 categories) ==========
+[Info   :SlimeRancher2-AP] [AP-Dump] ── Category 'Blueprints' (395 entries) ──
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Accelerator'  title='Accelerator'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='AmberCypress'  title='Amber Cypress'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='AmberCypressCluster'  title='Amber Cypress Cluster'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='AmberGrass'  title='Amber Grass'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='AmberShrubs'  title='Amber Shrubs'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='AshBlooms'  title='Ash Blooms'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='AuroraGrass'  title='Aurora Flowers'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='AuroraPine'  title='Aurora Pine'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='AzureGlowShroom'  title='Azure Glow Shrooms'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='AzureGrass'  title='Azure Grass'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='AzureMangrove'  title='Azure Mangrove'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='AzureShrubs'  title='Azure Shrubs'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Boombox'  title='Boombox'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Bumper'  title='Round Bumper'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Cannon'  title='Stunt Cannon'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Carousel'  title='Carousel'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='CavePillar'  title='Cave Pillar'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='CheerfulStatue'  title='Cheerful Statue'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='ChillySlimeStack'  title='Chilly Slime Stack'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='CinderSpikeBlossoms'  title='Cinder Spike Blossoms'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='CoastalRock'  title='Coastal Rock'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='CoastalRockPillar'  title='Coastal Rock Pillar'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='ConservatoryLamp'  title='Conservatory Lamp'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='CrystalSpires'  title='Crystal Spires'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='DashPad'  title='Dash Pad'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='EmeraldCypress'  title='Emerald Cypress'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='EmeraldCypressCluster'  title='Emerald Cypress Cluster'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='EmeraldShrubs'  title='Emerald Shrubs'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='EmeraldVineTrellis'  title='Small Emerald Trellis'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='EmeraldVineTrellisLarge'  title='Wide Emerald Trellis'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Fan'  title='Easy Breezy Fan'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FerrisWheel'  title='Ferris Wheel'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FireFlower'  title='Fire Flower'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FlagAttention'  title='Attention Flag'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FlagCautious'  title='Cautious Flag'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FlagCurious'  title='Curious Flag'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FlagFruit'  title='Fruit Flag'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FlagMeat'  title='Meat Flag'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FlagVeggie'  title='Veggie Flag'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FrozenFlame'  title='Frozen Flame'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='GlacialCrystal'  title='Glacial Crystal'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='GnarledAshwood'  title='Gnarled Ashwood'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='GoldenAnglerStatue'  title='Golden Angler Statue'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='GoldenChickenStatue'  title='Golden Chicken Statue'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='GoldenCottonStatue'  title='Golden Cotton Statue'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='GoldenDervishStatue'  title='Golden Dervish Statue'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='GoldenFlutterStatue'  title='Golden Flutter Statue'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='GoldenTangleStatue'  title='Golden Tangle Statue'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='GoldpetalFlowers'  title='Goldpetal Flowers'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='GordoSnareAdvanced'  title='Advanced Gordo Snare'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='GordoSnareNovice'  title='Novice Gordo Snare'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='GreenGrass'  title='Emerald Grass'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='HappyStatue'  title='Happy Statue'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='HydroShower'  title='Hydro Shower'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='HydroTurret'  title='Hydro Turret'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='IceCubed'  title='Ice Cubed'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='IceFrostedShell'  title='Frosted Shell'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='IceLamp'  title='Ice Lamp'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='IceTreeo'  title='Ice Treeo'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='ItemDisplay'  title='Display Case'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='LanternBeach'  title='Beach Lantern'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='LargePinkBonsai'  title='Large Pink Bonsai'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='MagmaPool'  title='Magma Pool'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='MajesticSnowflake'  title='Majestic Snowflake'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='MarketLink'  title='Market Link'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='MediumPalm'  title='Medium Palm'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='MediumPinkCoralColumns'  title='Medium Pink Coral Columns'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='MediumRedAshwood'  title='Medium Red Ashwood'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='MedStation'  title='Med Station'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='MossyHenStatue'  title='Mossy Hen Statue'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='MushroomPlanter'  title='Mushroom Planter'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='OchrePoppies'  title='Ochre Poppies'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='OverjoyedStatue'  title='Overjoyed Statue'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PinkBonsai'  title='Pink Bonsai'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PinkGlowShroom'  title='Pink Glow Shrooms'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PinkGrass'  title='Pink Grass'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PinkMangrove'  title='Pink Mangrove'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PinkStripedLamp'  title='Pink Striped Lamp'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PinwheelLarge'  title='Large Pinwheel'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='pinwheelSmall'  title='Small Pinwheel'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PortableScareSlime'  title='Portable Scareslime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PortableSlimeBaitFruit'  title='Fruit Slime Bait'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PortableSlimeBaitMeat'  title='Meat Slime Bait'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PortableSlimeBaitVeggie'  title='Veggie Slime Bait'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PortableWaterTap'  title='Portable Water Tap'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PottedPlants'  title='Potted Plants'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RainbowGrass'  title='Rainbow Grass'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RainbowLumps'  title='Rainbow Lumps'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RainbowMound'  title='Rainbow Mound'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RedGrass'  title='Ruby Grass'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RefineryLink'  title='Refinery Link'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RockClump'  title='Rock Clump'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RockCluster'  title='Rock Cluster'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RockFragments'  title='Rock Fragments'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RootArches'  title='Root Arches'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RootTangle'  title='Root Tangle'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RoundedMagmaPool'  title='Rounded Magma Pool'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SharpBoulder'  title='Sharp Boulder'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='ShortMagmaClump'  title='Short Magma Clump'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='ShortPalm'  title='Short Palm'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='ShortPinkCoralColumns'  title='Short Pink Coral Columns'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='ShortRedAshwood'  title='Short Red Ashwood'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SimpleBench'  title='Conservatory Bench'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SimpleChair'  title='Conservatory Chair'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SimpleFlag'  title='Pennant'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SimpleTable'  title='Conservatory Table'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SlimeStage'  title='#1 Slime Stage'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SmallBoulder'  title='Small Boulder'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SnowballMachine'  title='Snowball Machine'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SnowGlobe'  title='Snow Globe'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SnowyBush'  title='Snowy Bush'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SnowZBench'  title='SnowZ Bench'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SpringPad'  title='Spring Pad'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Stalagmite'  title='Stalagmite'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='StalagmiteCluster'  title='Stalagmite Cluster'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='StarbloomFlowers'  title='Starbloom Flowers'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='StonyEggLamp'  title='Stony Egg Lamp'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Streamer'  title='Ribbon Streamers'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='StreamerScarf'  title='Scarf Streamers'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SunfireDaisies'  title='Sunfire Daisies'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SuperHydroTurret'  title='Super Hydro Turret'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Swing'  title='Swing'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TallAmberCypress'  title='Tall Amber Cypress'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TallAshwood'  title='Tall Ashwood'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TallEmeraldCypress'  title='Tall Emerald Cypress'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TallMagmaClump'  title='Tall Magma Clump'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TallPinkCoralColumns'  title='Tall Pink Coral Columns'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TallVioletSwirlShroom'  title='Tall Violet Swirl Shroom'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TamingBell'  title='Taming Bell'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='teacupLarge'  title='Bountiful Teacup'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TeacupSmall'  title='Dainty Teacup'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TeleporterBlue'  title='Blue Teleporter'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TeleporterGrey'  title='Grey Teleporter'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TeleporterHomeBlue'  title='Blue Return Home Portal'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TeleporterHomeGreen'  title='Green Return Home Portal'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TeleporterHomeRed'  title='Red Return Home Portal'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TeleporterHomeYellow'  title='Yellow Return Home Portal'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TeleporterPink'  title='Pink Teleporter'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TeleporterSnowy'  title='Snowy Teleporter'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TeleporterViolet'  title='Violet Teleporter'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TeleporterZoneBluffs'  title='Powderfall Bluffs Portal'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TeleporterZoneGorge'  title='Ember Valley Portal'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TeleporterZoneStrand'  title='Starlight Strand Portal'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='ThinCavePillar'  title='Thin Cave Pillar'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TrellisArch'  title='Trellis Arch'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TrellisLarge'  title='Wide Trellis'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='trellisSmall'  title='Small Trellis'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='UmbrellaBeach'  title='Beach Umbrella'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='UmbrellaCherryBlossom'  title='Sakura Umbrella'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='UmbrellaSunflower'  title='Sunflower Umbrella'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='VioletSwirlShroom'  title='Violet Swirl Shroom'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='WarpDepotBlue'  title='Blue Warp Depot'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='WarpDepotGrey'  title='Grey Warp Depot'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='WarpDepotPink'  title='Pink Warp Depot'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='WarpDepotSnowy'  title='Snowy Warp Depot'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='WarpDepotViolet'  title='Violet Warp Depot'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='WarpDepotGreen'  title='Green Warp Depot'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='WarpDepotRed'  title='Red Warp Depot'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='WarpDepotBerry'  title='Berry Warp Depot'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='WarpDepotAmber'  title='Amber Warp Depot'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='WarpDepotGold'  title='Gold Warp Depot'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Wheelbarrow'  title='Wheelbarrow'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='WindChimes'  title='Wind Chimes'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='WindSocks'  title='Windsocks'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='BeachBlanketStriped'  title='Striped Beach Blanket'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='BeachBlanketWaves'  title='Wavey Beach Blanket'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PrideFlag'  title='Pride Flag'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FlagMineral'  title='Mineral Resource Flag'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FlagSpout'  title='Spout Resource Flag'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FlagHive'  title='Hive Resource Flag'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Seesaw'  title='Seesaw'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='GoldenTabbyStatue'  title='Golden Tabby Statue'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='GoldenBattyStatue'  title='Golden Batty Statue'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SmallSandcastle'  title='Small Sandcastle'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='LargeSandcastle'  title='Large Sandcastle'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SunflowerStandie'  title='Sunflower Standee'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SnowmanStandie'  title='Snowman Standee'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SlimeJailStandie'  title='Slime Jail Standee'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TarrStandie'  title='Tarr Standee'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='ClamThrone'  title='Clam Throne'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='BlueAnemone'  title='Blue Anemone'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='BlueReefBush'  title='Blue Reef Bush'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='BlueSwirlTree'  title='Blue Swirl Tree'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='CurlySeaweed'  title='Curly Seaweed'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='LargeSimpleBench'  title='Large Simple Bench'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Net'  title='Medium Net'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='NetPost'  title='Small Net'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='NetTall'  title='Large Net'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='MusicPillar'  title='Music Pillar'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='MusicTile'  title='Music Tile'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PinkAnemone'  title='Pink Anemone'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PinkAnemoneCluster'  title='Pink Anemone Cluster'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PinkFlowerReef'  title='Pink Flower Reef'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PinkReefBush'  title='Pink Reef Bush'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PinkReefTree'  title='Pink Reef Tree'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PinkReefTreeCluster'  title='Pink Reef Tree Cluster'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='ReefChair'  title='Reef Chair'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='ReefTable'  title='Reef Table'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SandyYellowCoral'  title='Sandy Yellow Coral'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SeaGrass'  title='Sea Grass'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SeashellCollection'  title='Seashell Collection'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Seashells'  title='Seashells'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Seaweed'  title='Seaweed'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='ShipInABottle'  title='Ship in a Bottle'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='ShortPinkFlowerReef'  title='Short Pink Flower Reef'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SlimeballGoal'  title='Slimeball Goal'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TallPinkFlowerReef'  title='Tall Pink Flower Reef'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TallPinkReefTree'  title='Tall Pink Reef Tree'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='YellowReefBush'  title='Yellow Reef Bush'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='LinkedCannon'  title='Blue Linked Cannon '  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='LinkedCannonGrey'  title='Grey Linked Cannon'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='LinkedCannonPink'  title='Pink Linked Cannon'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FanPink'  title='Pink Easy Breezy Fan '  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FanTarr'  title='Tarr Fan'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='BoomboxPink'  title='Pink Boombox'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='BoomboxGrey'  title='Grey Boombox'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='UmbrellaBeachPinkLemonade'  title='Pink Lemonade Beach Umbrella '  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='UmbrellaBeachTeal'  title='Teal Beach Umbrella '  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PinwheelLargePinkLemonade'  title='Large Pink Lemonade Pinwheel '  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PinwheelSmallPinkLemonade'  title='Small Pink Lemonade Pinwheel '  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PinwheelLargeTeal'  title='Large Teal Pinwheel '  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PinwheelSmallTeal'  title='Small Teal Pinwheel '  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FerrisWheelMint'  title='Mint Ferris Wheel '  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FerrisWheelBlue'  title='Blue Ferris Wheel '  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SwingMint'  title='Mint Swing '  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SwingBlue'  title='Blue Swing '  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='CarouselMint'  title='Mint Carousel '  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='CarouselBlue'  title='Blue Carousel '  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TeacupLargeMint'  title='Bountiful Mint Teacup '  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TeacupLargeBlue'  title='Bountiful Blue Teacup '  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TeacupSmallMint'  title='Dainty Mint Teacup '  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TeacupSmallBlue'  title='Dainty Blue Teacup '  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='UmbrellaSunflowerPeach'  title='Peach Sunflower Umbrella'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='UmbrellaMoonflower'  title='Moonflower Umbrella '  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='CannonMint'  title='Mint Stunt Cannon '  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='CannonBlue'  title='Blue Stunt Cannon '  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PinkStripedLampMint'  title='Mint Striped Lamp'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PinkStripedLampBlue'  title='Blue Striped Lamp'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='BumperMint'  title='Mint Round Bumper '  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='BumperBlue'  title='Blue Round Bumper '  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SeesawMint'  title='Mint Seesaw'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SeesawBlue'  title='Blue Seesaw'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='EnergyBeamNode'  title='Radiant Projector'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='DreamLantern'  title='Dream Lantern'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PrismaDisruptionDetector'  title='Disruption Detector'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='AncientRoundPillar'  title='Ancient Round Pillar'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='AncientArchedWall'  title='Ancient Arched Wall'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='ExcavationLights'  title='Excavation Lights'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='GoldSlimeFloorPanel'  title='Gold Slime Floor Panel'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='GoldTwistedTree'  title='Gold Twisted Tree'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PurpleOak'  title='Ancient Purple Oak'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='YoungCedaroak'  title='Young Cedaroak'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='AnglerFountain'  title='Angler Fountain'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PottedLavaPlants'  title='Potted Lava Plants'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='WallLighting'  title='Wall Lighting'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Aquarium'  title='Aquarium'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TeleportZoneLabyrinth'  title='Grey Labyrinth Portal'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FlagStabilizer'  title='Stabilizer Flag'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TeleporterGold'  title='Gold Teleporter'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='LavaFountain'  title='Magma Fountain'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='ResourceNodeHarvesterPediaEntry'  title='Resource Harvester'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='HealthCapacityPediaEntry'  title='Heart Module'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='EnergyCapacityPediaEntry'  title='Power Core'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RunEfficiencyPediaEntry'  title='Dash Boots'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='JetpackPediaEntry'  title='Jetpack'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='AmmoCapacityPediaEntry'  title='Tank Booster'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='AmmoSlotsPediaEntry'  title='Extra Tank'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='LiquidSlotPediaEntry'  title='Water Tank'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PulseWavePediaEntry'  title='Pulse Wave'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TankGuardPediaEntry'  title='Tank Guard'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='ArchiveKeyPediaEntry'  title='Drone Archive Key'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='GoldenSureshotPediaEntry'  title='Golden Sureshot'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='EnergyRegenPediaEntry'  title='Regenerator'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='EnergyDelayPediaEntry'  title='Power Injector'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TripleHydroTurret'  title='Trydro Turret'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='GordoSnareMaster'  title='Master Gordo Snare'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='DroneStation'  title='Quantum Drone Station'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='ShadowSureshotPediaEntry'  title='Shadow Sureshot'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Harmonizer'  title='Nullifier'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FlowerSlimeTree'  title='Blue Floral Slime Tree'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='DreamLanternT2'  title='Dream Lantern II'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='MinisDome'  title='Miniatures Dome'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='ElectricLampPillar'  title='Electric Pillar Lamp'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='MiniatureWindmill'  title='Miniature Windmill'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='BlueSwampFlower'  title='Azure Water Flower'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='WoodenFence'  title='Wooden Fence'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='StraightStoneFence'  title='Straight Stone Fence'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='CurvedStoneFence'  title='Curved Stone Fence'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TwistyOvergrownTree'  title='Giant Stalks'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='OvergrownLilypad'  title='Overgrown Lilypad'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Gigi'sCoreBarrier'  title='High-Tech Wall'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='GigiBattery'  title='High-Tech Battery'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='GoldenSloomberStatue'  title='Golden Sloomber Statue'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='GoldenHyperStatue'  title='Golden Hyper Statue'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='GoldenYolkyStatue'  title='Golden Yolky Statue'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='GoldenTwinStatue'  title='Golden Twin Statue'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SlimeStageFloral'  title='Pink Floral Slime Stage'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FlowerPillowSmall'  title='Small Pink Flower Pillow'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FlowerPillowLarge'  title='Large Blue Flower Pillow'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FlowerLamp'  title='Blue Flower Lamp'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='LinkedCannonRed'  title='Red Linked Cannon'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='LinkedCannonGreen'  title='Green Linked Cannon'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='LinkedCannonGold'  title='Gold Linked Cannon'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='LinkedCannonViolet'  title='Violet Linked Cannon'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='BlueSwirlTreePrismatic'  title='Prismatic Swirl Tree'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='CarouselPrismatic'  title='Prismatic Carousel'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FerrisWheelPrismatic'  title='Prismatic Ferris Wheel'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FrozenFlamePrismatic'  title='Prismatic Frozen Flame'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='LargePinkBonsaiPrismatic'  title='Large Prismatic Bonsai'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PinkStripedLampPrismatic'  title='Prismatic Striped Lamp'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SeesawPrismatic'  title='Prismatic Seesaw'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SwingPrismatic'  title='Prismatic Swing'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='VioletSwirlShroomPrismatic'  title='Prismatic Swirl Shroom'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='MediumRedAshwoodPrismatic'  title='Medium Prismatic Ashwood'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TeleporterGreen'  title='Green Teleporter'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TeleporterRed'  title='Red Teleporter'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TeleporterAmber'  title='Amber Teleporter'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TeleporterBerry'  title='Berry Teleporter'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TeacupSmallPrismatic'  title='Dainty Prismatic Teacup'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TeacupLargePrismatic'  title='Bountiful Prismatic Teacup'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='MiniatureWindmillPrismatic'  title='Prismatic Miniature Windmill'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TallPinkFlowerReefPrismatic'  title='Tall Prismatic Flower Reef'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='ChillySlimeStackPrismatic'  title='Prismatic Chilly Slime Stack'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FlowerLampPrismatic'  title='Prismatic Flower Lamp'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PinwheelSmallPrismatic'  title='Small Prismatic Pinwheel'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PinwheelLargePrismatic'  title='Large Prismatic Pinwheel'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='StraightStoneFencePrismatic'  title='Straight Prismatic Stone Fence'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='CurvedStoneFencePrismatic'  title='Curved Prismatic Stone Fence'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='MediumPalmPrismatic'  title='Medium Prismatic Palm'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='MossyHenStatuePrismatic'  title='Prismatic Mossy Hen Statue'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TwistyOvergrownTreePrismatic'  title='Prismatic Giant Stalks'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='IndigoGrass'  title='Indigo Grass'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='IndigoFlowers'  title='Indigo Flowers'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='IndigoCypress'  title='Indigo Cypress'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='IndigoCypressCluster'  title='Indigo Cypress Cluster'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TallIndigoCypress'  title='Tall Indigo Cypress'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='IndigoShrubs'  title='Indigo Shrubs'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='LaZeeDistributor'  title='Distributor'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='AcceleratorGold'  title='Gold Accelerator'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='AcceleratorPurple'  title='Purple Accelerator'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='AcceleratorRed'  title='Red Accelerator'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='AcceleratorPink'  title='Pink Accelerator'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='AcceleratorGrey'  title='Grey Accelerator'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='AcceleratorGreen'  title='Green Accelerator'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SlimeStageFloralPurple'  title='Purple Floral Slime Stage'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SlimeStageFloralYellow'  title='Yellow Floral Slime Stage'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SlimeStageFloralBlue'  title='Blue Floral Slime Stage'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FlowerSlimeTreeCoral'  title='Coral Floral Slime Tree'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FlowerSlimeTreePurple'  title='Purple Floral Slime Tree'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FlowerSlimeTreeYellow'  title='Yellow Floral Slime Tree'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FlowerPillowLargeCoral'  title='Large Coral Flower Pillow'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FlowerPillowLargePurple'  title='Large Purple Flower Pillow'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FlowerPillowLargeYellow'  title='Large Yellow Flower Pillow'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FlowerPillowSmallPurple'  title='Small Purple Flower Pillow'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FlowerPillowSmallYellow'  title='Small Yellow Flower Pillow'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FlowerPillowSmallBlue'  title='Small Blue Flower Pillow'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FlowerLampPurple'  title='Purple Flower Lamp'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FlowerLampOrange'  title='Orange Flower Lamp'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FlowerLampPink'  title='Pink Flower Lamp'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='LabyrinthWallLamp'  title='Labyrinth Wall Lamp'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='LabyrinthStandingLamp'  title='Labyrinth Standing Lamp'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SlimeStagePrismatic'  title='Prismatic #1 Slime Stage'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SlimeStagePastel'  title='Pastel #1 Slime Stage'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SlimeStageMonochromatic'  title='Monochromatic #1 Slime Stage'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SlimeFlag'  title='Slime Flag'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='StonePlatformSquare'  title='Square Stone Platform'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='StonePlatformRound'  title='Round Stone Platform'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PlatformRoundGrass'  title='Round Grass Platform'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PlatformStepGrass'  title='Step Grass Platform'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PlatformHalfCircleGrass'  title='Half-Circle Grass Platform'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TeleporterSanctuaryGreen'  title='Green Sanctuary Portal'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TeleporterSanctuaryViolet'  title='Violet Sanctuary Portal'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TeleporterSanctuaryTeal'  title='Teal Sanctuary Portal'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TeleporterSanctuaryBlue'  title='Blue Sanctuary Portal'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='LavaLampBlue'  title='Blue Lava Lamp'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='LavaLampGold'  title='Gold Lava Lamp'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='LavaLampGreen'  title='Green Lava Lamp'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='LavaLampRed'  title='Red Lava Lamp'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='LavaLampViolet'  title='Prismatic Lava Lamp'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='ScientistChair'  title='Scientist's Chair'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='ScientistDesk'  title='Scientist's Desk'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='LavaLampGrey'  title='Shadow Lava Lamp'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='CouchSeat'  title='Short Comfy Couch'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='DoubleCouchSeat'  title='Long Comfy Couch'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PlatformRoundIce'  title='Round Ice Platform'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PlatformRoundMagma'  title='Round Magma Platform'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PlatformRoundMoss'  title='Round Moss Platform'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PlatformStepIce'  title='Step Ice Platform'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PlatformStepMagma'  title='Step Magma Platform'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PlatformStepMoss'  title='Step Moss Platform'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PlatformHalfCircleIce'  title='Half-Circle Ice Platform'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PlatformHalfCircleMagma'  title='Half-Circle Magma Platform'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PlatformHalfCircleMoss'  title='Half-Circle Moss Platform'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='GoldenHoneyStatue'  title='Golden Honey Statue'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='GoldenSaberStatue'  title='Golden Saber Statue'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump] ── Category 'Radiant Slimes' (22 entries) ──
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RadiantPink'  title='Pink Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RadiantCotton'  title='Cotton Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RadiantTabby'  title='Tabby Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RadiantPhosphor'  title='Phosphor Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RadiantAngler'  title='Angler Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RadiantRock'  title='Rock Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RadiantBatty'  title='Batty Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RadiantFlutter'  title='Flutter Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RadiantRingtail'  title='Ringtail Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RadiantBoom'  title='Boom Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RadiantHoney'  title='Honey Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RadiantPuddle'  title='Puddle Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RadiantCrystal'  title='Crystal Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RadiantHunter'  title='Hunter Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RadiantFire'  title='Fire Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RadiantSaber'  title='Saber Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RadiantTangle'  title='Tangle Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RadiantDervish'  title='Dervish Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RadiantYolky'  title='Yolky Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RadiantSloomber'  title='Sloomber Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RadiantTwin'  title='Twin Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RadiantHyper'  title='Hyper Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump] ── Category 'Ranch' (12 entries) ──
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Corral'  title='Corral'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Coop'  title='Coop'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Garden'  title='Garden'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Silo'  title='Silo'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Incinerator'  title='Incinerator'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Pond'  title='Pond'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TheArchway'  title='The Archway'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TheDen'  title='The Den'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TheGully'  title='The Gully'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TheTidepools'  title='The Tidepools'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TheDigsite'  title='The Digsite'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PlortMarket'  title='Plort Market'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump] ── Category 'Resources' (55 entries) ──
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='CarrotVeggie'  title='Carrot'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='LettuceVeggie'  title='Water Lettuce'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='BeetVeggie'  title='Heart Beet'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='OnionVeggie'  title='Odd Onion'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TaterVeggie'  title='Turbo Tater'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PogoFruit'  title='Pogofruit'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='MangoFruit'  title='Mint Mango'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='CuberryFruit'  title='Cuberry'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PomegraniteFruit'  title='Pomegranite'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PearFruit'  title='Prickle Pear'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PolaricherryFruit'  title='Polaricherry'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Chick'  title='Chickadoo'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Hen'  title='Hen Hen'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Rooster'  title='Roostro'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SeaChick'  title='Sea Chick'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SeaHen'  title='Sea Hen'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='StonyChick'  title='Stony Chick'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='StonyHen'  title='Stony Hen'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='BriarChick'  title='Briar Chick'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='BriarHen'  title='Briar Hen'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='ThunderChick'  title='Thunder Chick'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='ThunderHen'  title='Thundercluck'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PaintedChick'  title='Painted Chick'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PaintedHen'  title='Painted Hen'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='CandedChick'  title='Candied Chick'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='CandiedHen'  title='Candied Hen'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='ElderHen'  title='Elder Hen'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='ElderRooster'  title='Elder Roostro'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='MoondewNectar'  title='Moondew Nectar'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PrimordyOilCraft'  title='Primordy Oil'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='DeepBrineCraft'  title='Deep Brine'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SilkySandCraft'  title='Silky Sand'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='LavaDustCraft'  title='Lava Dust'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='BuzzWaxCraft'  title='Buzz Wax'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='WildHoneyCraft'  title='Wild Honey'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='JellystoneCraft'  title='Jellystone'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RadiantOreCraft'  title='Radiant Ore'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='StrangeDiamondCraft'  title='Strange Diamond'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SlimeFossilCraft'  title='Slime Fossil'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PerfectSnowflakeCraft'  title='Perfect Snowflake'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SunSapCraft'  title='Sun Sap'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='LightningMoteCraft'  title='Lightning Mote'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='StormGlassCraft'  title='Storm Glass'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='DriftCrystalCraft'  title='Drift Crystal'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='MagmaCombCraft'  title='Magma Comb'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='AquaGlassCraft'  title='Aqua Glass'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='DreamBubbleCraft'  title='Dream Bubble'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TinPetalCraft'  title='Tin Petal'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='BlackIndigoniumCraft'  title='Black Indigonium'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RoyalJelly'  title='Royal Jelly'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Water'  title='Water'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Snowball'  title='Snowball'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PrismaPlorts'  title='Prisma Plorts'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PrismaResources'  title='Unstable Resources'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Sprinkles'  title='Sprinkles'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump] ── Category 'Science' (5 entries) ──
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Refinery'  title='Refinery'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Fabricator'  title='Fabricator'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Utilities'  title='Utilities'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='WarpTech'  title='Warp Tech'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Decorations'  title='Decorations'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump] ── Category 'Slimes' (30 entries) ──
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Pink'  title='Pink Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Cotton'  title='Cotton Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Tabby'  title='Tabby Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Phosphor'  title='Phosphor Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Angler'  title='Angler Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Rock'  title='Rock Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Batty'  title='Batty Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Flutter'  title='Flutter Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Ringtail'  title='Ringtail Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Boom'  title='Boom Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Honey'  title='Honey Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Puddle'  title='Puddle Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Crystal'  title='Crystal Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Hunter'  title='Hunter Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Fire'  title='Fire Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Lucky'  title='Lucky Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Gold'  title='Gold Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Saber'  title='Saber Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Tangle'  title='Tangle Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Dervish'  title='Dervish Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Yolky'  title='Yolky Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Sloomber'  title='Sloomber Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Twin'  title='Twin Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Hyper'  title='Hyper Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Shadow'  title='Shadow Slime'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Tarr'  title='The Tarr'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Largo'  title='Largo Slimes'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FeralSlime'  title='Feral Slimes'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Gordo'  title='Gordo Slimes'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RadiantSlime'  title='Radiant Slimes'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump] ── Category 'Toys' (23 entries) ──
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='BeachBall'  title='Beach Ball'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='BombBall'  title='Bomb Ball'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='BouncyBall'  title='Bouncy Ball'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='FullMoon'  title='Full Moon Ball '  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Glowbug'  title='Glowbug'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Puffer'  title='Plushie Puffer Fish '  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RubberDucky'  title='Rubber Ducky'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Trashcan'  title='Trashcan'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='YarnBall'  title='Yarn Ball'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='BigRock'  title='Big Rock'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='NightLight'  title='Night Light'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='BuzzyBee'  title='Buzzy Bee'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='CrystalBall'  title='Crystal Ball'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='GyroTop'  title='Gyro Top'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SolMate'  title='Sol Mate'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='CharcoalBrick'  title='Charcoal Brick'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='StegoBuddy'  title='Stego Buddy'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RocketShip'  title='Rocket Ship'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='StuffedSheep'  title='Stuffed Sheep'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SpinnerToy'  title='Spinner Toy'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='HappyPlushBreadLoaf'  title='Happy Plush Bread Loaf'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='StuffedChicken'  title='Stuffed Chicken'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='ResourceDetector'  title='Resource Detector'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump] ── Category 'Tutorials' (10 entries) ──
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Basics'  title='Basic Player Controls'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Vacing'  title='Vac-ing and Shooting'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Capturetanks'  title='Vac Tanks'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Energy'  title='Health and Energy'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Corralling'  title='Corralling Slimes'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Feeding'  title='Feeding Slimes'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Plorts'  title='Plorts and the Plort Market'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Ssbasics'  title='Slime Science Basics'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Gadgetmode'  title='Gadget Mode'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='QuantumDrone'  title='Quantum Drones'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump] ── Category 'Weather' (9 entries) ──
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Rain'  title='Rain'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Snow'  title='Snow'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Thunder'  title='Thunderstorm'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Lightning'  title='Lightning Strike'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Wind'  title='Wind'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Tornado'  title='Cyclone'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Pollen'  title='Pollen'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Vine'  title='Vine Tangle'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='SlimeRain'  title='Slimefall'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump] ── Category 'World' (8 entries) ──
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Conservatory'  title='The Conservatory'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RainbowFields'  title='Rainbow Fields'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='LuminousStrand'  title='Starlight Strand'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='RumblingGorge'  title='Ember Valley'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Sea'  title='The Slime Sea'  unlocked=True
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='PowderfallBluffs'  title='Powderfall Bluffs'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='Labyrinth'  title='The Grey Labyrinth'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump]   entry='TheSanctuary'  title='The Sanctuary'  unlocked=False
+[Info   :SlimeRancher2-AP] [AP-Dump] =========== PEDIA DUMP END ===========

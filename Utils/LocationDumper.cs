@@ -12,6 +12,9 @@ using Il2CppMonomiPark.SlimeRancher.Slime;
 using Il2CppMonomiPark.SlimeRancher.DataModel;
 using Il2CppMonomiPark.SlimeRancher.Weather;
 using Il2CppMonomiPark.SlimeRancher.Drone;
+using Il2CppMonomiPark.SlimeRancher.Shop;
+using Il2CppMonomiPark.SlimeRancher.Shop.Runtime;
+using Il2CppMonomiPark.SlimeRancher.UI.Shop.Pages;
 using Il2CppMonomiPark.SlimeRancher.World.ResearchDrone;
 using SlimeRancher2AP.Utils;
 using System;
@@ -458,6 +461,392 @@ public static class LocationDumper
         foreach (var def in defs.OrderBy(d => d.name))
             log.LogInfo($"[AP-Dump] Gadget  name='{def.name}'");
         log.LogInfo("[AP-Dump] =========== GADGET DUMP END ===========");
+    }
+
+    /// <summary>
+    /// Dumps every shop known to the <c>ShopDirector</c>: shop definition asset name, each
+    /// category (analytics name, source tag, localized display name), and every runtime item
+    /// with its identity (<c>ShopItemId</c>, addressable asset GUID, loaded asset name),
+    /// localized title, item/unlock type, Newbuck cost, purchase limit, and purchase count.
+    /// <para>
+    /// Used to build the Polestar Provisions location table (mod <c>LocationTable</c> +
+    /// apworld <c>locations.py</c>). The <c>ShopItemId</c> string is the stable per-slot key
+    /// the game persists purchases under — prefer it as the location identity.
+    /// </para>
+    /// <para>
+    /// Item assets resolve lazily through addressables — open the shop UI once (browse each
+    /// category) before dumping so asset names and titles are loaded; unloaded entries still
+    /// dump their id/GUID.
+    /// </para>
+    /// </summary>
+    public static void DumpShopItems()
+    {
+        var log = Plugin.Instance.Log;
+        var directors = Resources.FindObjectsOfTypeAll<ShopDirector>();
+        log.LogInfo($"[AP-Dump] ========== SHOP DUMP ({directors.Count} director(s)) ==========");
+
+        foreach (var director in directors)
+        {
+            var runtimes = director._runtimes;
+            if (runtimes == null || runtimes.Count == 0)
+            {
+                log.LogInfo("[AP-Dump] ShopDirector has no runtimes (shop scene not loaded?)");
+                continue;
+            }
+
+            for (int r = 0; r < runtimes.Count; r++)
+            {
+                var runtime = runtimes[r];
+                if (runtime == null) continue;
+
+                string defName = "<null>";
+                try { defName = runtime.Definition?.TryCast<ScriptableObject>()?.name ?? "<non-asset>"; }
+                catch { /* keep placeholder */ }
+                log.LogInfo($"[AP-Dump] Shop[{r}]  definition='{defName}'  available={runtime.IsShopAvailable}  doneLoading={runtime.IsDoneLoading}");
+
+                // AllCategories returns a live lazy iterator that the ShopDirector's own
+                // Update invalidates mid-enumeration ("Collection was modified"). Read the
+                // backing list from the data provider instead and iterate by index.
+                var cats = runtime._dataProvider?.GetLoadedCategories()
+                    ?.TryCast<Il2CppSystem.Collections.Generic.List<ShopCategoryRuntime>>();
+                if (cats == null)
+                {
+                    log.LogInfo("[AP-Dump]   (category list unavailable — provider still loading?)");
+                    continue;
+                }
+
+                for (int c = 0; c < cats.Count; c++)
+                {
+                    var category = cats[c];
+                    if (category == null) continue;
+
+                    string catName = "?", catTag = "?", catDisplay = "";
+                    try { catName    = category.AnalyticsName ?? "?"; }       catch { }
+                    try { catTag     = category.SourceShopAssetTag ?? "?"; }  catch { }
+                    try { catDisplay = category.DisplayName?.GetLocalizedString() ?? ""; } catch { }
+
+                    var items = category._cachedItemList;
+                    log.LogInfo($"[AP-Dump]   Category '{catName}'  tag='{catTag}'  display='{catDisplay}'  items={items?.Count ?? 0}");
+                    if (items == null) continue;
+
+                    for (int i = 0; i < items.Count; i++)
+                    {
+                        var item = items[i];
+                        if (item == null) continue;
+                        try
+                        {
+                            string uid = "<none>", guid = "", assetName = "<not loaded>", title = "";
+                            try { uid       = item.UniqueId.Id ?? "<none>"; }  catch { }
+                            try { guid      = item.AssetGuid ?? ""; }          catch { }
+                            try { assetName = item.Asset?.TryCast<UnityEngine.Object>()?.name ?? "<not loaded>"; } catch { }
+                            try { title     = item.Title?.GetLocalizedString() ?? ""; } catch { }
+
+                            // Fallback: resolve the asset through the provider's addressables
+                            // cache when the item's own lazy handle hasn't completed.
+                            if (assetName == "<not loaded>" && guid.Length > 0)
+                            {
+                                try
+                                {
+                                    var addrProvider = runtime._dataProvider?.TryCast<ShopRuntimeAddressablesDataProvider>();
+                                    var found = addrProvider?.FindAssetByRuntimeKey(guid);
+                                    if (found != null) assetName = found.name;
+                                }
+                                catch { /* keep placeholder */ }
+                            }
+
+                            // Kick off the addressable load for items the shop UI hasn't
+                            // displayed yet — a follow-up dump a few seconds later then has
+                            // their asset name / title / type resolved.
+                            try { if (!item.IsDoneLoading) item.AcquireResources(); } catch { }
+
+                            int newbucks = -1;
+                            try { newbucks = item.PurchaseCost?.NewbuckCost ?? -1; } catch { }
+
+                            string limit = "∞";
+                            try
+                            {
+                                var lim = item.ItemLimit;
+                                if (lim.HasValue) limit = lim.Value.ToString();
+                            }
+                            catch { limit = "?"; }
+
+                            int purchased = -1;
+                            try { purchased = item.GetCountPurchased(); } catch { }
+
+                            // ItemType NREs (GadgetShopItemHelper.GetTypeInfo) while the
+                            // asset is unloaded — guard each remaining read individually so
+                            // one failure can't discard the id/guid already gathered.
+                            string type = "<unloaded>", unlock = "?", soldOut = "?";
+                            try { type    = item.ItemType.ToString(); }  catch { }
+                            try { unlock  = item.UnlockType.ToString(); } catch { }
+                            try { soldOut = item.IsSoldOut.ToString(); }  catch { }
+
+                            log.LogInfo(
+                                $"[AP-Dump]     Item[{i}] id='{uid}'  asset='{assetName}'  title='{title}'  " +
+                                $"type={type}  unlock={unlock}  cost={newbucks}nb  " +
+                                $"limit={limit}  purchased={purchased}  soldOut={soldOut}  guid='{guid}'");
+                        }
+                        catch (Exception ex)
+                        {
+                            log.LogInfo($"[AP-Dump]     Item[{i}] <failed to read: {ex.Message}>");
+                        }
+                    }
+                }
+            }
+        }
+
+        log.LogInfo("[AP-Dump] =========== SHOP DUMP END ===========");
+    }
+
+    /// <summary>
+    /// Logs every <c>Image</c> component in the shop UI hierarchy (path, active state,
+    /// current sprite) so the component rendering the big full-art display can be
+    /// identified. Use with the shop open and an item selected: run once with a vanilla
+    /// item selected and once with an AP-check item selected, then diff the sprites.
+    /// </summary>
+    public static void DumpShopUiImages()
+    {
+        var log = Plugin.Instance.Log;
+        var blurbs = Resources.FindObjectsOfTypeAll<ShopItemDescriptionBlurb>();
+        log.LogInfo($"[AP-Dump] ===== SHOP UI IMAGE DUMP ({blurbs.Count} blurb(s)) =====");
+
+        var dumpedRoots = new HashSet<int>();
+        foreach (var blurb in blurbs)
+        {
+            if (blurb == null) continue;
+            var root = blurb.transform.root;
+            if (!dumpedRoots.Add(root.GetInstanceID())) continue;
+
+            log.LogInfo($"[AP-Dump] Root '{root.name}'  (blurb active={blurb.isActiveAndEnabled})");
+            log.LogInfo($"[AP-Dump]  blurb._itemIcon path='{PathTo(blurb._itemIcon?.transform, root)}'  sprite='{SpriteLabel(blurb._itemIcon?.sprite)}'");
+
+            var images = root.GetComponentsInChildren<UnityEngine.UI.Image>(true);
+            log.LogInfo($"[AP-Dump]  {images.Length} Image component(s):");
+            foreach (var img in images)
+            {
+                if (img == null) continue;
+                string state = img.gameObject.activeInHierarchy ? "ON " : "off";
+                log.LogInfo($"[AP-Dump]   {state} '{PathTo(img.transform, root)}'  sprite='{SpriteLabel(img.sprite)}'");
+            }
+
+            var sprites = root.GetComponentsInChildren<SpriteRenderer>(true);
+            if (sprites.Length > 0)
+            {
+                log.LogInfo($"[AP-Dump]  {sprites.Length} SpriteRenderer component(s):");
+                foreach (var sr in sprites)
+                {
+                    if (sr == null) continue;
+                    string state = sr.gameObject.activeInHierarchy ? "ON " : "off";
+                    log.LogInfo($"[AP-Dump]   {state} '{PathTo(sr.transform, root)}'  sprite='{sr.sprite?.name ?? "<null>"}'");
+                }
+            }
+        }
+
+        // The big full-art display was not found among the Image components above —
+        // sweep the whole scene for OTHER renderer types and roots: RawImages (texture-
+        // based) and any active Image living under a root that holds no blurb.
+        log.LogInfo("[AP-Dump]  --- scene-wide sweep (active only) ---");
+        foreach (var raw in Resources.FindObjectsOfTypeAll<UnityEngine.UI.RawImage>())
+        {
+            if (raw == null || !raw.gameObject.activeInHierarchy) continue;
+            var root = raw.transform.root;
+            log.LogInfo($"[AP-Dump]  RawImage ON  root='{root.name}'  '{PathTo(raw.transform, root)}'  texture='{raw.texture?.name ?? "<null>"}'");
+        }
+        foreach (var img in Resources.FindObjectsOfTypeAll<UnityEngine.UI.Image>())
+        {
+            if (img == null || !img.gameObject.activeInHierarchy) continue;
+            var root = img.transform.root;
+            if (dumpedRoots.Contains(root.GetInstanceID())) continue; // already listed above
+            log.LogInfo($"[AP-Dump]  Image    ON  root='{root.name}'  '{PathTo(img.transform, root)}'  sprite='{SpriteLabel(img.sprite)}'");
+        }
+
+        // Re-assert tick state — reveals whether the full-art tick is actually engaged.
+        var trackedBlurb = SlimeRancher2AP.Patches.UiPatches.ShopUiHelper.ActiveBlurb;
+        var trackedInfo  = SlimeRancher2AP.Patches.UiPatches.ShopUiHelper.ActiveBlurbInfo;
+        log.LogInfo($"[AP-Dump]  Tick tracking: ActiveBlurb={(trackedBlurb != null ? $"set (active={trackedBlurb.isActiveAndEnabled})" : "NULL")}  info='{trackedInfo?.Name ?? "<null>"}'");
+        log.LogInfo("[AP-Dump] ===== SHOP UI IMAGE DUMP END =====");
+    }
+
+    /// <summary>
+    /// Dumps the availability conditions of every shop item: per rule-set group
+    /// (<c>ShopCategorySourceRuleSet._allItemsAvailableCondition</c>) and per item entry
+    /// (<c>ShopFixedItemsTable.ItemEntry.AvailableCondition</c>). Query components are
+    /// described recursively with their referenced assets (zone/event asset names), which
+    /// is the authoritative source for which zone unlocks each Polestar Provisions item —
+    /// used to build the apworld's regional logic for shop locations.
+    /// Item GUIDs are resolved to AP location names inline where known.
+    /// </summary>
+    public static void DumpShopItemConditions()
+    {
+        var log = Plugin.Instance.Log;
+        var directors = Resources.FindObjectsOfTypeAll<ShopDirector>();
+        log.LogInfo("[AP-Dump] ===== SHOP CONDITION DUMP =====");
+
+        foreach (var director in directors)
+        {
+            var runtimes = director._runtimes;
+            if (runtimes == null) continue;
+            for (int r = 0; r < runtimes.Count; r++)
+            {
+                var cats = runtimes[r]?._dataProvider?.GetLoadedCategories()
+                    ?.TryCast<Il2CppSystem.Collections.Generic.List<ShopCategoryRuntime>>();
+                if (cats == null) continue;
+
+                for (int c = 0; c < cats.Count; c++)
+                {
+                    var category = cats[c];
+                    if (category == null) continue;
+                    string catName = "?";
+                    try { catName = category.AnalyticsName ?? "?"; } catch { }
+
+                    var providers = category._providers;
+                    log.LogInfo($"[AP-Dump] Category '{catName}'  providers={providers?.Count ?? 0}");
+                    if (providers == null) continue;
+
+                    for (int p = 0; p < providers.Count; p++)
+                    {
+                        var group = providers[p]?.TryCast<ShopRuntimeRuleSetGroup>();
+                        if (group == null)
+                        {
+                            log.LogInfo($"[AP-Dump]  Provider[{p}] <not a rule set group>");
+                            continue;
+                        }
+
+                        string groupName = "?", groupCond = "<none>";
+                        try { groupName = group.RuleSetName ?? "?"; } catch { }
+                        try
+                        {
+                            var ruleSet = group._ruleSet?.TryCast<ShopCategorySourceRuleSet>();
+                            if (ruleSet?._allItemsAvailableCondition != null)
+                                groupCond = DescribeQuery(ruleSet._allItemsAvailableCondition, 0);
+                        }
+                        catch (Exception ex) { groupCond = $"<error: {ex.Message}>"; }
+                        log.LogInfo($"[AP-Dump]  Group[{p}] '{groupName}'  groupCondition={groupCond}");
+
+                        var sources = group._dataSources;
+                        if (sources == null) continue;
+                        for (int s = 0; s < sources.Count; s++)
+                        {
+                            var dataSource = sources[s]?.DataSource;
+                            var srcName = dataSource?.TryCast<UnityEngine.Object>()?.name ?? "<null>";
+                            var table   = dataSource?.TryCast<ShopFixedItemsTable>();
+                            log.LogInfo($"[AP-Dump]   Table[{s}] '{srcName}'  fixedItems={(table != null)}");
+                            if (table?._itemListings == null) continue;
+
+                            var listings = table._itemListings;
+                            for (int i = 0; i < listings.Length; i++)
+                            {
+                                var entry = listings[i];
+                                if (entry == null) continue;
+
+                                string label = "<no guid>", cond = "<always>";
+                                int nb = -1;
+                                try
+                                {
+                                    var guid = entry._itemCost?.ShopItem?.AssetGuid ?? "";
+                                    label = guid;
+                                    if (Data.LocationTable.TryGetShopByAssetGuid(guid, out var linfo) && linfo != null)
+                                        label = linfo.Name;
+                                }
+                                catch { }
+                                try { nb = entry._itemCost?.PurchaseCost?.NewbuckCost ?? -1; } catch { }
+                                try
+                                {
+                                    if (entry.AvailableCondition != null)
+                                        cond = DescribeQuery(entry.AvailableCondition, 0);
+                                }
+                                catch (Exception ex) { cond = $"<error: {ex.Message}>"; }
+
+                                log.LogInfo($"[AP-Dump]    Item[{i}] '{label}'  cost={nb}nb  condition={cond}");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        log.LogInfo("[AP-Dump] ===== SHOP CONDITION DUMP END =====");
+    }
+
+    /// <summary>
+    /// Recursively describes a game query component. Composites expand to
+    /// <c>Operation(child, child, …)</c>; leaf components print their concrete IL2CPP type
+    /// plus referenced Unity assets (zone/event asset names) and short primitive values,
+    /// discovered via IL2CPP reflection so no per-query-type code is needed.
+    /// </summary>
+    private static string DescribeQuery(Il2CppInterop.Runtime.InteropTypes.Il2CppObjectBase? comp, int depth)
+    {
+        if (comp == null) return "<null>";
+        if (depth > 6) return "<max depth>";
+
+        var composite = comp.TryCast<Il2CppMonomiPark.SlimeRancher.Event.Query.CompositeQueryComponent>();
+        if (composite != null)
+        {
+            var parts = new List<string>();
+            var children = composite._children;
+            if (children != null)
+                for (int i = 0; i < children.Count; i++)
+                    parts.Add(DescribeQuery(children[i], depth + 1));
+            return $"{composite._operation}({string.Join(" , ", parts)})";
+        }
+
+        try
+        {
+            var sysObj = comp.TryCast<Il2CppSystem.Object>();
+            var type = sysObj?.GetIl2CppType();
+            if (type == null) return comp.GetType().Name;
+
+            var bits = new List<string>();
+            var fields = type.GetFields(Il2CppSystem.Reflection.BindingFlags.Instance
+                                        | Il2CppSystem.Reflection.BindingFlags.Public
+                                        | Il2CppSystem.Reflection.BindingFlags.NonPublic);
+            foreach (var field in fields)
+            {
+                Il2CppSystem.Object? val = null;
+                try { val = field.GetValue(sysObj); } catch { continue; }
+                if (val == null) continue;
+
+                var unityObj = val.TryCast<UnityEngine.Object>();
+                if (unityObj != null) { bits.Add($"{field.Name}='{unityObj.name}'"); continue; }
+
+                string strVal;
+                try { strVal = val.ToString(); } catch { continue; }
+                if (!string.IsNullOrEmpty(strVal) && strVal.Length <= 48 && !strVal.Contains("Il2Cpp"))
+                    bits.Add($"{field.Name}={strVal}");
+            }
+            return $"{type.Name}[{string.Join(", ", bits)}]";
+        }
+        catch (Exception ex)
+        {
+            return $"<describe failed: {ex.Message}>";
+        }
+    }
+
+    /// <summary>
+    /// Sprite name for dump output, with reference-equality disambiguation against the
+    /// mod's Archipelago logo (embedded sprites have empty names, so a bare '' in the
+    /// dump is ambiguous — an addressable-loaded sprite could theoretically be unnamed too).
+    /// </summary>
+    private static string SpriteLabel(Sprite? sprite)
+    {
+        if (sprite == null) return "<null>";
+        var logo = SlimeRancher2AP.Patches.UiPatches.OptionsMenuInjectionPatch.GetLogoSprite();
+        if (logo != null && sprite == logo) return "<AP LOGO>";
+        return string.IsNullOrEmpty(sprite.name) ? "<unnamed, NOT logo>" : sprite.name;
+    }
+
+    /// <summary>Hierarchy path of <paramref name="t"/> relative to <paramref name="root"/>.</summary>
+    private static string PathTo(Transform? t, Transform root)
+    {
+        if (t == null) return "<null>";
+        var parts = new List<string>();
+        var cur = t;
+        while (cur != null && cur != root)
+        {
+            parts.Add(cur.name);
+            cur = cur.parent;
+        }
+        parts.Reverse();
+        return string.Join("/", parts);
     }
 
     /// <summary>

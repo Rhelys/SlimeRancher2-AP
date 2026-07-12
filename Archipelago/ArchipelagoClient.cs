@@ -89,6 +89,19 @@ public class ArchipelagoClient
     public ScoutedItemInfo? GetScoutedItem(long locationId)
         => _liveScoutCache != null && _liveScoutCache.TryGetValue(locationId, out var info) ? info : null;
 
+    // Location IDs that exist in the connected seed. Captured once on login; volatile
+    // reference swap keeps reads safe from any thread. Null when disconnected.
+    private volatile HashSet<long>? _seedLocations;
+
+    /// <summary>
+    /// True when <paramref name="locationId"/> exists in the connected seed. Optional
+    /// location pools (e.g. the Polestar shop subset) contain every possible location in
+    /// the mod's table, but the apworld only creates the subset chosen for this seed —
+    /// events for the rest must stay vanilla. Returns false while disconnected.
+    /// </summary>
+    public bool IsLocationInSeed(long locationId)
+        => _seedLocations?.Contains(locationId) ?? false;
+
     // -------------------------------------------------------------------------
     // Connection
     // -------------------------------------------------------------------------
@@ -259,6 +272,11 @@ public class ArchipelagoClient
                     Session.Items.ItemReceived += OnItemReceived;
                     Logger.Info("[AP] ItemReceived handler registered.");
 
+                    // Snapshot the seed's location set. Optional-location features (Polestar
+                    // shop subset) consult this to decide whether a game event is a check in
+                    // THIS seed — sending a check for an ID absent from the seed is an error.
+                    _seedLocations = new HashSet<long>(Session.Locations.AllLocations);
+
                     // Flush offline checks and start scout from the background thread.
                     FlushPendingChecks();
                     var capturedSession = Session;
@@ -318,6 +336,8 @@ public class ArchipelagoClient
         DeathLink?.Disable();
         DeathLink       = null;
         _liveScoutCache = null;
+        _seedLocations  = null;
+        SaveGuard.Reset();
         // Unregister and close the socket before nulling Session.
         // Without DisconnectAsync the underlying WebSocket stays open and the AP
         // server never sees the client leave — it only observes the tag change from
@@ -544,6 +564,10 @@ public class ArchipelagoClient
         // while the player is still in the pre-game UI.
         if (SceneContext.Instance?.Player == null) return;
 
+        // Hold items unless the loaded save is the one associated with this AP slot —
+        // items must never be delivered into an unrelated save (SaveGuard warns the player).
+        if (!SaveGuard.IsSaveTrusted()) return;
+
 #if DEBUG
         SlimeRancher2AP.Utils.DebugTrace.Once("ProcessItemQueue.1 — entered while connected");
 #endif
@@ -733,12 +757,29 @@ public class ArchipelagoClient
     /// Idempotent: already-checked locations are silently skipped.
     /// Shows a notification via StatusHUD based on persisted or live scout data.
     /// </summary>
+    /// <summary>
+    /// <c>Environment.TickCount</c> of the most recent location check sent by the player.
+    /// Read by <c>TrapHandler.IsTrapAllowed</c> to hold traps briefly after a check so a
+    /// trap rewarded by that check can't interrupt the interaction that produced it.
+    /// Initialized far in the past so the grace window is inactive before the first check.
+    /// </summary>
+    internal static int LastCheckSentTickMs = System.Environment.TickCount - 3_600_000;
+
     public void SendCheck(long locationId)
     {
         if (!Plugin.Instance.ModEnabled) return;
         if (!Plugin.Instance.SaveManager.HasActiveSession) return;
         if (Plugin.Instance.SaveManager.IsChecked(locationId)) return;
 
+        // A save that is not associated with this AP slot must not send checks — its game
+        // events belong to a different playthrough (SaveGuard has already warned the player).
+        if (!SaveGuard.IsSaveTrusted())
+        {
+            Logger.Warning($"[AP] SendCheck({locationId}) ignored — current save is not associated with this AP slot.");
+            return;
+        }
+
+        LastCheckSentTickMs = System.Environment.TickCount;
         Plugin.Instance.SaveManager.MarkChecked(locationId);
         ShowCheckNotification(locationId);
 
