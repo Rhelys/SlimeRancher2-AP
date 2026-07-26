@@ -2731,5 +2731,123 @@ public static class LocationDumper
         log.LogInfo($"[AP-Dump] Eligible for ForceSpawn (LOCKED): {eligible}/{spawners.Length}");
         log.LogInfo($"[AP-Dump] =========== GHOST DRONE SPAWNER DUMP END ===========");
     }
+
+    /// <summary>
+    /// Ranch plot randomization groundwork — dumps the three tiers the feature will gate:
+    /// <list type="number">
+    /// <item>Plot spots: every loaded <c>LandPlotLocation</c> (stable IdHandler id, current
+    ///   plot type, position). Zone streaming applies — run once at the Conservatory and once
+    ///   in each unlocked expansion area for full coverage.</item>
+    /// <item>Buildable types: every <c>PlotPatchPurchaseItemModel</c> asset
+    ///   (asset name, <c>LandPlot.Id</c> type, Newbucks cost).</item>
+    /// <item>Upgrades: every <c>PlotUpgradePurchaseItemModel</c> asset
+    ///   (asset name, <c>LandPlot.Upgrade</c>, Newbucks cost).</item>
+    /// </list>
+    /// The purchase-model assets are ScriptableObjects and may only be resident after a plot
+    /// UI has been opened at least once this session — open any empty plot's menu first if
+    /// the tier 2/3 sections come back empty.
+    /// </summary>
+    public static void DumpLandPlots()
+    {
+        var log = Plugin.Instance.Log;
+        log.LogInfo("[AP-Dump] ========== LAND PLOT DUMP START ==========");
+
+        // ── Tier 1: plot spots ────────────────────────────────────────────────
+        var locations = Resources.FindObjectsOfTypeAll<LandPlotLocation>()
+            .OrderBy(l => { try { return l.Id ?? ""; } catch { return ""; } })
+            .ToList();
+        log.LogInfo($"[AP-Dump] --- Plot spots: {locations.Count} LandPlotLocation(s) loaded ---");
+        var typeCounts = new Dictionary<string, int>();
+        foreach (var loc in locations)
+        {
+            string id = "(no id)";
+            try { id = loc.Id ?? "(null)"; } catch { }
+
+            string plotType = "(no LandPlot child)";
+            string region   = "(none)";
+            try
+            {
+                var plot = loc.GetComponentInChildren<LandPlot>(true);
+                if (plot != null)
+                {
+                    plotType = plot.TypeId.ToString();
+                    try { region = plot._region?.name ?? "(null)"; } catch { }
+                }
+            }
+            catch (Exception ex) { plotType = $"(error: {ex.Message})"; }
+
+            string pos = "";
+            try
+            {
+                var p = loc.transform.position;
+                pos = $"({p.x:F0}, {p.y:F0}, {p.z:F0})";
+            }
+            catch { }
+
+            string goName = "", sceneName = "";
+            try { goName = loc.gameObject.name; } catch { }
+            try { sceneName = loc.gameObject.scene.name; } catch { }
+
+            // Nearest scene-hierarchy ancestor often names the expansion area when the
+            // Region component doesn't (e.g. "ranchGrove" vs a generic ranch region).
+            string rootName = "";
+            try { rootName = loc.transform.root?.name ?? ""; } catch { }
+
+            typeCounts[plotType] = typeCounts.GetValueOrDefault(plotType) + 1;
+            log.LogInfo($"[AP-Dump]   PLOT id='{id}'  type={plotType}  region='{region}'  " +
+                        $"scene='{sceneName}'  root='{rootName}'  go='{goName}'  pos={pos}");
+        }
+        log.LogInfo($"[AP-Dump]   Summary by current type: " +
+            string.Join(", ", typeCounts.OrderBy(kv => kv.Key).Select(kv => $"{kv.Key}={kv.Value}")));
+
+        // ── Tier 2: buildable plot types ──────────────────────────────────────
+        var patchModels = Resources.FindObjectsOfTypeAll<Il2CppMonomiPark.SlimeRancher.UI.Plot.PlotPatchPurchaseItemModel>()
+            .OrderBy(m => m.name)
+            .ToList();
+        log.LogInfo($"[AP-Dump] --- Buildable types: {patchModels.Count} PlotPatchPurchaseItemModel asset(s) ---");
+        foreach (var m in patchModels)
+        {
+            string plotType = "(no definition)";
+            try
+            {
+                var def = m._plotDefinition;
+                if (def != null) plotType = def.Type.ToString();
+            }
+            catch (Exception ex) { plotType = $"(error: {ex.Message})"; }
+
+            log.LogInfo($"[AP-Dump]   BUILD asset='{m.name}'  type={plotType}  cost={DescribeCost(m)}");
+        }
+
+        // ── Tier 3: plot upgrades ─────────────────────────────────────────────
+        var upgradeModels = Resources.FindObjectsOfTypeAll<Il2CppMonomiPark.SlimeRancher.UI.Plot.PlotUpgradePurchaseItemModel>()
+            .OrderBy(m => m.name)
+            .ToList();
+        log.LogInfo($"[AP-Dump] --- Upgrades: {upgradeModels.Count} PlotUpgradePurchaseItemModel asset(s) ---");
+        foreach (var m in upgradeModels)
+        {
+            string upgrade = "(unknown)";
+            try { upgrade = m._upgrade.ToString(); } catch { }
+
+            log.LogInfo($"[AP-Dump]   UPGRADE asset='{m.name}'  upgrade={upgrade}  cost={DescribeCost(m)}");
+        }
+
+        log.LogInfo("[AP-Dump] =========== LAND PLOT DUMP END ===========");
+    }
+
+    /// <summary>First currency cost of a purchase item model, e.g. "450 Newbucks".</summary>
+    private static string DescribeCost(Il2CppMonomiPark.SlimeRancher.UI.Purchase.MenuPurchaseItemModel model)
+    {
+        try
+        {
+            var costs = model._purchaseCost._currencyCosts;
+            if (costs == null || costs.Count == 0) return "(none)";
+            var entry = costs[0];
+            return $"{entry._amount} {entry._currency?.name ?? "(currency?)"}";
+        }
+        catch (Exception ex)
+        {
+            return $"(error: {ex.Message})";
+        }
+    }
 }
 #endif

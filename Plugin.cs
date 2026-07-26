@@ -116,9 +116,11 @@ public class ApUpdateBehaviour : MonoBehaviour
         SlimeRancher2AP.Patches.LocationPatches.ConversationActiveTrackerPatch.Tick();
         SlimeRancher2AP.Patches.LocationPatches.ConversationCalloutOverridePatch.Tick();
         SlimeRancher2AP.Patches.UiPatches.ShopUiHelper.Tick();
+        SlimeRancher2AP.Archipelago.RanchPlotHandler.Tick();
         SlimeRancher2AP.UI.PauseMenuGoalDisplay.Tick();
         SlimeRancher2AP.Archipelago.ItemHandler.TickExpansionDoors();
         SlimeRancher2AP.Archipelago.ItemHandler.TickRegionTeleporters();
+        SlimeRancher2AP.Archipelago.ItemHandler.TickHeldDroneModules();
         SlimeRancher2AP.Patches.PlayerPatches.WeatherPatch.TryApplyIfNeeded();
         SlimeRancher2AP.Patches.LocationPatches.RadiantSlimeSpawnRatePatch.TryApplyIfNeeded();
         SlimeRancher2AP.Patches.LocationPatches.GoldLuckySpawnRatePatch.TryApplyIfNeeded();

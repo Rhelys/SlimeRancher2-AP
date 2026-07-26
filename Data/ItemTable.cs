@@ -1,6 +1,6 @@
 namespace SlimeRancher2AP.Data;
 
-public enum ItemType { RegionAccess, Upgrade, Gadget, Filler, Useful, UpgradeComponent, Trap, ConservatoryExpansion }
+public enum ItemType { RegionAccess, Upgrade, Gadget, Filler, Useful, UpgradeComponent, Trap, ConservatoryExpansion, RanchPlot }
 
 /// <summary>Describes a single Archipelago item this game can send or receive.</summary>
 public record ItemInfo(long Id, string Name, ItemType Type);
@@ -40,6 +40,7 @@ public static class ItemTable
     public const long ShadowSureshotModule = 819534; // → ShadowSureShotComponent  (Shadow Sureshot ×1)
     public const long InjectorModule       = 819535; // → PowerInjectorComponent   (Power Injector I/II ×2)
     public const long RegenModule          = 819536; // → RegenComponent           (Regenerator I/II ×2)
+    public const long VacTank              = 819538; // → ExtraTankComponent       (Extra Tank II ×1)
 
     // Progressive Vacpack Upgrades: 819515–819529 (15 IDs, each received N times per apworld)
     public const long ProgressiveHealthTank        = 819515; // HealthCapacity   × 4
@@ -142,6 +143,55 @@ public static class ItemTable
     public const long TrapVacExpel    = 819615; // expels all vacpack contents as world objects and clears slots
     public const long TrapVacFill = 819616; // fills all empty vacpack slots with Pink slimes
 
+    // Ranch Plot randomization: 819640–819672 — three tiers, each behind its own apworld
+    // option. Counts are always derived from the AP server snapshot (RanchPlotHandler),
+    // never from replay state, so these items are safe to re-apply.
+    //
+    // Per-area plot unlocks (randomize_plots) — progressive; count per area from the
+    // in-game plot dump (docs/dumps/plot.txt): region cell name in comment.
+    public const long RanchPlotConservatory = 819640; // cellConservatory      ×8
+    public const long RanchPlotGully        = 819641; // cellExpansionGully    ×5
+    public const long RanchPlotTidepools    = 819642; // cellExpansionPools    ×5
+    public const long RanchPlotArchway      = 819643; // cellExpansionArchway  ×5
+    public const long RanchPlotDen          = 819644; // cellExpansionDen      ×5
+    public const long RanchPlotDigsite      = 819645; // cellExpansionDigsite  ×4
+
+    // Building type unlocks (randomize_plot_buildings) — PlotPatchPurchaseItemModel asset
+    // name in comment (the gate key).
+    public const long CorralPlans      = 819646; // 'Corral Patch'
+    public const long CoopPlans        = 819647; // 'Coop Patch'
+    public const long GardenPlans      = 819648; // 'Garden Patch'
+    public const long SiloPlans        = 819649; // 'Silo Patch'
+    public const long PondPlans        = 819650; // 'Pond Patch'
+    public const long IncineratorPlans = 819651; // 'Incinerator Patch'
+
+    // Plot upgrade unlocks (randomize_plot_upgrades) — PlotUpgradePurchaseItemModel asset
+    // name in comment. WALLS/FEEDER enum values are shared between corral and coop, so the
+    // asset name (not the LandPlot.Upgrade enum) is the gate key.
+    public const long CorralUpgradeWalls          = 819652; // 'Walls Upgrade'
+    public const long CorralUpgradeAirNet         = 819653; // 'AirNet Upgrade'
+    public const long CorralUpgradeMusicBox       = 819654; // 'MusicBox Upgrade'
+    public const long CorralUpgradePlortCollector = 819655; // 'PlortCollector Upgrade'
+    public const long CorralUpgradeSolarShield    = 819656; // 'SolarShield Upgrade'
+    public const long CorralUpgradeFeeder         = 819657; // 'Feeder Upgrade'
+    public const long CoopUpgradeWalls            = 819658; // 'CoopWalls Upgrade'
+    public const long CoopUpgradeFeeder           = 819659; // 'CoopFeeder Upgrade'
+    public const long CoopUpgradeDeluxe           = 819660; // 'DeluxeCoop Upgrade'
+    public const long GardenUpgradeSoil           = 819661; // 'Soil Upgrade'
+    public const long GardenUpgradeSprinkler      = 819662; // 'Sprinkler Upgrade'
+    public const long GardenUpgradeScareslime     = 819663; // 'Scareslime Upgrade'
+    // Vitamizer sits in the COOP purchase category in-game (confirmed via category
+    // diagnostics 2026-07-12), despite the initial garden guess.
+    public const long CoopUpgradeVitamizer        = 819664; // 'Vitamizer Upgrade'
+    public const long GardenUpgradeDeluxe         = 819665; // 'DeluxeGarden Upgrade'
+    public const long SiloUpgradeStorage2         = 819666; // 'Storage2 Upgrade'
+    public const long SiloUpgradeStorage3         = 819667; // 'Storage3 Upgrade'
+    public const long SiloUpgradeStorage4         = 819668; // 'Storage4 Upgrade'
+    public const long SiloUpgradeCapacity         = 819669; // 'Storage Capacity Upgrade'
+    public const long PondUpgradePlortCollector   = 819670; // 'PlortCollectorPond Upgrade'
+    public const long IncineratorUpgradeAshTrough      = 819671; // 'AshTrough Upgrade'
+    public const long IncineratorUpgradePlortCollector = 819672; // 'PlortCollectorIncerator Upgrade' (game asset typo is real)
+
     // -------------------------------------------------------------------------
     // Item rows
     // -------------------------------------------------------------------------
@@ -168,6 +218,7 @@ public static class ItemTable
         new(ShadowSureshotModule, "Shadow Sureshot Module",  ItemType.UpgradeComponent),
         new(InjectorModule,        "Injector Module",         ItemType.UpgradeComponent),
         new(RegenModule,           "Regen Module",            ItemType.UpgradeComponent),
+        new(VacTank,               "Vac Tank",                ItemType.UpgradeComponent),
 
         // Progressive Vacpack Upgrades
         new(ProgressiveHealthTank,     "Progressive Health Tank",     ItemType.Upgrade),
@@ -263,6 +314,43 @@ public static class ItemTable
         new(TrapTarrRain,   "Tarr Rain Trap",    ItemType.Trap),
         new(TrapVacExpel,    "Vacpack Spew Trap", ItemType.Trap),
         new(TrapVacFill, "Vacpack Fill Trap", ItemType.Trap),
+
+        // Ranch plot randomization — names must match items.py exactly
+        new(RanchPlotConservatory, "Ranch Plot: Conservatory",  ItemType.RanchPlot),
+        new(RanchPlotGully,        "Ranch Plot: The Gully",     ItemType.RanchPlot),
+        new(RanchPlotTidepools,    "Ranch Plot: The Tidepools", ItemType.RanchPlot),
+        new(RanchPlotArchway,      "Ranch Plot: The Archway",   ItemType.RanchPlot),
+        new(RanchPlotDen,          "Ranch Plot: The Den",       ItemType.RanchPlot),
+        new(RanchPlotDigsite,      "Ranch Plot: The Digsite",   ItemType.RanchPlot),
+
+        new(CorralPlans,      "Corral Plans",      ItemType.RanchPlot),
+        new(CoopPlans,        "Coop Plans",        ItemType.RanchPlot),
+        new(GardenPlans,      "Garden Plans",      ItemType.RanchPlot),
+        new(SiloPlans,        "Silo Plans",        ItemType.RanchPlot),
+        new(PondPlans,        "Pond Plans",        ItemType.RanchPlot),
+        new(IncineratorPlans, "Incinerator Plans", ItemType.RanchPlot),
+
+        new(CorralUpgradeWalls,          "Corral Upgrade: Walls",           ItemType.RanchPlot),
+        new(CorralUpgradeAirNet,         "Corral Upgrade: Air Net",         ItemType.RanchPlot),
+        new(CorralUpgradeMusicBox,       "Corral Upgrade: Music Box",       ItemType.RanchPlot),
+        new(CorralUpgradePlortCollector, "Corral Upgrade: Plort Collector", ItemType.RanchPlot),
+        new(CorralUpgradeSolarShield,    "Corral Upgrade: Solar Shield",    ItemType.RanchPlot),
+        new(CorralUpgradeFeeder,         "Corral Upgrade: Auto-Feeder",     ItemType.RanchPlot),
+        new(CoopUpgradeWalls,            "Coop Upgrade: Walls",             ItemType.RanchPlot),
+        new(CoopUpgradeFeeder,           "Coop Upgrade: Auto-Feeder",       ItemType.RanchPlot),
+        new(CoopUpgradeDeluxe,           "Coop Upgrade: Deluxe Coop",       ItemType.RanchPlot),
+        new(GardenUpgradeSoil,           "Garden Upgrade: Nutrient Soil",   ItemType.RanchPlot),
+        new(GardenUpgradeSprinkler,      "Garden Upgrade: Sprinkler",       ItemType.RanchPlot),
+        new(GardenUpgradeScareslime,     "Garden Upgrade: Scareslime",      ItemType.RanchPlot),
+        new(CoopUpgradeVitamizer,        "Coop Upgrade: Vitamizer",         ItemType.RanchPlot),
+        new(GardenUpgradeDeluxe,         "Garden Upgrade: Deluxe Garden",   ItemType.RanchPlot),
+        new(SiloUpgradeStorage2,         "Silo Upgrade: Storage 2",         ItemType.RanchPlot),
+        new(SiloUpgradeStorage3,         "Silo Upgrade: Storage 3",         ItemType.RanchPlot),
+        new(SiloUpgradeStorage4,         "Silo Upgrade: Storage 4",         ItemType.RanchPlot),
+        new(SiloUpgradeCapacity,         "Silo Upgrade: Storage Capacity",  ItemType.RanchPlot),
+        new(PondUpgradePlortCollector,   "Pond Upgrade: Plort Collector",   ItemType.RanchPlot),
+        new(IncineratorUpgradeAshTrough,      "Incinerator Upgrade: Ash Trough",      ItemType.RanchPlot),
+        new(IncineratorUpgradePlortCollector, "Incinerator Upgrade: Plort Collector", ItemType.RanchPlot),
     };
 
     private static readonly Dictionary<long, ItemInfo> _byId = All.ToDictionary(i => i.Id);

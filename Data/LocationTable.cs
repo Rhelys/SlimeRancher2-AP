@@ -408,6 +408,7 @@ public static class LocationTable
         new(LocationConstants.Slimepedia_Largo,      "Slimepedia: Largo",       LocationType.SlimepediaEntry, "", "", "Largo"),
         new(LocationConstants.Slimepedia_FeralSlime, "Slimepedia: Feral Slime", LocationType.SlimepediaEntry, "", "", "FeralSlime"),
         new(LocationConstants.Slimepedia_Gordo,      "Slimepedia: Gordo",       LocationType.SlimepediaEntry, "", "", "Gordo"),
+        new(LocationConstants.Slimepedia_RadiantSlime, "Slimepedia: Radiant Slimes", LocationType.SlimepediaEntry, "", "", "RadiantSlime"),
 
         // -------------------------------------------------------------------------
         // SLIMEPEDIA RESOURCES ENTRIES (IDs 819630–819683)
@@ -478,6 +479,8 @@ public static class LocationTable
         new(LocationConstants.SlimepediaRes_BlackIndigoniumCraft,"Slimepedia: Black Indigonium",     LocationType.SlimepediaResourceEntry, "", "", "BlackIndigoniumCraft"),
         new(LocationConstants.SlimepediaRes_PrismaPlorts,        "Slimepedia: Prisma Plorts",        LocationType.SlimepediaResourceEntry, "", "", "PrismaPlorts"),
         new(LocationConstants.SlimepediaRes_PrismaResources,     "Slimepedia: Unstable Resources",   LocationType.SlimepediaResourceEntry, "", "", "PrismaResources"),
+        // Sanctuary (post-game) — only active when the randomize_sanctuary option is on.
+        new(LocationConstants.SlimepediaRes_Sprinkles,           "Slimepedia: Sprinkles",            LocationType.SlimepediaResourceEntry, "", "", "Sprinkles"),
 
         // -------------------------------------------------------------------------
         // FABRICATOR — VACPACK UPGRADE CRAFTS (IDs 819400–819449)
@@ -1188,6 +1191,36 @@ public static class LocationTable
     /// </summary>
     public static bool TryGetShopByAssetGuid(string assetGuid, out LocationInfo? info)
         => _byShopAssetGuid.TryGetValue(assetGuid, out info);
+
+    /// <summary>
+    /// The <c>PediaEntry.name</c> values AP has locations for in a Slimepedia category
+    /// (<see cref="LocationType.SlimepediaEntry"/> / <c>SlimepediaResourceEntry</c> /
+    /// <c>SlimepediaRadiantEntry</c>).
+    /// <para>
+    /// The slimepedia goal is defined against THIS list, not the game's runtime category
+    /// contents. The game's categories include entries AP has no location for — confirmed
+    /// via docs/dumps/Pedia.txt: 'Resources' has 55 entries vs AP's 54 (the extra is
+    /// <c>Sprinkles</c>, post-game Sanctuary content) and 'Slimes' has 30 vs AP's 29 (the
+    /// extra is the <c>RadiantSlime</c> concept entry). Requiring those would gate the
+    /// goal behind content the seed never hands out a check or hint for.
+    /// </para>
+    /// </summary>
+    public static IReadOnlyCollection<string> SlimepediaEntryNames(LocationType type)
+        => All.Where(l => l.Type == type && !string.IsNullOrEmpty(l.EntryName))
+              .Select(l => l.EntryName!)
+              .ToHashSet();
+
+    /// <summary>
+    /// All sellable plort <c>IdentifiableType.name</c> values (the 25 Plort Market types),
+    /// ordered by location ID (stable rarity-grouped order for UI display).
+    /// Used by GoalHandler's plort_seller goal as the base scope before exclusions and by
+    /// the pause-menu plort sales panel.
+    /// </summary>
+    public static IReadOnlyList<string> AllPlortMarketPlortNames { get; }
+        = All.Where(l => l.Type == LocationType.PlortMarket)
+             .OrderBy(l => l.Id)
+             .Select(l => l.GameObjectName)
+             .ToList();
 
     /// <summary>
     /// Returns all Fabricator craft entries for a given upgrade type, in ID order.

@@ -163,6 +163,14 @@ file static class SlimepediaPatchHelper
         };
         if (!enabled) return;
 
+        // Option-gated entries — sending these when the apworld left them out of the pool
+        // would target a location ID that doesn't exist in the seed.
+        // (The RNG/weather slime entries are filtered the same way by their own patches.)
+        // "RadiantSlime" sits in the Slimes category but only unlocks after encountering a
+        // radiant slime, so it follows the radiant toggle rather than the base Slimes one.
+        if (entryName == "RadiantSlime" && !slotData.RandomizeSlimepediaRadiant) return;
+        if (entryName == "Sprinkles"    && !slotData.RandomizeSanctuary) return;
+
         Logger.Info(
             $"[AP-Pedia] Check: '{loc.Name}' (id={loc.Id}  entry='{entryName}')");
         Plugin.Instance.ApClient?.SendCheck(loc.Id);

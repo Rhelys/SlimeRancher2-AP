@@ -8,12 +8,30 @@ Treasure pods, gordo slimes, map nodes, and fabricator blueprints become locatio
 
 ---
 
-## Prerequisites
+## Installation (Players)
+
+1. **Download BepInEx** — Unity IL2CPP x64, bleeding-edge build **be.755** (newer builds are known to fail — see the note below):
+   - [Windows and Linux](https://builds.bepinex.dev/projects/bepinex_be/755/BepInEx-Unity.IL2CPP-win-x64-6.0.0-be.755%2B3fab71a.zip)
+   - [macOS](https://builds.bepinex.dev/projects/bepinex_be/755/BepInEx-Unity.IL2CPP-macos-x64-6.0.0-be.755%2B3fab71a.zip)
+2. **Download the mod and the apworld** from the [GitHub Releases page](https://github.com/Rhelys/SlimeRancher2-AP/releases).
+3. **Install BepInEx:**
+   - Extract all of the BepInEx files into the game's root folder (the one containing the `.exe` — for Steam users, this is the folder that opens when you right-click Slime Rancher 2 → **Manage** → **Browse local files**).
+   - **Linux players:** you must also add `WINEDLLOVERRIDES="winhttp=n,b" %command%` to the game's Steam launch options. In Steam, right-click Slime Rancher 2 → **Properties** → **General** tab → **Launch Options**. (Thanks to @izzy for the troubleshooting!)
+   - Launch the game once and let it fully load to the main menu, then close it — this generates the interop DLLs BepInEx needs.
+   - Extract the mod zip into `BepInEx/plugins/` in the game folder.
+4. **Connect before starting a new game.** Launch the game, go to **Settings → Archipelago**, and connect to your server (see [Connecting to Archipelago](#connecting-to-archipelago) below for details). **You must connect before starting a new game** — the mod needs the server connection to set up your randomized world correctly.
+5. **Start a new game** in the save slot of your choice and enjoy!
+
+> Some BepInEx builds newer than be.755 (e.g. be.784) fail with `MissingMethodException: AsmResolver.DotNet.ModuleDefinition..ctor` due to a Cpp2IL/AsmResolver version mismatch internal to BepInEx — this is a BepInEx bug, not a mod issue. If you hit it and no plugins load, use be.755 until a fixed build is available.
+
+---
+
+## Prerequisites (Building from Source)
 
 | Requirement | Notes |
 |---|---|
 | **Slime Rancher 2** | Purchased and installed via Steam |
-| **BepInEx 6 IL2CPP** | [Download from BepInEx releases](https://github.com/BepInEx/BepInEx/releases) — use the `BepInEx_Unity.IL2CPP_x64` build. Install into the SR2 game folder and **launch the game once** to generate interop DLLs in `BepInEx/interop/`. **Known-working build: be.755.** Some newer builds (e.g. be.784) fail with `MissingMethodException: AsmResolver.DotNet.ModuleDefinition..ctor` due to a Cpp2IL/AsmResolver version mismatch internal to BepInEx — this is a BepInEx bug unrelated to the mod. If you see that error and no plugins load, downgrade to be.755 until a fixed BepInEx build is available. |
+| **BepInEx 6 IL2CPP** | Same be.755 build linked above. Install into the SR2 game folder and **launch the game once** to generate interop DLLs in `BepInEx/interop/`. |
 | **.NET 6 SDK** | [Download from Microsoft](https://dotnet.microsoft.com/download/dotnet/6.0) |
 
 ---
@@ -76,7 +94,7 @@ Connection details are saved automatically and pre-filled on the next launch.
 
 ## Notes for Contributors
 
-- **Location/Item IDs** use base offset `819000`. The IDs in `Data/LocationConstants.cs` and `Data/ItemConstants.cs` **must match exactly** with those in the companion Python `.apworld`. When adding or changing IDs, update both.
+- **Location/Item IDs** use base offset `819000`. The IDs in `Data/LocationConstants.cs` and `Data/ItemTable.cs` **must match exactly** with those in the companion Python `.apworld`. When adding or changing IDs, update both.
 - **Game object names** in `Data/LocationTable.cs` (the `GameObjectName` field) must match the in-game `GameObject.name` values exactly. Verify these using ILSpy on the BepInEx-generated interop DLLs (`BepInEx/interop/`) or by logging `gameObject.name` values from a Postfix patch at runtime.
 - **Interop DLLs** (`BepInEx/interop/Il2Cpp*.dll`) are generated locally by BepInEx and are **not** committed to this repository. The project will not compile until BepInEx has generated them.
 

@@ -291,6 +291,11 @@ public static class LocationConstants
     public const long Slimepedia_Largo      = 819376;
     public const long Slimepedia_FeralSlime = 819377;
     public const long Slimepedia_Gordo      = 819378;
+    // Concept entry for radiant slimes as a whole. Lives in the game's Slimes category but
+    // only unlocks after encountering a radiant slime, so it is gated by
+    // randomize_slimepedia_radiant (with the 22 individual radiant entries), not by the
+    // base Slimes toggle.
+    public const long Slimepedia_RadiantSlime = 819379;
 
     // =========================================================================
     // FABRICATOR — VACPACK UPGRADE CRAFTS: 819400–819449
@@ -646,6 +651,9 @@ public static class LocationConstants
     public const long SlimepediaRes_BlackIndigoniumCraft = 819681;
     public const long SlimepediaRes_PrismaPlorts         = 819682;
     public const long SlimepediaRes_PrismaResources      = 819683;
+
+    // Sanctuary (post-game) — only in the pool when the randomize_sanctuary option is on.
+    public const long SlimepediaRes_Sprinkles            = 819684;
 
     // =========================================================================
     // RADIANT SLIMEPEDIA ENTRIES: 819821 – 819842  (22 entries)

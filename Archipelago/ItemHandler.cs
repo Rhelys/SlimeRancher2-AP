@@ -46,7 +46,8 @@ public static class ItemHandler
     /// Newbucks filler item. Read by <c>PlayerStateAddCurrencyPatch</c> so AP-granted Newbucks
     /// do NOT count toward the "newbucks" goal — only money earned in-game does.
     /// </summary>
-    internal static bool IsGrantingCurrency { get; private set; }
+    // Setter used by ApplyNewbucks and RanchPlotHandler.RefundNewbucks.
+    internal static bool IsGrantingCurrency { get; set; }
 
     // IdentifiableType names confirmed via AP-Dump log (GadgetDirector.RefineryTypeGroup).
     private static readonly string[] CommonPlorts =
@@ -133,6 +134,7 @@ public static class ItemHandler
             case ItemType.Useful:                ApplyUseful(item, null, itemIndex);           break;
             case ItemType.UpgradeComponent:      ApplyUpgradeComponent(item, null, itemIndex); break;
             case ItemType.Trap:                  ApplyTrap(item, null, itemIndex);             break; // return ignored — debug path has no requeue
+            case ItemType.RanchPlot:             ApplyRanchPlot(item, null, itemIndex);        break;
         }
 
         // Intentionally do NOT call UpdateLastItemIndex here.
@@ -241,6 +243,9 @@ public static class ItemHandler
             case ItemType.Trap:
                 if (!ApplyTrap(item, apItem, itemIndex))
                     advanceWatermark = false;
+                break;
+            case ItemType.RanchPlot:
+                ApplyRanchPlot(item, apItem, itemIndex); // count-based, always succeeds
                 break;
         }
 
@@ -1117,6 +1122,46 @@ public static class ItemHandler
         return true; // unknown filler — don't retry
     }
 
+    /// <summary>
+    /// Ranch plot randomization items (plot unlocks / building plans / upgrades).
+    /// Receipt has no immediate world effect — RanchPlotHandler derives all gate state
+    /// from the AP server snapshot, so this only invalidates its cached counts (or, for
+    /// sessionless F9 grants, bumps the debug counter) and notifies the player.
+    /// </summary>
+    private static bool ApplyRanchPlot(Data.ItemInfo item, ApItemInfo? apItem, int itemIndex)
+    {
+        if (apItem == null)
+            RanchPlotHandler.AddDebugCount(item.Id); // debug grant — no server snapshot entry
+        else
+            RanchPlotHandler.MarkDirty();
+
+        Logger.Info($"[AP] Ranch item received: {item.Name} (id={item.Id}, idx={itemIndex})");
+        UI.StatusHUD.Instance?.ShowNotification($"Received: {item.Name}");
+        return true;
+    }
+
+    // Quantum Drone Station modules refused by a capped refinery park here; a slow ticker
+    // promotes one back into the item queue every few seconds until the store accepts it.
+    private static readonly List<(ApItemInfo apItem, int itemIndex)> _heldDroneModules = new();
+    private static float _nextHeldDroneRetry;
+
+    /// <summary>Called every frame from <c>Plugin.Update</c>; retries at most one held
+    /// drone module every 3 seconds through the normal apply path.</summary>
+    public static void TickHeldDroneModules()
+    {
+        if (_heldDroneModules.Count == 0) return;
+        if (UnityEngine.Time.time < _nextHeldDroneRetry) return;
+        _nextHeldDroneRetry = UnityEngine.Time.time + 3f;
+
+        var (apItem, itemIndex) = _heldDroneModules[0];
+        _heldDroneModules.RemoveAt(0);
+        Plugin.Instance.ApClient.RequeueItem(apItem, itemIndex);
+    }
+
+    /// <summary>Called on disconnect — held modules are re-queued on reconnect from the
+    /// persisted deferred-item set, so keeping stale entries would double-grant.</summary>
+    public static void ClearHeldDroneModules() => _heldDroneModules.Clear();
+
     private static bool ApplyUseful(Data.ItemInfo item, ApItemInfo? apItem, int itemIndex)
     {
         Logger.Info($"[AP] Applying useful: {item.Name} (id={item.Id}, idx={itemIndex})");
@@ -1148,7 +1193,39 @@ public static class ItemHandler
                 Logger.Warning("[AP] IdentifiableType 'ComponentAcqDrone' not found — grant skipped");
                 return true;
             }
-            director.AddItem(identType, 1);
+
+            // AddItem returns how many were actually stored — the refinery enforces a
+            // per-item ownable limit, so a full store silently adds 0 (player-reported:
+            // debug grants past the first module appeared to do nothing). When capped,
+            // retry with overflow=true, which uses the game's own overflow handling.
+            int added = director.AddItem(identType, 1);
+            if (added <= 0)
+            {
+                int limit = -1, space = -1;
+                try { limit = director.GetOwnableCountLimit(identType); } catch { }
+                try { space = director.GetRefinerySpaceAvailable(identType); } catch { }
+                Logger.Warning(
+                    $"[AP] Quantum Drone Station: refinery refused the module " +
+                    $"(ownable limit={limit}, space available={space}) — retrying with overflow");
+                added = director.AddItem(identType, 1, true);
+            }
+            if (added <= 0)
+            {
+                // Still refused — park the item and retry every few seconds via
+                // TickHeldDroneModules until the player frees space (e.g. crafts a
+                // station). NOT a per-frame RequeueItem: that would re-log the
+                // "About to apply" lines every frame while capped.
+                if (apItem != null)
+                {
+                    _heldDroneModules.Add((apItem, itemIndex));
+                    Plugin.Instance.SaveManager.AddDeferredItem(itemIndex);
+                    Logger.Info($"[AP] Quantum Drone Station module held (queue: {_heldDroneModules.Count})");
+                    return false;
+                }
+                Notify("Drone module refused: refinery full (craft a station first)");
+                return true; // debug grant — nothing to requeue
+            }
+            Logger.Info($"[AP] Quantum Drone Station: blueprint ok, module added={added}");
             Notify("Received: Quantum Drone Station");
             return true;
         }
@@ -1189,6 +1266,7 @@ public static class ItemHandler
         { ItemTable.ShadowSureshotModule, "ShadowSureShotComponent"  },  // ShadowSureshot[lvl0]
         { ItemTable.InjectorModule,       "PowerInjectorComponent"   },  // EnergyDelay[lvl0–1]
         { ItemTable.RegenModule,          "RegenComponent"           },  // EnergyRegen[lvl0–1]
+        { ItemTable.VacTank,              "ExtraTankComponent"       },  // AmmoSlots[lvl1] — in-game "Vac Tank"
     };
 
     private static bool ApplyUpgradeComponent(Data.ItemInfo item, ApItemInfo? apItem, int itemIndex)

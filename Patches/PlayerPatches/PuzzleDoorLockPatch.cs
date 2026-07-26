@@ -36,11 +36,40 @@ internal static class PuzzleSlotLockableActivatePatch
         if (LocationTable.TryGetByObjectName(posKey, out var locInfo) && locInfo != null
             && locInfo.Type == LocationType.ShadowPlortDoor)
         {
+            SuppressVanillaReward(__instance);
             Plugin.Instance.ApClient.SendCheck(locInfo.Id);
             Logger.Info($"[AP] Shadow Plort Door check: '{locInfo.Name}' (id={locInfo.Id}) posKey='{posKey}'");
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// Shadow plort doors carry a <c>TreasurePodRewarder</c> (<c>_rewardOnUnlock</c>) that
+    /// dispenses a vanilla reward (blueprint / upgrade component / spawned items) when the
+    /// door opens. The door IS the AP check, so — exactly like treasure pods
+    /// (TreasurePodPatch) — the vanilla grant is suppressed by nulling the reward fields
+    /// before the original ActivateOnUnlock runs; the open animation and FX still play,
+    /// and the AP server delivers the randomized item instead. (Player-reported: doors
+    /// were double-dipping, granting both the check and the vanilla reward.)
+    /// </summary>
+    private static void SuppressVanillaReward(PuzzleSlotLockable door)
+    {
+        try
+        {
+            var rewarder = door._rewardOnUnlock;
+            if (rewarder == null) return;
+            rewarder.Blueprint                          = null;
+            rewarder.UpgradeComponent                   = null;
+            rewarder.SpawnObjs                          = null;
+            rewarder.UnlockedSlimeAppearance            = null;
+            rewarder.UnlockedSlimeAppearanceDefinition  = null;
+            Logger.Info("[AP] Shadow Plort Door vanilla reward suppressed");
+        }
+        catch (System.Exception ex)
+        {
+            Logger.Warning($"[AP] Shadow Plort Door reward suppression failed: {ex.Message}");
+        }
     }
 }
 

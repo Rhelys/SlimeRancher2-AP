@@ -30,10 +30,18 @@ internal static class PlortMarketPatch
     {
         if (!Plugin.Instance.ModEnabled || !Plugin.Instance.SaveManager.HasActiveSession) return;
         var slotData = Plugin.Instance.ApClient.SlotData;
-        if (!(slotData?.RandomizePlortMarket ?? false)) return;
+        if (slotData == null) return;
 
         var plortName = id?.name;
         if (string.IsNullOrEmpty(plortName)) return;
+
+        // plort_seller goal — accumulate the per-type sold counter regardless of whether
+        // Plort Market location checks are enabled (independent features). GoalHandler
+        // polls the persisted counters against the per-seed target.
+        if (slotData.Goal == "plort_seller" && count > 0)
+            Plugin.Instance.SaveManager.AccumulatePlortSold(plortName!, count);
+
+        if (!slotData.RandomizePlortMarket) return;
 
         if (slotData.ExcludeRngSlimes && RngExcludedPlorts.Contains(plortName)) return;
         if (slotData.ExcludeWeatherChecks && WeatherExcludedPlorts.Contains(plortName)) return;
@@ -44,4 +52,8 @@ internal static class PlortMarketPatch
         Logger.Info($"[AP] Plort Market: first sale of '{plortName}' → check {info.Id} ({info.Name})");
         Plugin.Instance.ApClient.SendCheck(info.Id);
     }
+
+    /// <summary>Exclusion sets shared with GoalHandler's plort_seller scope computation.</summary>
+    internal static bool IsRngExcludedPlort(string plortName)     => RngExcludedPlorts.Contains(plortName);
+    internal static bool IsWeatherExcludedPlort(string plortName) => WeatherExcludedPlorts.Contains(plortName);
 }

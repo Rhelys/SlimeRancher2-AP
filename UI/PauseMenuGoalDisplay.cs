@@ -1,5 +1,6 @@
 using Il2CppMonomiPark.SlimeRancher.UI;
 using SlimeRancher2AP.Archipelago;
+using System.Linq;
 using TMPro;
 using UnityEngine;
 
@@ -8,19 +9,22 @@ namespace SlimeRancher2AP.UI;
 /// <summary>
 /// Injects a goal-status label into the game's pause menu showing the active Archipelago
 /// goal and, for the newbucks goal, live progress toward the target (which is otherwise
-/// visible nowhere in-game).
+/// visible nowhere in-game). For the plort_seller goal it additionally shows a panel on
+/// the left side of the menu listing every in-scope plort type with its sold/target
+/// progress.
 ///
 /// <para>
 /// Polling-based — no Harmony. The pause menu's bind/show methods are in the same
 /// CallerCount(0)/native-called family that has crashed trampolines since the 5/13/2026
 /// game update, so a throttled <see cref="Tick"/> instead looks for an active
-/// <c>PauseMenuRoot</c> and creates/updates a TMP label parented under it. Parenting under
-/// the root means the label appears and disappears with the menu automatically.
+/// <c>PauseMenuRoot</c> and creates/updates TMP labels parented under it. Parenting under
+/// the root means the labels appear and disappear with the menu automatically.
 /// </para>
 /// </summary>
 public static class PauseMenuGoalDisplay
 {
     private const string LabelName    = "APGoalLabel";
+    private const string PanelName    = "APPlortSalesPanel";
     private const int    PollInterval = 15; // ~4×/second at 60 fps
     private static int   _pollCounter;
 
@@ -48,31 +52,38 @@ public static class PauseMenuGoalDisplay
         }
         catch { return; } // scene transition
 
-        if (activeRoot == null) return; // menu closed — the label (a child) is hidden with it
+        if (activeRoot == null) return; // menu closed — the labels (children) hide with it
 
         try
         {
-            var text = BuildGoalText();
-
-            // Locate (or create) our label as a direct child of the pause root.
-            var existing = activeRoot.transform.Find(LabelName);
-            var label    = existing != null ? existing.GetComponent<TextMeshProUGUI>() : null;
-
-            if (text == null)
-            {
-                // No active AP session — keep the vanilla menu untouched.
-                if (label != null) label.gameObject.SetActive(false);
-                return;
-            }
-
-            if (label == null)
-                label = CreateLabel(activeRoot);
-            if (label == null) return;
-
-            label.gameObject.SetActive(true);
-            label.text = text;
+            UpdateInjectedLabel(activeRoot, LabelName, BuildGoalText(),       CreateLabel);
+            UpdateInjectedLabel(activeRoot, PanelName, BuildPlortPanelText(), CreatePlortPanel);
         }
         catch { /* menu tearing down mid-tick — retry on next poll */ }
+    }
+
+    /// <summary>
+    /// Shows/hides/updates one injected TMP element under the pause root.
+    /// <paramref name="text"/> null means "not applicable right now" — the element (if it
+    /// exists) is deactivated so the vanilla menu is untouched.
+    /// </summary>
+    private static void UpdateInjectedLabel(PauseMenuRoot root, string name, string? text,
+                                            System.Func<PauseMenuRoot, TextMeshProUGUI?> create)
+    {
+        var existing = root.transform.Find(name);
+        var label    = existing != null ? existing.GetComponent<TextMeshProUGUI>() : null;
+
+        if (text == null)
+        {
+            if (label != null) label.gameObject.SetActive(false);
+            return;
+        }
+
+        label ??= create(root);
+        if (label == null) return;
+
+        label.gameObject.SetActive(true);
+        label.text = text;
     }
 
     /// <summary>
@@ -102,6 +113,15 @@ public static class PauseMenuGoalDisplay
             case "prismacore":
                 body = "STABILIZE THE PRISMACORE";
                 break;
+            case "plort_seller":
+            {
+                // Per-type progress display is a future bespoke panel; for now show the
+                // per-type target and how many types have reached it.
+                int target = slotData.PlortGoalAmount;
+                var (done, total) = GoalHandler.PlortSellerProgress();
+                body = $"SELL {target} OF EACH PLORT - {done} / {total} TYPES DONE";
+                break;
+            }
             case "slimepedia":
             {
                 // Which categories count toward the goal is option-driven — show them so
@@ -124,6 +144,48 @@ public static class PauseMenuGoalDisplay
             body += "  -  COMPLETE!";
 
         return $"ARCHIPELAGO GOAL: {body}";
+    }
+
+    /// <summary>
+    /// Builds the left-side plort sales panel text, or null when it should be hidden
+    /// (goal is not plort_seller, or no active session). One line per in-scope plort
+    /// type: sold/target, green once the target is reached. ASCII only (font glyphs),
+    /// rich-text color tags are fine.
+    /// </summary>
+    private static string? BuildPlortPanelText()
+    {
+        if (!Plugin.Instance.SaveManager.HasActiveSession) return null;
+        var slotData = Plugin.Instance.ApClient?.SlotData;
+        if (slotData == null || slotData.Goal != "plort_seller") return null;
+
+        int target = slotData.PlortGoalAmount;
+
+        // Alphabetical by display name — the types-complete summary lives in the goal
+        // label at the bottom of the menu, so no header here.
+        var rows = GoalHandler.PlortSellerScope()
+            .Select(n => (Name: n, Display: PlortDisplayName(n)))
+            .OrderBy(r => r.Display, System.StringComparer.Ordinal)
+            .ToList();
+
+        var sb = new System.Text.StringBuilder(32 * (rows.Count + 1));
+        foreach (var (plortName, display) in rows)
+        {
+            long sold    = Plugin.Instance.SaveManager.PlortsSold(plortName);
+            bool reached = sold >= target;
+            if (reached) sb.Append("<color=#8CE68C>");
+            sb.Append($"{display}  {sold} / {target}");
+            if (reached) sb.Append("</color>");
+            sb.Append('\n');
+        }
+        return sb.ToString();
+    }
+
+    /// <summary>"PinkPlort" → "PINK"; the Prisma plort's asset name is "StablePlort".</summary>
+    private static string PlortDisplayName(string identName)
+    {
+        var trimmed = identName.EndsWith("Plort") ? identName[..^5] : identName;
+        if (trimmed == "Stable") trimmed = "Prisma";
+        return trimmed.ToUpperInvariant();
     }
 
     /// <summary>
@@ -153,7 +215,48 @@ public static class PauseMenuGoalDisplay
         tmp.enableWordWrapping = false;
         tmp.raycastTarget     = false;  // never block clicks on the menu buttons
 
-        // Match the menu's own typeface.
+        ApplyMenuFont(root, tmp);
+
+        Logger.Info("[AP] Pause menu goal label created.");
+        return tmp;
+    }
+
+    /// <summary>
+    /// Creates the plort sales panel as a direct child of the pause menu root, anchored to
+    /// the left edge at mid-height so it sits beside (not behind) the centered button stack.
+    /// </summary>
+    private static TextMeshProUGUI? CreatePlortPanel(PauseMenuRoot root)
+    {
+        var go = new GameObject(PanelName);
+        go.transform.SetParent(root.transform, false);
+
+        var rt = go.AddComponent<RectTransform>();
+        rt.anchorMin        = new Vector2(0f, 0.5f);
+        rt.anchorMax        = new Vector2(0f, 0.5f);
+        rt.pivot            = new Vector2(0f, 0.5f);
+        rt.anchoredPosition = new Vector2(50f, 0f);
+        rt.sizeDelta        = new Vector2(430f, 940f);
+
+        var tmp = go.AddComponent<TextMeshProUGUI>();
+        tmp.fontSize          = 22f;
+        tmp.enableAutoSizing  = true;   // 21-25 rows shrink to fit the fixed panel height
+        tmp.fontSizeMax       = 22f;
+        tmp.fontSizeMin       = 10f;
+        tmp.alignment         = TextAlignmentOptions.MidlineLeft;
+        tmp.color             = new Color(0.96f, 0.93f, 0.82f); // cream, matching the goal label
+        tmp.enableWordWrapping = false;
+        tmp.richText          = true;   // per-line green highlight for completed types
+        tmp.raycastTarget     = false;  // never block clicks on the menu buttons
+
+        ApplyMenuFont(root, tmp);
+
+        Logger.Info("[AP] Pause menu plort sales panel created.");
+        return tmp;
+    }
+
+    /// <summary>Matches the menu's own typeface (sampled from an existing TMP label).</summary>
+    private static void ApplyMenuFont(PauseMenuRoot root, TextMeshProUGUI tmp)
+    {
         var samples = root.GetComponentsInChildren<TMP_Text>(true);
         for (int i = 0; i < samples.Length; i++)
         {
@@ -163,8 +266,5 @@ public static class PauseMenuGoalDisplay
                 break;
             }
         }
-
-        Logger.Info("[AP] Pause menu goal label created.");
-        return tmp;
     }
 }

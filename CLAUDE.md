@@ -60,6 +60,8 @@ This is **BepInEx 6 IL2CPP**. Many patterns from BepInEx 5 (Mono) tutorials do n
 - **Cursor stays locked in debug panel** — game manages `Cursor.lockState`; save and restore it manually on panel open/close.
 - **`System.Random` vs `UnityEngine.Random` ambiguity** — qualify as `System.Random` explicitly when both are in scope.
 - **`using` directives needed for interop types** — game types live in namespaces like `Il2CppMonomiPark.SlimeRancher.Economy`; always check the `apis/` decompiled file for the correct namespace.
+- **Removing an entry from a ScriptableObject's serialized list can DESTROY the asset** — if that list was the asset's last native reference, the game's `Resources.UnloadUnusedAssets` sweep (runs a few seconds after scene load) destroys it; it then reads as Unity-null and cannot be re-added. Caching an interop wrapper does NOT protect it (wrappers hold weak handles). Pin with `asset.hideFlags |= HideFlags.DontUnloadUnusedAsset` BEFORE detaching (see `RanchPlotHandler.SnapshotCategories`).
+- **Reassigning a UI model's `IsAvailable`/`IsHidden` delegate while its menu is open corrupts the pooled list views** (entries render another item's title/cost), and the game re-installs fresh closures on every menu bind anyway — gate menu content by filtering the data-source list, not by wrapping delegates.
 
 ---
 
@@ -115,12 +117,12 @@ Quick reference only — verify against the apworld before relying on a range.
 | 819200–819224 | Shadow Plort Doors (25, Grey Labyrinth) |
 | 819250–819267 | Gordo Slimes (17; 819251 unused) |
 | 819300–819316 | Map Data Nodes (17) |
-| 819350–819378 | Slimepedia — Slimes (29) |
+| 819350–819379 | Slimepedia — Slimes (30; 819379 = Radiant Slimes concept entry, gated by `randomize_slimepedia_radiant`) |
 | 819400–819437 | Fabricator — Vacpack Upgrade crafts (38) |
 | 819450–819472 | Research Drones (23) |
 | 819473–819479, 819490–819495 | Research Drone Archives (13) |
 | 819480–819489 | Ghostly Drones (10) |
-| 819630–819683 | Slimepedia — Resources (54) |
+| 819630–819684 | Slimepedia — Resources (55; 819684 = Sprinkles, opt-in via `randomize_sanctuary`) |
 | 819700–819716 | Conversations — Key Gifts + Intro Calls |
 | 819715–819762 | Conversations — Deco Gifts (decorative blueprints) |
 | 819763–819816 | Conversations — Non-Gifts (story, deflect, Gigi) |
@@ -138,7 +140,7 @@ Quick reference only — verify against the apworld before relying on a range.
 |---|---|
 | 819500–819502 | Region Access |
 | 819510 | Radiant Projector Blueprint |
-| 819511–819514, 819530–819536 | Crafting Components |
+| 819511–819514, 819530–819536, 819538 | Crafting Components (819538 = Vac Tank) |
 | 819515–819529 | Progressive Vacpack Upgrades |
 | 819537 | Quantum Drone Station (×19, with ghostly drones; blueprint+station first copy, then modules) |
 | 819540–819557 | Gadgets (zone/home teleporters, warp depots, functional) |
@@ -149,6 +151,9 @@ Quick reference only — verify against the apworld before relying on a range.
 | 819612–819616 | Traps (Tarr Spawn, Teleport, Tarr Rain, Vac Spew, Vac Fill) |
 | 819630–819634 | Conservatory Expansion Access |
 | 819635–819636 | Market Recovery (plort_market_mode — apworld WIP) |
+| 819640–819645 | Ranch Plot unlocks (per-area progressive ×8/5/5/5/5/4, `randomize_plots`) |
+| 819646–819651 | Plot Building Plans (6, `randomize_plot_buildings`) |
+| 819652–819672 | Plot Upgrades (21, keyed by purchase-asset name, `randomize_plot_upgrades`) |
 
 ---
 
@@ -286,7 +291,8 @@ The four goal keys (from `options.py` `Goal.current_key`, sent verbatim in slot 
 | Open Grey Labyrinth | `"labyrinth_open"` | ✅ **Verified in-game.** `InvisibleSwitchPatch` on `energyBeamReceiver` fires for `zoneStrandLabyrinthGate` and `zoneGorgeGateTransfer`; both must go DOWN. Note: progress is in-memory only — both switches must report DOWN within one connected session. |
 | Newbucks Milestone | `"newbucks"` | ✅ **Implemented, untested in-game.** `PlayerStateAddCurrencyPatch` accumulates every positive Newbucks `AddCurrency` into the persisted `ApSaveManager.NewbucksEarned` counter (the game's own `AmountEverCollected` is vestigial and never updated); `GoalHandler.Tick()` polls it against `newbucks_goal_amount`. |
 | Stabilize Prismacore | `"prismacore"` | ✅ **Implemented, untested in-game.** `CoreRoomControllerPatch` Postfix on `CoreRoomController.UpdateState` fires the goal on `POST_FIGHT` (boss complete, core stabilized). `PRE_FIGHT` fires on scene load and is ignored. |
-| Complete the Slimepedia | `"slimepedia"` | ✅ **Implemented, untested in-game.** `GoalHandler.Tick()` polls the Slimes / Resources / Radiant Slimes `PediaRuntimeCategory` groups — only categories enabled by the `randomize_slimepedia*` options count, and entries excluded by `disable_tarr` / `exclude_rng_slimes` / `exclude_weather_checks` are skipped (matching the apworld's location-pool exclusions). |
+| Complete the Slimepedia | `"slimepedia"` | ✅ **Implemented, untested in-game.** `GoalHandler.Tick()` polls the Slimes / Resources / Radiant Slimes `PediaRuntimeCategory` groups — only categories enabled by the `randomize_slimepedia*` options count, and entries excluded by `disable_tarr` / `exclude_rng_slimes` / `exclude_weather_checks` are skipped (matching the apworld's location-pool exclusions). **Scope is the AP location table, never `PediaRuntimeCategory.AllUnlocked()`** — the game's categories can also grow at runtime via `OnPediaEntriesRegistered`/`AddDynamicItem`, and the old `AllUnlocked()` fast path made the goal unachievable by requiring entries with no AP location. `RadiantSlime` (819379) and `Sprinkles` (819684) are now real locations gated by `exclude_rng_slimes` and `randomize_sanctuary` respectively. Use F9 → "Log Slimepedia Goal Progress" to see exactly which tracked entries remain locked. |
+| Plort Seller | `"plort_seller"` | ✅ **Implemented, untested in-game.** Sell N of EACH in-scope plort type (N from slot data `plort_goal_amount`, rolled per seed between the min/max options). Scope: all 25 Plort Market types (5 GL plorts included — GL locations are in the pool for this goal) minus `exclude_rng_slimes` (Gold, Yolky) and `exclude_weather_checks` (Dervish, Tangle). Per-type counters accumulated by `PlortMarketPatch` (`PlortEconomyDirector.RegisterSold` Postfix) into persisted `ApSaveManager` state; `GoalHandler.Tick()` polls. Pause menu shows the goal line (target + types complete) plus a left-side panel listing every in-scope plort with sold/target, green when reached (`PauseMenuGoalDisplay`). |
 
 Slot data key: `"goal"` — parsed in `SlotData.cs` (`SlotData.Goal`).
 

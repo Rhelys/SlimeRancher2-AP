@@ -1,0 +1,66 @@
+[Info   :SlimeRancher2-AP] [AP-Dump] ========== LAND PLOT DUMP START ==========
+[Info   :SlimeRancher2-AP] [AP-Dump] --- Plot spots: 32 LandPlotLocation(s) loaded ---
+[Info   :SlimeRancher2-AP] [AP-Dump]   PLOT id='plot0031824558'  type=EMPTY  region='cellConservatory'  scene='zoneConservatory'  root='zoneConservatory'  go='landPlot (2)'  pos=(565, 19, 294)
+[Info   :SlimeRancher2-AP] [AP-Dump]   PLOT id='plot0120792424'  type=EMPTY  region='cellExpansionDigsite'  scene='zoneConservatory_Digsite'  root='zoneConservatory_DigsiteExpansion'  go='landPlot (39)'  pos=(572, 29, -9)
+[Info   :SlimeRancher2-AP] [AP-Dump]   PLOT id='plot0199756409'  type=EMPTY  region='cellExpansionDen'  scene='zoneConservatory_Den'  root='zoneConservatory_Den'  go='landPlot (33)'  pos=(631, 5, 124)
+[Info   :SlimeRancher2-AP] [AP-Dump]   PLOT id='plot0410788975'  type=EMPTY  region='cellExpansionArchway'  scene='zoneConservatory_Garden'  root='zoneConservatory_Archway'  go='landPlot (47)'  pos=(766, 2, 330)
+[Info   :SlimeRancher2-AP] [AP-Dump]   PLOT id='plot0509186919'  type=EMPTY  region='cellExpansionDen'  scene='zoneConservatory_Den'  root='zoneConservatory_Den'  go='landPlot (35)'  pos=(618, 4, 156)
+[Info   :SlimeRancher2-AP] [AP-Dump]   PLOT id='plot0525538627'  type=EMPTY  region='cellExpansionGully'  scene='zoneConservatory_Arboretum'  root='zoneConservatory_Gully'  go='landPlot (35)'  pos=(583, 24, 540)
+[Info   :SlimeRancher2-AP] [AP-Dump]   PLOT id='plot0556223695'  type=EMPTY  region='cellExpansionDen'  scene='zoneConservatory_Den'  root='zoneConservatory_Den'  go='landPlot (34)'  pos=(601, 4, 149)
+[Info   :SlimeRancher2-AP] [AP-Dump]   PLOT id='plot0569752567'  type=EMPTY  region='cellExpansionGully'  scene='zoneConservatory_Arboretum'  root='zoneConservatory_Gully'  go='landPlot (36)'  pos=(607, 23, 512)
+[Info   :SlimeRancher2-AP] [AP-Dump]   PLOT id='plot0595687252'  type=EMPTY  region='cellConservatory'  scene='zoneConservatory'  root='zoneConservatory'  go='landPlot (4)'  pos=(514, 16, 294)
+[Info   :SlimeRancher2-AP] [AP-Dump]   PLOT id='plot0659764549'  type=EMPTY  region='cellExpansionArchway'  scene='zoneConservatory_Garden'  root='zoneConservatory_Archway'  go='landPlot (48)'  pos=(743, 7, 340)
+[Info   :SlimeRancher2-AP] [AP-Dump]   PLOT id='plot0863103064'  type=EMPTY  region='cellExpansionDigsite'  scene='zoneConservatory_Digsite'  root='zoneConservatory_DigsiteExpansion'  go='landPlot (41)'  pos=(586, 29, -51)
+[Info   :SlimeRancher2-AP] [AP-Dump]   PLOT id='plot0993026726'  type=EMPTY  region='cellExpansionArchway'  scene='zoneConservatory_Garden'  root='zoneConservatory_Archway'  go='landPlot (46)'  pos=(785, 2, 315)
+[Info   :SlimeRancher2-AP] [AP-Dump]   PLOT id='plot1047538851'  type=EMPTY  region='cellExpansionPools'  scene='zoneConservatory_Pools'  root='zoneConservatory_Pools'  go='landPlot (33)'  pos=(727, 6, 515)
+[Info   :SlimeRancher2-AP] [AP-Dump]   PLOT id='plot1155720663'  type=EMPTY  region='cellExpansionDigsite'  scene='zoneConservatory_Digsite'  root='zoneConservatory_DigsiteExpansion'  go='landPlot (40)'  pos=(571, 29, -27)
+[Info   :SlimeRancher2-AP] [AP-Dump]   PLOT id='plot1158311163'  type=EMPTY  region='cellExpansionGully'  scene='zoneConservatory_Arboretum'  root='zoneConservatory_Gully'  go='landPlot (34)'  pos=(584, 23, 471)
+[Info   :SlimeRancher2-AP] [AP-Dump]   PLOT id='plot1225779004'  type=EMPTY  region='cellExpansionArchway'  scene='zoneConservatory_Garden'  root='zoneConservatory_Archway'  go='landPlot (49)'  pos=(729, 4, 304)
+[Info   :SlimeRancher2-AP] [AP-Dump]   PLOT id='plot1367018828'  type=EMPTY  region='cellExpansionGully'  scene='zoneConservatory_Arboretum'  root='zoneConservatory_Gully'  go='landPlot (37)'  pos=(571, 23, 516)
+[Info   :SlimeRancher2-AP] [AP-Dump]   PLOT id='plot1426683139'  type=EMPTY  region='cellExpansionPools'  scene='zoneConservatory_Pools'  root='zoneConservatory_Pools'  go='landPlot (36)'  pos=(747, 6, 514)
+[Info   :SlimeRancher2-AP] [AP-Dump]   PLOT id='plot1479847318'  type=CORRAL  region='cellConservatory'  scene='zoneConservatory'  root='zoneConservatory'  go='landPlot (1)'  pos=(515, 16, 362)
+[Info   :SlimeRancher2-AP] [AP-Dump]   PLOT id='plot1528525781'  type=EMPTY  region='cellConservatory'  scene='zoneConservatory'  root='zoneConservatory'  go='landPlot'  pos=(531, 16, 294)
+[Info   :SlimeRancher2-AP] [AP-Dump]   PLOT id='plot1533328766'  type=EMPTY  region='cellExpansionPools'  scene='zoneConservatory_Pools'  root='zoneConservatory_Pools'  go='landPlot (37)'  pos=(742, 4, 488)
+[Info   :SlimeRancher2-AP] [AP-Dump]   PLOT id='plot1554847339'  type=EMPTY  region='cellConservatory'  scene='zoneConservatory'  root='zoneConservatory'  go='landPlot (3)'  pos=(497, 16, 362)
+[Info   :SlimeRancher2-AP] [AP-Dump]   PLOT id='plot1589465633'  type=EMPTY  region='cellConservatory'  scene='zoneConservatory'  root='zoneConservatory'  go='landPlot (7)'  pos=(565, 19, 311)
+[Info   :SlimeRancher2-AP] [AP-Dump]   PLOT id='plot1740754013'  type=EMPTY  region='cellExpansionDen'  scene='zoneConservatory_Den'  root='zoneConservatory_Den'  go='landPlot (36)'  pos=(612, 5, 124)
+[Info   :SlimeRancher2-AP] [AP-Dump]   PLOT id='plot1772152358'  type=EMPTY  region='cellExpansionDen'  scene='zoneConservatory_Den'  root='zoneConservatory_Den'  go='landPlot (37)'  pos=(656, 7, 131)
+[Info   :SlimeRancher2-AP] [AP-Dump]   PLOT id='plot1790050753'  type=EMPTY  region='cellExpansionPools'  scene='zoneConservatory_Pools'  root='zoneConservatory_Pools'  go='landPlot (35)'  pos=(742, 7, 552)
+[Info   :SlimeRancher2-AP] [AP-Dump]   PLOT id='plot1825556077'  type=EMPTY  region='cellExpansionArchway'  scene='zoneConservatory_Garden'  root='zoneConservatory_Archway'  go='landPlot (45)'  pos=(780, 2, 295)
+[Info   :SlimeRancher2-AP] [AP-Dump]   PLOT id='plot1860074231'  type=EMPTY  region='cellExpansionDigsite'  scene='zoneConservatory_Digsite'  root='zoneConservatory_DigsiteExpansion'  go='landPlot (38)'  pos=(575, 17, 40)
+[Info   :SlimeRancher2-AP] [AP-Dump]   PLOT id='plot1864806893'  type=EMPTY  region='cellConservatory'  scene='zoneConservatory'  root='zoneConservatory'  go='landPlot (6)'  pos=(496, 16, 294)
+[Info   :SlimeRancher2-AP] [AP-Dump]   PLOT id='plot1996802419'  type=EMPTY  region='cellConservatory'  scene='zoneConservatory'  root='zoneConservatory'  go='landPlot (5)'  pos=(514, 16, 311)
+[Info   :SlimeRancher2-AP] [AP-Dump]   PLOT id='plot2009106962'  type=EMPTY  region='cellExpansionPools'  scene='zoneConservatory_Pools'  root='zoneConservatory_Pools'  go='landPlot (34)'  pos=(705, 4, 555)
+[Info   :SlimeRancher2-AP] [AP-Dump]   PLOT id='plot2083891407'  type=EMPTY  region='cellExpansionGully'  scene='zoneConservatory_Arboretum'  root='zoneConservatory_Gully'  go='landPlot (33)'  pos=(544, 25, 517)
+[Info   :SlimeRancher2-AP] [AP-Dump]   Summary by current type: CORRAL=1, EMPTY=31
+[Info   :SlimeRancher2-AP] [AP-Dump] --- Buildable types: 7 PlotPatchPurchaseItemModel asset(s) ---
+[Info   :SlimeRancher2-AP] [AP-Dump]   BUILD asset='Coop Patch'  type=COOP  cost=250 NewbucksDefinition
+[Info   :SlimeRancher2-AP] [AP-Dump]   BUILD asset='Corral Patch'  type=CORRAL  cost=250 NewbucksDefinition
+[Info   :SlimeRancher2-AP] [AP-Dump]   BUILD asset='Garden Patch'  type=GARDEN  cost=250 NewbucksDefinition
+[Info   :SlimeRancher2-AP] [AP-Dump]   BUILD asset='Incinerator Patch'  type=INCINERATOR  cost=450 NewbucksDefinition
+[Info   :SlimeRancher2-AP] [AP-Dump]   BUILD asset='Plot Demolish'  type=(no definition)  cost=200 NewbucksDefinition
+[Info   :SlimeRancher2-AP] [AP-Dump]   BUILD asset='Pond Patch'  type=POND  cost=450 NewbucksDefinition
+[Info   :SlimeRancher2-AP] [AP-Dump]   BUILD asset='Silo Patch'  type=SILO  cost=450 NewbucksDefinition
+[Info   :SlimeRancher2-AP] [AP-Dump] --- Upgrades: 21 PlotUpgradePurchaseItemModel asset(s) ---
+[Info   :SlimeRancher2-AP] [AP-Dump]   UPGRADE asset='AirNet Upgrade'  upgrade=AIR_NET  cost=425 NewbucksDefinition
+[Info   :SlimeRancher2-AP] [AP-Dump]   UPGRADE asset='AshTrough Upgrade'  upgrade=ASH_TROUGH  cost=500 NewbucksDefinition
+[Info   :SlimeRancher2-AP] [AP-Dump]   UPGRADE asset='CoopFeeder Upgrade'  upgrade=FEEDER  cost=600 NewbucksDefinition
+[Info   :SlimeRancher2-AP] [AP-Dump]   UPGRADE asset='CoopWalls Upgrade'  upgrade=WALLS  cost=200 NewbucksDefinition
+[Info   :SlimeRancher2-AP] [AP-Dump]   UPGRADE asset='DeluxeCoop Upgrade'  upgrade=DELUXE_COOP  cost=1300 NewbucksDefinition
+[Info   :SlimeRancher2-AP] [AP-Dump]   UPGRADE asset='DeluxeGarden Upgrade'  upgrade=DELUXE_GARDEN  cost=1400 NewbucksDefinition
+[Info   :SlimeRancher2-AP] [AP-Dump]   UPGRADE asset='Feeder Upgrade'  upgrade=FEEDER  cost=750 NewbucksDefinition
+[Info   :SlimeRancher2-AP] [AP-Dump]   UPGRADE asset='MusicBox Upgrade'  upgrade=MUSIC_BOX  cost=350 NewbucksDefinition
+[Info   :SlimeRancher2-AP] [AP-Dump]   UPGRADE asset='PlortCollector Upgrade'  upgrade=PLORT_COLLECTOR  cost=750 NewbucksDefinition
+[Info   :SlimeRancher2-AP] [AP-Dump]   UPGRADE asset='PlortCollectorIncerator Upgrade'  upgrade=PLORT_COLLECTOR_INCINERATOR  cost=1200 NewbucksDefinition
+[Info   :SlimeRancher2-AP] [AP-Dump]   UPGRADE asset='PlortCollectorPond Upgrade'  upgrade=PLORT_COLLECTOR_POND  cost=1200 NewbucksDefinition
+[Info   :SlimeRancher2-AP] [AP-Dump]   UPGRADE asset='Scareslime Upgrade'  upgrade=SCARESLIME  cost=425 NewbucksDefinition
+[Info   :SlimeRancher2-AP] [AP-Dump]   UPGRADE asset='Soil Upgrade'  upgrade=SOIL  cost=600 NewbucksDefinition
+[Info   :SlimeRancher2-AP] [AP-Dump]   UPGRADE asset='SolarShield Upgrade'  upgrade=SOLAR_SHIELD  cost=425 NewbucksDefinition
+[Info   :SlimeRancher2-AP] [AP-Dump]   UPGRADE asset='Sprinkler Upgrade'  upgrade=SPRINKLER  cost=700 NewbucksDefinition
+[Info   :SlimeRancher2-AP] [AP-Dump]   UPGRADE asset='Storage Capacity Upgrade'  upgrade=STORAGE_CAPACITY_INCREASE  cost=1800 NewbucksDefinition
+[Info   :SlimeRancher2-AP] [AP-Dump]   UPGRADE asset='Storage2 Upgrade'  upgrade=STORAGE2  cost=500 NewbucksDefinition
+[Info   :SlimeRancher2-AP] [AP-Dump]   UPGRADE asset='Storage3 Upgrade'  upgrade=STORAGE3  cost=575 NewbucksDefinition
+[Info   :SlimeRancher2-AP] [AP-Dump]   UPGRADE asset='Storage4 Upgrade'  upgrade=STORAGE4  cost=650 NewbucksDefinition
+[Info   :SlimeRancher2-AP] [AP-Dump]   UPGRADE asset='Vitamizer Upgrade'  upgrade=VITAMIZER  cost=700 NewbucksDefinition
+[Info   :SlimeRancher2-AP] [AP-Dump]   UPGRADE asset='Walls Upgrade'  upgrade=WALLS  cost=260 NewbucksDefinition
+[Info   :SlimeRancher2-AP] [AP-Dump] =========== LAND PLOT DUMP END ===========

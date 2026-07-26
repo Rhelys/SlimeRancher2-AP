@@ -29,6 +29,12 @@ namespace SlimeRancher2AP.Archipelago;
 ///     category (29 entries) and the "Resources" category (54 entries).
 ///     Goal fires only when both categories are fully unlocked.
 ///   </description></item>
+///   <item><term>plort_seller</term><description>
+///     Polled via Tick() — per-type sold counters (accumulated by PlortMarketPatch via
+///     PlortEconomyDirector.RegisterSold, persisted in ApSaveManager) must all reach the
+///     per-seed target (slot data "plort_goal_amount"). Scope: all 25 plort types minus
+///     RNG/weather exclusions.
+///   </description></item>
 /// </list>
 /// Call Initialize() after AP connect, Tick() each frame, and the On* event methods from patches.
 /// </summary>
@@ -128,8 +134,9 @@ public static class GoalHandler
         var goal = Plugin.Instance.ApClient.SlotData?.Goal;
         switch (goal)
         {
-            case "newbucks":    CheckNewbucksGoal();    break;
-            case "slimepedia":  CheckSlimepediaGoal();  break;
+            case "newbucks":     CheckNewbucksGoal();    break;
+            case "slimepedia":   CheckSlimepediaGoal();  break;
+            case "plort_seller": CheckPlortSellerGoal(); break;
         }
     }
 
@@ -256,6 +263,17 @@ public static class GoalHandler
             radiantExcluded.Add("RadiantYolky");
         }
 
+        // The "Radiant Slimes" concept entry lives in the Slimes category but only unlocks
+        // after encountering a radiant slime, so it follows the radiant toggle — the same
+        // option that governs the 22 individual radiant entries.
+        if (!needRadiant)
+            slimesExcluded.Add("RadiantSlime");
+
+        // Post-game Sanctuary content is opt-in; without it, Sprinkles is not a check and
+        // must not be required by the goal.
+        if (!(slotData?.RandomizeSanctuary ?? false))
+            resourcesExcluded.Add("Sprinkles");
+
         if (slotData?.ExcludeWeatherChecks ?? false)
         {
             slimesExcluded.Add("Tangle");
@@ -279,11 +297,14 @@ public static class GoalHandler
             var catName = cat?._category?.name;
 
             if (needSlimes    && catName == SlimesCategoryName)
-                slimesUnlocked    = IsCategoryUnlockedExcluding(pedia, cat!, slimesExcluded);
+                slimesUnlocked    = IsCategoryUnlockedForAp(
+                    pedia, cat!, Data.LocationType.SlimepediaEntry, slimesExcluded);
             else if (needResources && catName == ResourcesCategoryName)
-                resourcesUnlocked = IsCategoryUnlockedExcluding(pedia, cat!, resourcesExcluded);
+                resourcesUnlocked = IsCategoryUnlockedForAp(
+                    pedia, cat!, Data.LocationType.SlimepediaResourceEntry, resourcesExcluded);
             else if (needRadiant   && catName == RadiantCategoryName)
-                radiantUnlocked   = IsCategoryUnlockedExcluding(pedia, cat!, radiantExcluded);
+                radiantUnlocked   = IsCategoryUnlockedForAp(
+                    pedia, cat!, Data.LocationType.SlimepediaRadiantEntry, radiantExcluded);
 
             if (slimesUnlocked && resourcesUnlocked && radiantUnlocked) break;
         }
@@ -301,27 +322,161 @@ public static class GoalHandler
         }
     }
 
+    // -------------------------------------------------------------------------
+    // plort_seller goal
+    // -------------------------------------------------------------------------
+
     /// <summary>
-    /// Returns true if every entry in <paramref name="cat"/> is unlocked, skipping any whose
-    /// <c>PediaEntry.name</c> is in <paramref name="excludeNames"/>.
-    /// When <paramref name="excludeNames"/> is empty, falls back to the native
-    /// <c>AllUnlocked()</c> call (faster path, no per-entry iteration).
+    /// The plort types counted by the plort_seller goal: all 25 sellable types (the
+    /// 5 Grey Labyrinth plorts are in scope — GL locations are in the pool for this
+    /// goal), minus the RNG / weather exclusions when those options are on. Mirrors
+    /// the Plort Market check scope in PlortMarketPatch and the apworld's Goal
+    /// docstring.
     /// </summary>
-    private static bool IsCategoryUnlockedExcluding(PediaDirector pedia,
-                                                     PediaRuntimeCategory cat,
-                                                     HashSet<string> excludeNames)
+    public static List<string> PlortSellerScope()
     {
-        if (excludeNames.Count == 0) return cat.AllUnlocked();
-        var items = cat._items;
+        var slotData = Plugin.Instance.ApClient.SlotData;
+        var scope = new List<string>();
+        foreach (var plortName in Data.LocationTable.AllPlortMarketPlortNames)
+        {
+            if ((slotData?.ExcludeRngSlimes ?? false)
+                && Patches.LocationPatches.PlortMarketPatch.IsRngExcludedPlort(plortName)) continue;
+            if ((slotData?.ExcludeWeatherChecks ?? false)
+                && Patches.LocationPatches.PlortMarketPatch.IsWeatherExcludedPlort(plortName)) continue;
+            scope.Add(plortName);
+        }
+        return scope;
+    }
+
+    /// <summary>Types at/above the target vs total in scope — shared with the pause menu display.</summary>
+    public static (int complete, int total) PlortSellerProgress()
+    {
+        int target = Plugin.Instance.ApClient.SlotData?.PlortGoalAmount ?? 0;
+        var scope  = PlortSellerScope();
+        int done   = 0;
+        foreach (var plortName in scope)
+            if (Plugin.Instance.SaveManager.PlortsSold(plortName) >= target)
+                done++;
+        return (done, scope.Count);
+    }
+
+    private static void CheckPlortSellerGoal()
+    {
+        var (done, total) = PlortSellerProgress();
+        if (total > 0 && done >= total)
+        {
+            Logger.Info(
+                $"[AP] Plort Seller goal met: all {total} in-scope plort types reached " +
+                $"{Plugin.Instance.ApClient.SlotData?.PlortGoalAmount ?? 0} sold");
+            NotifyGoalComplete();
+        }
+    }
+
+    /// <summary>
+    /// Returns true when every Slimepedia entry AP has a location for in this category is
+    /// unlocked, skipping any whose <c>PediaEntry.name</c> is in <paramref name="excludeNames"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Deliberately does NOT use the native <c>PediaRuntimeCategory.AllUnlocked()</c>, which
+    /// this method previously called as a fast path when no exclusions were active. Two
+    /// problems with that:
+    /// </para>
+    /// <list type="number">
+    /// <item>It made the goal's meaning depend on an unrelated option — with any exclusion
+    ///   enabled the mod iterated entries itself, without one it deferred to the game, and
+    ///   the two do not necessarily agree.</item>
+    /// <item>Either way the goal required every entry the GAME puts in the category, which
+    ///   is a superset of what AP has locations for. Confirmed from docs/dumps/Pedia.txt:
+    ///   'Resources' contains <c>Sprinkles</c> (post-game Sanctuary content) and 'Slimes'
+    ///   contains the <c>RadiantSlime</c> concept entry — neither is an AP location, so a
+    ///   player could complete every check in their seed and still not trigger the goal
+    ///   (player-reported 2026-07-24). Categories can also grow at runtime via
+    ///   <c>PediaDirector.OnPediaEntriesRegistered</c> → <c>AddDynamicItem</c>, so the
+    ///   game-side contents are not even fixed for a given version.</item>
+    /// </list>
+    /// <para>
+    /// The AP location table is therefore the authority: the goal fires when the seed's own
+    /// Slimepedia checks are all unlocked, which is what "complete the Slimepedia" means to
+    /// the player looking at their tracker.
+    /// </para>
+    /// </remarks>
+    private static bool IsCategoryUnlockedForAp(PediaDirector pedia,
+                                                 PediaRuntimeCategory cat,
+                                                 Data.LocationType locationType,
+                                                 HashSet<string> excludeNames)
+    {
+        var required = Data.LocationTable.SlimepediaEntryNames(locationType);
+        var items    = cat._items;
         if (items == null) return false;
+
         for (int i = 0; i < items.Count; i++)
         {
             var entry = items[i];
             if (entry == null) continue;
-            if (excludeNames.Contains(entry.name)) continue;
+            var name = entry.name;
+            if (!required.Contains(name)) continue;   // not an AP location (e.g. Sprinkles)
+            if (excludeNames.Contains(name)) continue; // excluded by seed options
             if (!pedia.IsUnlocked(entry)) return false;
         }
         return true;
+    }
+
+    /// <summary>
+    /// Logs, per enabled Slimepedia category, which AP-tracked entries are still locked —
+    /// and which entries the game lists that AP does not track. This is the answer to
+    /// "I've done every Slimepedia check, why hasn't my goal fired?".
+    /// </summary>
+    public static void LogSlimepediaProgress()
+    {
+        var pedia = SceneContext.Instance?.PediaDirector;
+        if (pedia == null)
+        {
+            Logger.Warning("[AP] Slimepedia progress: PediaDirector not available — load a save first");
+            return;
+        }
+        var rawCategories = pedia.Categories;
+        if (rawCategories == null) return;
+        var categories = new Il2CppList(rawCategories.Pointer);
+
+        Logger.Info("[AP] ===== Slimepedia goal progress =====");
+        for (int i = 0; i < categories.Count; i++)
+        {
+            var cat     = categories[i];
+            var catName = cat?._category?.name;
+            Data.LocationType type;
+            if      (catName == SlimesCategoryName)    type = Data.LocationType.SlimepediaEntry;
+            else if (catName == ResourcesCategoryName) type = Data.LocationType.SlimepediaResourceEntry;
+            else if (catName == RadiantCategoryName)   type = Data.LocationType.SlimepediaRadiantEntry;
+            else continue;
+
+            var required = Data.LocationTable.SlimepediaEntryNames(type);
+            var items    = cat!._items;
+            if (items == null) continue;
+
+            int tracked = 0, unlocked = 0;
+            var locked    = new List<string>();
+            var untracked = new List<string>();
+            for (int j = 0; j < items.Count; j++)
+            {
+                var entry = items[j];
+                if (entry == null) continue;
+                var name = entry.name;
+                if (!required.Contains(name)) { untracked.Add(name); continue; }
+                tracked++;
+                if (pedia.IsUnlocked(entry)) unlocked++;
+                else locked.Add(name);
+            }
+
+            Logger.Info(
+                $"[AP]   '{catName}': {unlocked}/{tracked} AP-tracked entries unlocked " +
+                $"(game category has {items.Count} total)");
+            if (locked.Count > 0)
+                Logger.Info($"[AP]     still locked: {string.Join(", ", locked)}");
+            if (untracked.Count > 0)
+                Logger.Info($"[AP]     not AP-tracked (never required): {string.Join(", ", untracked)}");
+        }
+        Logger.Info("[AP] ====================================");
     }
 
     // -------------------------------------------------------------------------
@@ -400,12 +555,36 @@ public static class GoalHandler
         var goal = Plugin.Instance.ApClient.SlotData?.Goal ?? "";
         switch (goal)
         {
-            case "newbucks":   CheckNewbucksGoal();   break;
-            case "slimepedia": CheckSlimepediaGoal(); break;
+            case "newbucks":     CheckNewbucksGoal();     break;
+            case "slimepedia":   CheckSlimepediaGoal();   break;
+            case "plort_seller": CheckPlortSellerGoal();  break;
             default:
                 Logger.Info($"[AP-Debug] DebugForceCheck: goal '{goal}' is event-based, use Sim buttons");
                 break;
         }
+    }
+
+    /// <summary>
+    /// Fills every in-scope plort type's sold counter to the goal target so the next
+    /// Force Check fires the plort_seller goal.
+    /// </summary>
+    public static void DebugSimPlortSales()
+    {
+        var saveManager = Plugin.Instance.SaveManager;
+        if (!saveManager.HasActiveSession)
+        {
+            Logger.Warning("[AP-Debug] No active AP session — load a save first");
+            return;
+        }
+
+        int target = Plugin.Instance.ApClient.SlotData?.PlortGoalAmount ?? 0;
+        foreach (var plortName in PlortSellerScope())
+        {
+            long sold = saveManager.PlortsSold(plortName);
+            if (sold < target)
+                saveManager.AccumulatePlortSold(plortName, (int)(target - sold));
+        }
+        Logger.Info($"[AP-Debug] All in-scope plort sale counters set to {target}");
     }
 
     /// <summary>Simulates the Prismacore stabilizing. Calls OnCoreRoomStateChanged with POST_FIGHT directly.</summary>

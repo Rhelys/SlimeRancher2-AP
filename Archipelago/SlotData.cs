@@ -23,6 +23,13 @@ public class SlotData
     /// </summary>
     public long   NewbucksGoalAmount { get; init; } = 1_000_000;
 
+    /// <summary>
+    /// Number of plorts of EACH in-scope type that must be sold for the "plort_seller"
+    /// goal (per-seed value rolled by the apworld between the min/max options).
+    /// Read from slot data key "plort_goal_amount"; default 25.
+    /// </summary>
+    public int    PlortGoalAmount { get; init; } = 25;
+
     public bool   RandomizeGordos        { get; init; } = true;
     public bool   RandomizePods          { get; init; } = true;
     public bool   RandomizeMapNodes      { get; init; } = true;
@@ -88,6 +95,29 @@ public class SlotData
     /// Slot data key: <c>"randomize_shop"</c>.
     /// </summary>
     public bool   RandomizeShop            { get; init; } = false;
+
+    /// <summary>
+    /// When true, post-game Sanctuary content is part of the seed — currently the
+    /// "Slimepedia: Sprinkles" location, which also becomes required by the slimepedia
+    /// goal. When false the Sprinkles entry is neither a check nor a goal requirement.
+    /// Slot data key: <c>"randomize_sanctuary"</c>.
+    /// </summary>
+    public bool   RandomizeSanctuary       { get; init; } = false;
+
+    /// <summary>
+    /// Ranch plot randomization — three independent tiers (see <c>RanchPlotHandler</c>).
+    /// When <c>RandomizePlots</c> is true, an empty plot can only be built on while the
+    /// number of built plots in its area is below the received "Ranch Plot" item count for
+    /// that area (StartingPlots Conservatory copies arrive as precollected items, so the
+    /// mod just counts received items). Buildings and upgrades gate their purchase-menu
+    /// entries until their item is received.
+    /// Slot data keys: <c>"randomize_plots"</c>, <c>"starting_plots"</c>,
+    /// <c>"randomize_plot_buildings"</c>, <c>"randomize_plot_upgrades"</c>.
+    /// </summary>
+    public bool   RandomizePlots           { get; init; } = false;
+    public int    StartingPlots            { get; init; } = 2;
+    public bool   RandomizePlotBuildings   { get; init; } = false;
+    public bool   RandomizePlotUpgrades    { get; init; } = false;
 
     /// <summary>
     /// Controls how region gate switches and zone teleporters are handled.
@@ -218,6 +248,7 @@ public class SlotData
             TrapPercentage     = (int)GetLong(raw, "trap_percentage", 0),
             Goal               = GetString(raw, "goal",               "labyrinth_open"),
             NewbucksGoalAmount = GetLong(raw,   "newbucks_goal_amount", 1_000_000),
+            PlortGoalAmount    = (int)GetLong(raw, "plort_goal_amount", 25),
             RandomizeGordos          = GetBool(raw, "randomize_gordos",        defaultVal: true),
             RandomizePods            = GetBool(raw, "randomize_pods",          defaultVal: true),
             RandomizeMapNodes        = GetBool(raw, "randomize_map_nodes",     defaultVal: true),
@@ -233,6 +264,11 @@ public class SlotData
             RandomizePlortDoors      = GetString(raw, "randomize_plort_doors", "vanilla"),
             RandomizePlortMarket     = GetBool(raw, "randomize_plort_market",     defaultVal: false),
             RandomizeShop            = GetBool(raw, "randomize_shop",             defaultVal: false),
+            RandomizeSanctuary       = GetBool(raw, "randomize_sanctuary",        defaultVal: false),
+            RandomizePlots           = GetBool(raw, "randomize_plots",            defaultVal: false),
+            StartingPlots            = (int)GetLong(raw, "starting_plots", 2),
+            RandomizePlotBuildings   = GetBool(raw, "randomize_plot_buildings",   defaultVal: false),
+            RandomizePlotUpgrades    = GetBool(raw, "randomize_plot_upgrades",    defaultVal: false),
             RegionAccessMode            = GetString(raw, "region_access_mode", "vanilla"),
             ConversationChecks          = GetConversationCheckMode(raw, "conversation_checks"),
             DisableTarr                 = GetBool(raw, "disable_tarr",          defaultVal: false),

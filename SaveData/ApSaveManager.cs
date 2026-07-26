@@ -1,4 +1,5 @@
 ﻿using BepInEx.Configuration;
+using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -42,6 +43,10 @@ public class ApSaveManager
     private ConfigEntry<string>? _appliedEphemeralIndices;
     private ConfigEntry<string>? _deferredItemIndices;
     private ConfigEntry<string>? _associatedSaveName;
+    private ConfigEntry<string>? _plortsSold;
+
+    // In-memory mirror of _plortsSold, keyed by IdentifiableType.name (e.g. "PinkPlort").
+    private readonly Dictionary<string, long> _plortsSoldMap = new();
 
     private readonly HashSet<long>   _checkedSet      = new();
     private readonly HashSet<string> _regionSet       = new();
@@ -191,6 +196,8 @@ public class ApSaveManager
         _appliedEphemeralIndices = null;
         _deferredItemIndices     = null;
         _associatedSaveName      = null;
+        _plortsSold              = null;
+        _plortsSoldMap.Clear();
         _lastItemIdx             = -1;
         // Keep _checkedSet, _regionSet, _visitedZoneSet, _scoutData in memory —
         // they'll be re-loaded from the correct file by the next OnConnected call.
@@ -249,6 +256,9 @@ public class ApSaveManager
             "The SR2 save game this AP slot is bound to (set on the first in-save session). " +
             "Loading a different save while connected pauses item delivery and checks. " +
             "Clear this value to re-associate the slot with the next save you load.");
+        _plortsSold              = _saveFile.Bind("Progress", "PlortsSold", "",
+            "Per-type plorts sold at the market, as 'PinkPlort:12,RockPlort:3,...' " +
+            "(tracked via PlortEconomyDirector.RegisterSold for the plort_seller goal)");
 
         // Deserialize checked locations
         _checkedSet.Clear();
@@ -274,6 +284,15 @@ public class ApSaveManager
         _deferredSet.Clear();
         foreach (var s in (_deferredItemIndices.Value ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries))
             if (int.TryParse(s, out var idx)) _deferredSet.Add(idx);
+
+        // Deserialize per-type plort sale counters ("PinkPlort:12,RockPlort:3,...")
+        _plortsSoldMap.Clear();
+        foreach (var pair in (_plortsSold.Value ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var sep = pair.IndexOf(':');
+            if (sep > 0 && long.TryParse(pair[(sep + 1)..], out var sold))
+                _plortsSoldMap[pair[..sep]] = sold;
+        }
 
         _lastItemIdx        = _lastItemIndex.Value;
         _newbucksEarnedVal  = _newbucksEarned.Value;
@@ -436,6 +455,22 @@ public class ApSaveManager
         _newbucksEarned!.Value = _newbucksEarnedVal;
         _saveFile.Save();
     }
+
+    /// <summary>
+    /// Adds <paramref name="count"/> to the per-type plorts-sold counter and persists it.
+    /// Called from the <c>PlortEconomyDirector.RegisterSold</c> Postfix (plort_seller goal).
+    /// </summary>
+    public void AccumulatePlortSold(string plortName, int count)
+    {
+        if (_saveFile == null || _plortsSold == null || count <= 0 || string.IsNullOrEmpty(plortName))
+            return;
+        _plortsSoldMap[plortName] = _plortsSoldMap.GetValueOrDefault(plortName) + count;
+        _plortsSold.Value = string.Join(",", _plortsSoldMap.Select(kv => $"{kv.Key}:{kv.Value}"));
+        _saveFile.Save();
+    }
+
+    /// <summary>Plorts of <paramref name="plortName"/> sold so far this AP run.</summary>
+    public long PlortsSold(string plortName) => _plortsSoldMap.GetValueOrDefault(plortName);
 
     // -------------------------------------------------------------------------
     // Scout data

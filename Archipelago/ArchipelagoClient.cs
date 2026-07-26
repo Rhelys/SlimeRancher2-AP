@@ -338,6 +338,8 @@ public class ArchipelagoClient
         _liveScoutCache = null;
         _seedLocations  = null;
         SaveGuard.Reset();
+        RanchPlotHandler.Reset();
+        ItemHandler.ClearHeldDroneModules();
         // Unregister and close the socket before nulling Session.
         // Without DisconnectAsync the underlying WebSocket stays open and the AP
         // server never sees the client leave — it only observes the tag change from

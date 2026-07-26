@@ -165,6 +165,7 @@ public class DebugPanel : MonoBehaviour
         y = ItemBtn(x, y, "Shadow Sureshot Module",  ItemTable.ShadowSureshotModule);
         y = ItemBtn(x, y, "Injector Module",         ItemTable.InjectorModule);
         y = ItemBtn(x, y, "Regen Module",            ItemTable.RegenModule);
+        y = ItemBtn(x, y, "Vac Tank",                ItemTable.VacTank);
 
         y = SectionLabel(x, y, "Zone Teleporters");
         y = ItemBtn(x, y, "Teleporter (Ember Valley)",      ItemTable.TeleporterEmberValley);
@@ -229,6 +230,20 @@ public class DebugPanel : MonoBehaviour
         y = ItemBtn(x, y, "Powderfall Bluffs Craft Cache", ItemTable.PowderfallBluffsCraftCache);
         y = ItemBtn(x, y, "Grey Labyrinth Craft Cache",    ItemTable.GreyLabyrinthCraftCache);
         y = ItemBtn(x, y, "Rare Craft Cache",              ItemTable.RareCraftCache);
+
+        // Ranch plot randomization — debug counters only affect gating while the matching
+        // slot-data option is on; without a session the gates are inactive anyway.
+        y = SectionLabel(x, y, "Ranch Plots (debug counter grants)");
+        y = ItemBtn(x, y, "Ranch Plot: Conservatory",  ItemTable.RanchPlotConservatory);
+        y = ItemBtn(x, y, "Ranch Plot: The Gully",     ItemTable.RanchPlotGully);
+        y = ItemBtn(x, y, "Ranch Plot: The Tidepools", ItemTable.RanchPlotTidepools);
+        y = ItemBtn(x, y, "Ranch Plot: The Archway",   ItemTable.RanchPlotArchway);
+        y = ItemBtn(x, y, "Ranch Plot: The Den",       ItemTable.RanchPlotDen);
+        y = ItemBtn(x, y, "Ranch Plot: The Digsite",   ItemTable.RanchPlotDigsite);
+        y = ItemBtn(x, y, "Corral Plans",              ItemTable.CorralPlans);
+        y = ItemBtn(x, y, "Garden Plans",              ItemTable.GardenPlans);
+        y = ItemBtn(x, y, "Corral Upgrade: Walls",     ItemTable.CorralUpgradeWalls);
+        y = ItemBtn(x, y, "Coop Upgrade: Walls",       ItemTable.CoopUpgradeWalls);
 
         return y;
     }
@@ -392,7 +407,7 @@ public class DebugPanel : MonoBehaviour
             GoalHandler.NotifyGoalComplete();
         y += BtnH + Gap;
 
-        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Force Check (newbucks / slimepedia)"))
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Force Check (newbucks / slimepedia / plorts)"))
             GoalHandler.DebugForceCheck();
         y += BtnH + Gap;
 
@@ -406,6 +421,14 @@ public class DebugPanel : MonoBehaviour
 
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Sim: Labyrinth — Open Both Gates"))
             GoalHandler.DebugSimLabyrinth();
+        y += BtnH + Gap;
+
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Sim: Plort Sales — Fill All To Target"))
+            GoalHandler.DebugSimPlortSales();
+        y += BtnH + Gap;
+
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Log Slimepedia Goal Progress"))
+            GoalHandler.LogSlimepediaProgress();
         y += BtnH + Gap;
 
         GUI.color = Color.white;
@@ -468,6 +491,9 @@ public class DebugPanel : MonoBehaviour
         y += BtnH + Gap;
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Shop Conditions (open shop UI first)"))
             LocationDumper.DumpShopItemConditions();
+        y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Land Plots (open a plot UI once first)"))
+            LocationDumper.DumpLandPlots();
         y += BtnH + Gap;
 
         y = SectionLabel(x, y, "Spawn Weights");
