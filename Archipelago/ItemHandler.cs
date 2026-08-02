@@ -1166,11 +1166,10 @@ public static class ItemHandler
     {
         Logger.Info($"[AP] Applying useful: {item.Name} (id={item.Id}, idx={itemIndex})");
 
-        // Quantum Drone Station — the first copy grants the DroneStation gadget blueprint
-        // plus one placeable station (its only vanilla blueprint source is a treasure pod,
-        // which AP replaces with a location check); every copy also adds one
-        // ComponentAcqDrone module, i.e. one more craftable station.
-        // EnsureGadgetBlueprint is idempotent, so copies 2+ only add the module.
+        // Quantum Drone Station — every copy grants the DroneStation gadget blueprint
+        // (its only vanilla source is a treasure pod, which AP replaces with a location
+        // check) and then tries to add one placeable station unit to the player's
+        // inventory. EnsureGadgetBlueprint is idempotent, so copies 2+ only add the unit.
         if (item.Id == ItemTable.QuantumDroneStation)
         {
             var director = SceneContext.Instance?.GadgetDirector;
@@ -1186,47 +1185,62 @@ public static class ItemHandler
                 if (apItem != null) Plugin.Instance.ApClient.RequeueItem(apItem, itemIndex);
                 return false;
             }
-            var identType = Resources.FindObjectsOfTypeAll<IdentifiableType>()
-                                     .FirstOrDefault(t => t.name == "ComponentAcqDrone");
-            if (identType == null)
+            // Which IdentifiableType actually represents a station the player can place.
+            // Best candidate first: the station gadget itself. 'ComponentAcqDrone' is the
+            // ghostly-drone WORLD COLLECTIBLE, not a storable item — the game reports
+            // GetOwnableCountLimit == 0 for it, so every AddItem is refused permanently
+            // (player log 2026-07-25 showed the old code retrying it forever).
+            string[] candidates = { DroneStationGadgetName, "ComponentAcqDrone" };
+            bool storableButFull = false;
+
+            foreach (var typeName in candidates)
             {
-                Logger.Warning("[AP] IdentifiableType 'ComponentAcqDrone' not found — grant skipped");
-                return true;
+                var identType = Resources.FindObjectsOfTypeAll<IdentifiableType>()
+                                         .FirstOrDefault(t => t.name == typeName);
+                if (identType == null) continue;
+
+                int limit = -1, space = -1;
+                try { limit = director.GetOwnableCountLimit(identType); }      catch { }
+                try { space = director.GetRefinerySpaceAvailable(identType); } catch { }
+
+                int added = director.AddItem(identType, 1);
+                // Only worth an overflow retry when the type is storable at all.
+                if (added <= 0 && limit > 0) added = director.AddItem(identType, 1, true);
+
+                if (added > 0)
+                {
+                    Logger.Info(
+                        $"[AP] Quantum Drone Station: granted '{typeName}' x{added} " +
+                        $"(ownable limit={limit}, space available={space})");
+                    Notify("Received: Quantum Drone Station");
+                    return true;
+                }
+
+                Logger.Warning(
+                    $"[AP] Quantum Drone Station: '{typeName}' refused " +
+                    $"(ownable limit={limit}, space available={space})");
+
+                // limit > 0 means the game WILL store this type, there's just no room
+                // right now — that is worth retrying once the player frees space.
+                if (limit > 0) storableButFull = true;
             }
 
-            // AddItem returns how many were actually stored — the refinery enforces a
-            // per-item ownable limit, so a full store silently adds 0 (player-reported:
-            // debug grants past the first module appeared to do nothing). When capped,
-            // retry with overflow=true, which uses the game's own overflow handling.
-            int added = director.AddItem(identType, 1);
-            if (added <= 0)
+            if (storableButFull && apItem != null)
             {
-                int limit = -1, space = -1;
-                try { limit = director.GetOwnableCountLimit(identType); } catch { }
-                try { space = director.GetRefinerySpaceAvailable(identType); } catch { }
-                Logger.Warning(
-                    $"[AP] Quantum Drone Station: refinery refused the module " +
-                    $"(ownable limit={limit}, space available={space}) — retrying with overflow");
-                added = director.AddItem(identType, 1, true);
+                _heldDroneModules.Add((apItem, itemIndex));
+                Plugin.Instance.SaveManager.AddDeferredItem(itemIndex);
+                Logger.Info($"[AP] Quantum Drone Station held for retry (queue: {_heldDroneModules.Count})");
+                return false;
             }
-            if (added <= 0)
-            {
-                // Still refused — park the item and retry every few seconds via
-                // TickHeldDroneModules until the player frees space (e.g. crafts a
-                // station). NOT a per-frame RequeueItem: that would re-log the
-                // "About to apply" lines every frame while capped.
-                if (apItem != null)
-                {
-                    _heldDroneModules.Add((apItem, itemIndex));
-                    Plugin.Instance.SaveManager.AddDeferredItem(itemIndex);
-                    Logger.Info($"[AP] Quantum Drone Station module held (queue: {_heldDroneModules.Count})");
-                    return false;
-                }
-                Notify("Drone module refused: refinery full (craft a station first)");
-                return true; // debug grant — nothing to requeue
-            }
-            Logger.Info($"[AP] Quantum Drone Station: blueprint ok, module added={added}");
-            Notify("Received: Quantum Drone Station");
+
+            // No storable station type. Do NOT hold the item: an ownable limit of 0 is a
+            // permanent refusal, and retrying spins the queue every few seconds forever.
+            // The blueprint (granted above) is the meaningful part of this item.
+            Logger.Warning(
+                "[AP] Quantum Drone Station: no storable station type — blueprint granted only. " +
+                "If stations are still capped in-game, the count is governed by something " +
+                "other than an inventory item.");
+            Notify("Received: Quantum Drone Station (blueprint)");
             return true;
         }
 
