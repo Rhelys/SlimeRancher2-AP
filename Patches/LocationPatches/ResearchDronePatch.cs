@@ -32,16 +32,19 @@ namespace SlimeRancher2AP.Patches.LocationPatches;
 /// </summary>
 internal static class ResearchDronePatch
 {
-    // Poll once per second at 60 fps — low overhead, acceptable latency.
-    private const int PollInterval = 60;
-    private static int _pollCounter = 0;
+    // Poll once per second. Time-based rather than frame-counted: the old "every 60 frames"
+    // ran 2.4×/second at 144 fps instead of the intended 1×, so the scan cost scaled with the
+    // frame rate. FindObjectsOfTypeAll walks every loaded object, so that is not free.
+    private const float  PollSeconds = 1f;
+    private static float _nextPoll   = 0f;
 
     /// <summary>Called every Update frame from <c>ApUpdateBehaviour</c>.</summary>
     internal static void Tick()
     {
         if (!Plugin.Instance.ModEnabled || !Plugin.Instance.SaveManager.HasActiveSession) return;
-        if (++_pollCounter < PollInterval) return;
-        _pollCounter = 0;
+        float now = UnityEngine.Time.unscaledTime;
+        if (now < _nextPoll) return;
+        _nextPoll = now + PollSeconds;
 
         var controllers = Resources.FindObjectsOfTypeAll<ResearchDroneController>();
         for (int i = 0; i < controllers.Length; i++)

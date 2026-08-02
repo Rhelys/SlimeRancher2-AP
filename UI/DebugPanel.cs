@@ -40,6 +40,8 @@ public class DebugPanel : MonoBehaviour
     private float _tpY = 0f;
     private float _tpZ = 0f;
 
+    private void Awake() => Instance = this;
+
     private void Update()
     {
         var kb = UnityEngine.InputSystem.Keyboard.current;
@@ -71,7 +73,14 @@ public class DebugPanel : MonoBehaviour
         }
     }
 
-    private void OnGUI()
+    // Measured so the Debug-vs-Release comparison shows what the panel itself costs while
+    // hidden — IMGUI still dispatches OnGUI every frame even when nothing is drawn.
+    private static readonly System.Action _drawBody = () => Instance?.DrawGui();
+    private static DebugPanel? Instance;
+
+    private void OnGUI() => ModProfiler.Time("DebugPanel.OnGUI", _drawBody);
+
+    private void DrawGui()
     {
         if (!_visible) return;
 
@@ -360,6 +369,29 @@ public class DebugPanel : MonoBehaviour
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Associate current save with AP slot"))
             SaveGuard.ForceAssociateCurrentSave();
         y += BtnH + Gap;
+
+        y = SectionLabel(x, y, "Performance");
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Log Mod Frame Cost (per-Tick ms)"))
+            ModProfiler.Report();
+        y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Reset Frame Cost Counters"))
+        {
+            ModProfiler.Reset();
+            Logger.Info("[AP-Perf] Counters reset — play for a while, then log again.");
+        }
+        y += BtnH + Gap;
+
+        // Zone protection now enforces in debug builds too; this toggle restores the old
+        // "log what it would have done, then cancel" behaviour for free roaming.
+        y = SectionLabel(x, y, "Zone Protection");
+        bool suppressed = GateReturnEnforcer.SuppressReturn;
+        GUI.color = suppressed ? new Color(1f, 0.75f, 0.4f) : new Color(0.4f, 1f, 0.4f);
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH),
+                suppressed ? "Gate return SUPPRESSED (click to enforce)"
+                           : "Gate return ENFORCED (click to suppress)"))
+            GateReturnEnforcer.SuppressReturn = !suppressed;
+        GUI.color = Color.white;
+        y += BtnH + Gap;
     }
 
     // Page 6: Radiant slime tools + Weather dumps
@@ -491,6 +523,9 @@ public class DebugPanel : MonoBehaviour
         y += BtnH + Gap;
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Shop Conditions (open shop UI first)"))
             LocationDumper.DumpShopItemConditions();
+        y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Research Drone Archives"))
+            LocationDumper.DumpResearchDroneArchives();
         y += BtnH + Gap;
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Land Plots (open a plot UI once first)"))
             LocationDumper.DumpLandPlots();

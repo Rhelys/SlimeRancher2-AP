@@ -120,7 +120,7 @@ Quick reference only — verify against the apworld before relying on a range.
 | 819350–819379 | Slimepedia — Slimes (30; 819379 = Radiant Slimes concept entry, gated by `randomize_slimepedia_radiant`) |
 | 819400–819437 | Fabricator — Vacpack Upgrade crafts (38) |
 | 819450–819472 | Research Drones (23) |
-| 819473–819479, 819490–819495 | Research Drone Archives (13) |
+| 819473–819479, 819490–819495, 820075–820080 | Research Drone Archives (19 — every drone except the 4 in Powderfall Bluffs) |
 | 819480–819489 | Ghostly Drones (10) |
 | 819630–819684 | Slimepedia — Resources (55; 819684 = Sprinkles, opt-in via `randomize_sanctuary`) |
 | 819700–819716 | Conversations — Key Gifts + Intro Calls |
@@ -314,11 +314,22 @@ prologues changed → trampoline crashes), so some detection is done by **pollin
 - **Identity**: `_researchDroneEntry.name` (stable asset name) → `LocationTable`
 - **Location IDs**: 819450–819472
 
-### Research Drone Archives (13) ✅
+### Research Drone Archives (19 of 23 drones) ✅ — set is COMPLETE
 - **File**: `ResearchDroneArchivePatch.cs` — Postfix on `ResearchDroneUI.ToggleArchive`;
   sends a check when the player first opens a drone's archive page (needs Drone Archive Key).
-- **Identity**: `mainEntry.archivedEntry.name` → `LocationTable`
-- **Location IDs**: 819473–819479, 819490–819495
+- **Identity**: `mainEntry.archivedEntry.name` → `LocationTable`. Where an archive exists it is
+  named `<DroneEntryName>Archive` — but **not every drone has one**: all 4 Powderfall Bluffs
+  drones report `archivedEntry == null`.
+- **Location IDs**: 819473–819479, 819490–819495, 820075–820080
+- **Verified by asset dump on 2026-08-02** across every zone, accounting for all 23 drones.
+  Before that the set was built by discovery — reading the "unknown archive entry" warning after
+  a player opened one — which only ever covered drones someone had reached with the Archive Key,
+  and left the table stuck at 13 with 6 real archives missing.
+- If a game update adds drones, **dump, don't extrapolate**: PB proves the naming pattern says
+  nothing about whether an archive exists, and a row for a nonexistent archive is an unreachable
+  AP location that can make a seed unbeatable. F9 → Dumps → **"Dump Research Drone Archives"**
+  (once per zone — SR2 streams them) lists every loaded `ResearchDroneEntry`, its `archivedEntry`,
+  and whether that archive has a table row, plus a coverage line naming drones not yet loaded.
 
 ### Ghostly Drones (10, collectible drones) ✅
 - **File**: `TreasurePodPatch.cs` (`TreasurePodActivatePatch`)

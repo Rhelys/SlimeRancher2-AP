@@ -79,12 +79,25 @@ internal static class WeatherPatch
     /// Called every Update frame from <c>ApUpdateBehaviour</c>.
     /// Runs the two independent weather appliers; each no-ops once applied.
     /// </summary>
+    // Both apply paths bail with "not ready yet — retry next frame" when the WeatherRegistry
+    // has not loaded, and each such attempt costs a Resources.FindObjectsOfTypeAll. Before the
+    // registry exists (main menu, loading, and any session where the option is on but the
+    // registry is slow to appear) that ran every frame; profiling measured 0.363 ms/frame.
+    // One attempt per second is plenty for something that only needs to happen once.
+    private const  float RetrySeconds = 1f;
+    private static float _nextRetry   = 0f;
+
     internal static void TryApplyIfNeeded()
     {
         if (!Plugin.Instance.ModEnabled) return;
+        if (_multiplierApplied && _forceHeavyRemapDone) return; // fully applied — nothing to do
 
         var slotData = Plugin.Instance.ApClient?.SlotData;
         if (slotData == null) return;
+
+        float now = Time.unscaledTime;
+        if (now < _nextRetry) return;
+        _nextRetry = now + RetrySeconds;
 
         TryApplyFrequencyMultiplier(slotData.WeatherFrequencyMultiplier);
         TryApplyForceHeavyRemap(slotData.ForceHeavyWeather);

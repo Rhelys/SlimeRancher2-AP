@@ -38,6 +38,17 @@ public static class GateReturnEnforcer
         ["SceneGroup.PowderfallBluffs"] = LocationConstants.RegionGate_PowderfallBluffs,
     };
 
+#if DEBUG
+    /// <summary>
+    /// Debug builds only: when true, a triggered enforcement logs what it WOULD have done and
+    /// then cancels, so a developer can roam gated zones freely.  Defaults to <c>false</c> —
+    /// dev builds enforce exactly like release builds.  Previously debug builds suppressed the
+    /// return unconditionally, which made zone protection untestable outside a release build.
+    /// Toggle from the debug panel (F9 → Misc).
+    /// </summary>
+    public static bool SuppressReturn = false;
+#endif
+
     // -------------------------------------------------------------------------
     // Pending return state
     // -------------------------------------------------------------------------
@@ -80,15 +91,38 @@ public static class GateReturnEnforcer
     /// <returns>True if enforcement was triggered (zone transition is unauthorized).</returns>
     public static bool OnZoneChanged(string? newZone, string? previousZone)
     {
-        if (newZone == null || previousZone == null) return false;
-        if (!Plugin.Instance.ModEnabled) return false;
+        if (newZone == null) return false;
+
+        // Always log the transition and, when enforcement is skipped, WHY.  Previously every
+        // guard returned silently, so a zone change that should have been blocked left no trace
+        // at all in the log and there was no way to tell which condition let it through.
+        if (previousZone == null)
+        {
+            Logger.Info($"[AP] GateReturnEnforcer: first zone seen this session — '{newZone}' (no transition to enforce)");
+            return false;
+        }
+        if (!Plugin.Instance.ModEnabled)
+        {
+            Logger.Info($"[AP] GateReturnEnforcer: '{previousZone}' → '{newZone}' — not enforced (mod disabled)");
+            return false;
+        }
         // Session-based, not socket-based: enforcement must survive a temporary disconnect,
         // otherwise a briefly-offline player can slip through gated zones unenforced.
-        if (!Plugin.Instance.SaveManager.HasActiveSession) return false;
+        if (!Plugin.Instance.SaveManager.HasActiveSession)
+        {
+            Logger.Info($"[AP] GateReturnEnforcer: '{previousZone}' → '{newZone}' — not enforced (no active AP session)");
+            return false;
+        }
 
         // Only enforce when gate checks are actual AP locations.
         var mode = Plugin.Instance.ApClient.SlotData?.RegionAccessMode ?? "vanilla";
-        if (mode == "vanilla") return false;
+        if (mode == "vanilla")
+        {
+            Logger.Info($"[AP] GateReturnEnforcer: '{previousZone}' → '{newZone}' — not enforced (region_access_mode=vanilla)");
+            return false;
+        }
+
+        Logger.Info($"[AP] GateReturnEnforcer: zone transition '{previousZone}' → '{newZone}' (mode={mode})");
 
         // ── EV entry from PB (bundled-mode bypass) ───────────────────────────
         // In bundled mode the PB zone teleporter is granted with "Powderfall Bluffs Access",
@@ -130,8 +164,16 @@ public static class GateReturnEnforcer
         }
 
         // ── EV / SS exit enforcement (and PB exit / gadget bypass) ───────────
-        if (!ZoneGateLocations.TryGetValue(previousZone, out var locId)) return false;
-        if (Plugin.Instance.SaveManager.IsChecked(locId)) return false;
+        if (!ZoneGateLocations.TryGetValue(previousZone, out var locId))
+        {
+            Logger.Info($"[AP] GateReturnEnforcer: '{previousZone}' is not a gated zone — nothing to enforce on exit");
+            return false;
+        }
+        if (Plugin.Instance.SaveManager.IsChecked(locId))
+        {
+            Logger.Info($"[AP] GateReturnEnforcer: left '{previousZone}' legally — gate check {locId} already sent");
+            return false;
+        }
 
         // Gate check not sent — send the player to RF spawn so they can press the gate button.
         // _forceSpawnReset: last safe position is inside the locked zone, so returning there
@@ -183,12 +225,16 @@ public static class GateReturnEnforcer
         }
 
 #if DEBUG
-        Logger.Info(
-            $"[AP] GateReturnEnforcer: DEBUG — enforcement suppressed " +
-            $"(forceSpawn={_forceSpawnReset}, would return to " +
-            (_hasSafePosition && !_forceSpawnReset ? $"{_lastSafePosition}" : "spawn fallback") + ")");
-        ClearPending();
-#else
+        if (SuppressReturn)
+        {
+            Logger.Info(
+                $"[AP] GateReturnEnforcer: DEBUG — enforcement suppressed by debug panel toggle " +
+                $"(forceSpawn={_forceSpawnReset}, would return to " +
+                (_hasSafePosition && !_forceSpawnReset ? $"{_lastSafePosition}" : "spawn fallback") + ")");
+            ClearPending();
+            return;
+        }
+#endif
         // Return the player to where they came from via the KCC motor.
         // Skipped when _forceSpawnReset is set: the safe position is inside a zone the player
         // isn't allowed to be in (e.g. PB for the EV-from-PB path), so sending them back there
@@ -221,7 +267,6 @@ public static class GateReturnEnforcer
         network.Teleport_ResetPlayer(teleportable);
         Logger.Info("[AP] GateReturnEnforcer: fallback reset to Rainbow Fields spawn");
         ClearPending();
-#endif
     }
 
     /// <summary>

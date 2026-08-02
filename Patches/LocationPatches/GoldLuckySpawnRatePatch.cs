@@ -52,6 +52,12 @@ internal static class GoldLuckySpawnRatePatch
     // 5/13 game update changed its native prologue).
     private static string? _lastZoneRef = null;
 
+    // Bounded retry window after each zone change — see the comment in TryApplyIfNeeded.
+    private const  float RetrySeconds       = 1f;
+    private const  float RetryWindowSeconds = 60f;
+    private static float _nextRetry  = 0f;
+    private static float _retryUntil = 0f;
+
     private static readonly string[] TargetKeywords = { "Gold", "Lucky" };
 
     /// <summary>
@@ -67,22 +73,34 @@ internal static class GoldLuckySpawnRatePatch
         // Detect zone transitions and reset so new scene's spawners get their weights scaled.
         // This replaces the removed DirectedActorSpawner.Start() Postfix (which crashed after
         // the 5/13 game update changed Start()'s native prologue).
-        string? currentZone = null;
-        try
-        {
-            var player = SceneContext.Instance?.Player;
-            var tp = player?.GetComponent<TeleportablePlayer>();
-            currentZone = tp?.SceneGroup?.ReferenceId;
-        }
-        catch { /* SceneContext not ready — skip zone check this frame */ }
+        // Reads the zone the Update loop already resolved rather than repeating GetComponent.
+        string? currentZone = SlimeRancher2AP.Archipelago.TrapHandler.CurrentZoneRef;
 
         if (currentZone != _lastZoneRef)
         {
-            _lastZoneRef = currentZone;
-            _applied = false; // new zone → new spawner instances → re-scan next frame
+            _lastZoneRef  = currentZone;
+            _applied      = false; // new zone → new spawner instances → re-scan
+            _retryUntil   = Time.unscaledTime + RetryWindowSeconds;
+            _nextRetry    = 0f;
         }
 
         if (_applied) return;
+
+        // Throttled retry.
+        //
+        // This used to run FindObjectsOfTypeAll<DirectedActorSpawner> on EVERY frame until it
+        // found something to scale — and in a zone with no Gold/Lucky spawners at all (the
+        // ranch, where players spend most of their time) "something to scale" never happens, so
+        // it scanned forever. Profiling put it at 0.249 ms/frame, the single most expensive
+        // thing in the mod.
+        //
+        // Spawners stream in after the zone does, so a one-shot attempt would miss late
+        // arrivals; instead retry once a second for a bounded window after each zone change,
+        // then stop until the next one.
+        float now = Time.unscaledTime;
+        if (now > _retryUntil) return;      // window closed — nothing more to find here
+        if (now < _nextRetry) return;
+        _nextRetry = now + RetrySeconds;
 
         var slotData = Plugin.Instance.ApClient?.SlotData;
         if (slotData == null) return; // not connected yet
@@ -136,7 +154,9 @@ internal static class GoldLuckySpawnRatePatch
                 $"Gold/Lucky member(s) across {spawners.Count} spawner(s)");
             _applied = true;
         }
-        // If scaled == 0 (no relevant zone loaded yet), leave _applied false and retry next frame.
+        // If scaled == 0 this zone has no Gold/Lucky spawners loaded (yet). Leave _applied false
+        // so the throttled retry keeps looking until the window closes — many zones legitimately
+        // never scale anything, which is exactly why the retry must be bounded.
     }
 
     /// <summary>

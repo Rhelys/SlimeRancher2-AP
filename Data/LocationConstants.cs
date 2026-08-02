@@ -370,9 +370,22 @@ public static class LocationConstants
     public const long ResearchDrone_BluffsSaber            = 819471;
     public const long ResearchDrone_BluffsFinal            = 819472;
     // =========================================================================
-    // RESEARCH DRONE ARCHIVES: 819473 â€” 819495
-    // 13 of the 23 drones have an archivedEntry (confirmed via Resources scan).
-    // Conservatory (5) + Rainbow Fields (2) + Ember Valley (3) + Strand (3).
+    // RESEARCH DRONE ARCHIVES: 819473 â€” 819495, continued at 820075 â€” 820080  (19 total)
+    // Only SOME drones have an archivedEntry.  Where one exists it is named
+    // "<DroneEntryName>Archive", but the presence of an archive is per-drone: the 4 Powderfall
+    // Bluffs drones have none, so the naming pattern alone proves nothing.
+    //
+    // COMPLETE as of 2026-08-02 — asset dumps covering every zone accounted for all 23 drones.
+    // Before that these rows were built by discovery (the patch logs an "Unknown archive entry"
+    // warning when a player opens an archive with no table row), which only ever covered drones
+    // someone had actually reached with the Archive Key and left the set stuck at 13.
+    // A row for an archive that does not exist is an unreachable AP location and can make a seed
+    // unbeatable, so verify new drones with
+    // F9 → Dumps → "Dump Research Drone Archives" (once per zone; SR2 streams them).
+    //
+    // The continuation block starts at 820075 because 819496–819499 leaves only 4 free and the
+    // intervening IDs belong to Ghostly Drones.
+    //
     // Repurposed from the “GL research drones” reserved block (no GL drones exist).
     // =========================================================================
     public const long ResearchDroneArchive_Gully                  = 819473;
@@ -390,6 +403,18 @@ public static class LocationConstants
     public const long ResearchDroneArchive_StrandWaterfall        = 819494;
     public const long ResearchDroneArchive_StrandLabyrinthGate    = 819495;
     // 819496–819499 spare
+    // Continuation block (820075+) — archives confirmed after the original 13.
+    // 820075 came from a player report; 820076–820080 from asset dumps taken in Ember Valley,
+    // Starlight Strand and the Conservatory on 2026-08-02, which observed 19 of the 23 drones
+    // and found an archive on every one of them.
+    public const long ResearchDroneArchive_StrandSplitTree        = 820075;
+    public const long ResearchDroneArchive_GorgeOceanPerch        = 820076;
+    public const long ResearchDroneArchive_GorgeCaveHub           = 820077;
+    public const long ResearchDroneArchive_GorgeMagmaFieldsPerch  = 820078;
+    public const long ResearchDroneArchive_StrandMushroomAlley    = 820079;
+    public const long ResearchDroneArchive_StrandSlopedCliff      = 820080;
+    // 820081+ spare. There is no PB block: all 4 Powderfall Bluffs drones report
+    // archivedEntry == null (confirmed by asset dump, not just by in-game observation).
 
     // =========================================================================
     // GHOSTLY DRONES: 819480 â€” 819494

@@ -139,6 +139,10 @@ internal static class RadiantSlimeSpawnRatePatch
     // for each new scene's RadiantSlimeDirector without patching RadiantSlimeDirector.Start().
     private static string? _lastZoneRef = null;
 
+    // Throttle for the "director not ready" retry path — see TryApplyIfNeeded.
+    private const  float RetrySeconds = 1f;
+    private static float _nextRetry   = 0f;
+
     /// <summary>
     /// Called every Update frame from <c>Plugin.cs</c>.
     /// Runs in two stages that may succeed on different frames:
@@ -160,14 +164,8 @@ internal static class RadiantSlimeSpawnRatePatch
         // Detect zone transitions so we re-seed live bags for each new scene's director.
         // This replaces the removed RadiantSlimeDirector.Start() Postfix (which crashed after
         // the 5/13 game update changed Start()'s native prologue).
-        string? currentZone = null;
-        try
-        {
-            var player = SceneContext.Instance?.Player;
-            var tp = player?.GetComponent<TeleportablePlayer>();
-            currentZone = tp?.SceneGroup?.ReferenceId;
-        }
-        catch { /* SceneContext not ready — skip zone check this frame */ }
+        // Reads the zone the Update loop already resolved rather than repeating GetComponent.
+        string? currentZone = SlimeRancher2AP.Archipelago.TrapHandler.CurrentZoneRef;
 
         if (currentZone != _lastZoneRef)
         {
@@ -179,8 +177,14 @@ internal static class RadiantSlimeSpawnRatePatch
 
         if (_bagSizesScaled && _livebagsSeeded) return;
 
+        // Throttle the not-ready retry: everything below this point runs Resources scans, and
+        // until the director exists they would otherwise run every frame.
+        float nowT = Time.unscaledTime;
+        if (nowT < _nextRetry) return;
+        _nextRetry = nowT + RetrySeconds;
+
         var slotData = Plugin.Instance.ApClient?.SlotData;
-        if (slotData == null) return; // not connected yet — retry next frame
+        if (slotData == null) return; // not connected yet — retry on the next interval
 
         var multiplier = slotData.RadiantSpawnRateMultiplier;
         if (multiplier <= 1)

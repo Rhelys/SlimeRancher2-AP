@@ -574,9 +574,17 @@ public static class LocationTable
         new(LocationConstants.ResearchDrone_BluffsFinal,         "Research Drone: Powderfall Bluffs - Below Eastern Map Node", LocationType.ResearchDrone, "zoneBluffs_Area3", "Drone_2", "ResearchDroneBluffsFinal"),
 
         // -------------------------------------------------------------------------
-        // RESEARCH DRONE ARCHIVES (IDs 819473–819495)
-        // EntryName = ResearchDroneEntry.archivedEntry asset name (confirmed via Resources scan).
-        // 13 drones have archive content; 10 do not (archivedEntry == null, silently skipped).
+        // RESEARCH DRONE ARCHIVES (IDs 819473–819495 and 820075–820080)
+        // EntryName = ResearchDroneEntry.archivedEntry asset name, always "<DroneEntryName>Archive".
+        //
+        // 19 rows, and this set is COMPLETE. Asset dumps on 2026-08-02 across the Conservatory,
+        // Rainbow Fields, Ember Valley, Starlight Strand and Powderfall Bluffs accounted for all
+        // 23 drones: 19 have an archivedEntry, and the 4 Powderfall Bluffs drones report null.
+        //
+        // A row whose archive asset does not exist is an unreachable AP location, so if a game
+        // update adds drones, never add rows from the naming pattern alone — PB shows the pattern
+        // says nothing about whether an archive exists. Confirm with
+        // F9 → Dumps → "Dump Research Drone Archives", run once per zone (SR2 streams them).
         // -------------------------------------------------------------------------
 
         // Conservatory sub-zones (5 archives — all 5 Conservatory drones have archives)
@@ -590,15 +598,24 @@ public static class LocationTable
         new(LocationConstants.ResearchDroneArchive_FieldsExpanse,       "Research Drone Archive: Rainbow Fields - First big area",              LocationType.ResearchDroneArchive, "zoneFields_Area1", "Drone_2", "ResearchDroneFieldsExpanseArchive"),
         new(LocationConstants.ResearchDroneArchive_FieldsBluff,         "Research Drone Archive: Rainbow Fields - By path to Starlight Strand", LocationType.ResearchDroneArchive, "zoneFields_Area3", "Drone_2", "ResearchDroneFieldsBluffArchive"),
 
-        // Ember Valley / zoneGorge (3 of 6 drones have archives)
+        // Ember Valley / zoneGorge (all 6 drones — archives confirmed by dump 2026-08-02)
         new(LocationConstants.ResearchDroneArchive_GorgeOverlook,       "Research Drone Archive: Ember Valley - Before 3-geyser main area", LocationType.ResearchDroneArchive, "zoneGorge_Area1", "Drone_2", "ResearchDroneGorgeOverlookArchive"),
         new(LocationConstants.ResearchDroneArchive_GorgeRuinedOverlook, "Research Drone Archive: Ember Valley - Below Angler ruins",        LocationType.ResearchDroneArchive, "zoneGorge_Area2", "Drone_2", "ResearchDroneGorgeRuinedOverlookArchive"),
+        new(LocationConstants.ResearchDroneArchive_GorgeOceanPerch,     "Research Drone Archive: Ember Valley - Next to Tabby Gordo",       LocationType.ResearchDroneArchive, "zoneGorge_Area3", "Drone_2", "ResearchDroneGorgeOceanPerchArchive"),
+        new(LocationConstants.ResearchDroneArchive_GorgeCaveHub,        "Research Drone Archive: Ember Valley - In main lava cave",         LocationType.ResearchDroneArchive, "zoneGorge_Area4", "Drone_2", "ResearchDroneGorgeCaveHubArchive"),
         new(LocationConstants.ResearchDroneArchive_GorgeLabyrinthGate,  "Research Drone Archive: Ember Valley - Grey Labyrinth Gate",       LocationType.ResearchDroneArchive, "zoneGorge_Area4", "Drone_2", "ResearchDroneGorgeLabyrinthGateArchive"),
+        new(LocationConstants.ResearchDroneArchive_GorgeMagmaFieldsPerch,"Research Drone Archive: Ember Valley - Magma Fields Perch",       LocationType.ResearchDroneArchive, "zoneGorge_Area4", "Drone_2", "ResearchDroneGorgeMagmaFieldsPerchArchive"),
 
-        // Starlight Strand / zoneStrand (3 of 6 drones have archives)
+        // Starlight Strand / zoneStrand (all 6 drones — archives confirmed by dump 2026-08-02)
         new(LocationConstants.ResearchDroneArchive_StrandField,         "Research Drone Archive: Starlight Strand - Start of Blue area",    LocationType.ResearchDroneArchive, "zoneStrand",       "Drone_2", "ResearchDroneStrandFieldArchive"),
+        new(LocationConstants.ResearchDroneArchive_StrandMushroomAlley, "Research Drone Archive: Starlight Strand - Mushroom Alley",        LocationType.ResearchDroneArchive, "zoneStrand_Area1", "Drone_2", "ResearchDroneStrandMushroomAlleyArchive"),
         new(LocationConstants.ResearchDroneArchive_StrandWaterfall,     "Research Drone Archive: Starlight Strand - In front of Honey Gordo",LocationType.ResearchDroneArchive, "zoneStrand_Area2", "Drone_2", "ResearchDroneStrandWaterfallArchive"),
+        new(LocationConstants.ResearchDroneArchive_StrandSplitTree,     "Research Drone Archive: Starlight Strand - Central Blue/Red split area", LocationType.ResearchDroneArchive, "zoneStrand_Area2", "Drone_2", "ResearchDroneStrandSplitTreeArchive"),
+        new(LocationConstants.ResearchDroneArchive_StrandSlopedCliff,   "Research Drone Archive: Starlight Strand - Southeast Red path",    LocationType.ResearchDroneArchive, "zoneStrand_Area3", "Drone_2", "ResearchDroneStrandSlopedCliffArchive"),
         new(LocationConstants.ResearchDroneArchive_StrandLabyrinthGate, "Research Drone Archive: Starlight Strand - Grey Labyrinth Gate",   LocationType.ResearchDroneArchive, "zoneStrand_Area4", "Drone_2", "ResearchDroneStrandLabyrinthGateArchive"),
+
+        // Powderfall Bluffs / zoneBluffs — NONE. All 4 PB drones lack an archivedEntry
+        // (observed in-game 2026-08-01). Do not add rows here without dump evidence.
 
         // -------------------------------------------------------------------------
         // GHOSTLY DRONES (IDs 819480–819494)

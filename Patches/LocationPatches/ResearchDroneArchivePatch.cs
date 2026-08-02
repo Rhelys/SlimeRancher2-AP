@@ -51,14 +51,16 @@ internal static class ResearchDroneArchivePatch
         if (archiveEntry == null)
             return; // This drone has no archive content — nothing to check.
 
-        // TODO: populate LocationTable with archive-type entries once we know which
-        // drones have archives. Until then the TryGetByEntryName call will fall through
-        // to the warning below, which is useful for discovery.
+        // All 23 drones now have an archive row, so this branch means either a game update
+        // renamed an asset or a new drone was added. Either way the archive is a dead location
+        // for the seed, so warn loudly rather than failing silently — that is how the original
+        // 10 missing rows were found. F9 → Dumps → "Dump Research Drone Archives" lists every
+        // loaded entry and flags the ones with no table row.
         if (!LocationTable.TryGetByEntryName(archiveName, out var info) || info is null)
         {
             Logger.Warning(
                 $"[AP-Drone] Unknown archive entry '{archiveName}' (main='{mainName}') " +
-                $"— add to LocationTable once IDs are allocated");
+                $"— no AP location is mapped to it, so no check was sent");
             return;
         }
 

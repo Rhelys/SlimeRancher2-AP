@@ -25,32 +25,75 @@ public static class PauseMenuGoalDisplay
 {
     private const string LabelName    = "APGoalLabel";
     private const string PanelName    = "APPlortSalesPanel";
-    private const int    PollInterval = 15; // ~4×/second at 60 fps
-    private static int   _pollCounter;
+
+    /// <summary>
+    /// Seconds between polls.  Time-based, not frame-counted: a frame counter makes the poll
+    /// rate scale with the frame rate, so the work per second grows exactly when the machine
+    /// is already busy — at 144 fps the old "every 15 frames" ran ~10×/second, not the ~4
+    /// it was written for.
+    /// </summary>
+    private const float  PollSeconds = 0.25f;
+    private static float _nextPoll;
+
+    /// <summary>Seconds between root re-scans while no root has been cached yet.</summary>
+    private const float  RescanSeconds = 2f;
+    private static float _nextScan;
+
+    /// <summary>
+    /// Cached pause-menu root.  <c>PauseMenuRoot</c> exists in the loaded scene whether or not
+    /// the menu is open — it is the *active* state that changes — so the expensive scan only
+    /// needs to run once per scene, and each poll afterwards is a property read.
+    ///
+    /// This matters: <c>Resources.FindObjectsOfTypeAll</c> walks every loaded object and asset
+    /// and marshals the matches across the IL2CPP boundary. Running it ~10×/second purely to
+    /// discover that the pause menu is closed was the single most expensive thing the mod did
+    /// during ordinary play.
+    /// </summary>
+    private static PauseMenuRoot? _cachedRoot;
+
+    /// <summary>Drops the cached root so the next poll re-scans (scene load / teardown).</summary>
+    public static void Reset() => _cachedRoot = null;
 
     /// <summary>Called every frame from <c>ApUpdateBehaviour.Update</c>.</summary>
     internal static void Tick()
     {
-        if (++_pollCounter < PollInterval) return;
-        _pollCounter = 0;
+        float now = Time.unscaledTime;
+        if (now < _nextPoll) return;
+        _nextPoll = now + PollSeconds;
 
         if (!Plugin.Instance.ModEnabled) return;
 
         PauseMenuRoot? activeRoot = null;
         try
         {
-            var roots = Resources.FindObjectsOfTypeAll<PauseMenuRoot>();
-            for (int i = 0; i < roots.Length; i++)
+            // Fast path: re-use the cached root. Unity-null means the scene changed under us.
+            if (_cachedRoot != null)
             {
-                var r = roots[i];
-                if (r != null && r.isActiveAndEnabled && r.gameObject.activeInHierarchy)
+                activeRoot = _cachedRoot.isActiveAndEnabled && _cachedRoot.gameObject.activeInHierarchy
+                    ? _cachedRoot
+                    : null;
+            }
+            else if (now >= _nextScan || Time.timeScale == 0f)
+            {
+                // Only reached until a root has been cached. Rate-limited well below the poll
+                // rate so a scene with no PauseMenuRoot yet cannot reintroduce a per-poll scan,
+                // with an immediate scan whenever the game is paused (timeScale 0) so a root
+                // created on first open is picked up without waiting out the interval.
+                _nextScan = now + RescanSeconds;
+                var roots = Resources.FindObjectsOfTypeAll<PauseMenuRoot>();
+                for (int i = 0; i < roots.Length; i++)
                 {
-                    activeRoot = r;
+                    var r = roots[i];
+                    if (r == null) continue;
+                    // Cache the first live root regardless of active state — an inactive root is
+                    // still the one that will be activated when the player opens the menu.
+                    _cachedRoot = r;
+                    if (r.isActiveAndEnabled && r.gameObject.activeInHierarchy) activeRoot = r;
                     break;
                 }
             }
         }
-        catch { return; } // scene transition
+        catch { _cachedRoot = null; return; } // scene transition — re-scan next poll
 
         if (activeRoot == null) return; // menu closed — the labels (children) hide with it
 

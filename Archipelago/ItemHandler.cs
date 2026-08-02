@@ -1554,6 +1554,15 @@ public static class TrapHandler
     private static string? _lastSeenGroupRef = null;
 
     /// <summary>
+    /// The player's current <c>SceneGroup.ReferenceId</c>, as of the last <see cref="TrackCurrentZone"/>
+    /// call this frame. Read this instead of doing your own
+    /// <c>SceneContext.Instance.Player.GetComponent&lt;TeleportablePlayer&gt;()</c> — several
+    /// per-frame patches each did their own, paying for the same IL2CPP round trip three times
+    /// over just to notice a zone change that happens a handful of times per session.
+    /// </summary>
+    public static string? CurrentZoneRef => _lastSeenGroupRef;
+
+    /// <summary>
     /// Called by <c>RegionGatePatch.Postfix</c> whenever a tracked region gate opens (DOWN).
     /// Records the region as accessible for this session.
     /// </summary>
@@ -1627,7 +1636,7 @@ public static class TrapHandler
     /// rewarded by that very check cannot interrupt the interaction that sent it
     /// (map node activation, gordo pop, treasure pod opening, …).
     /// </summary>
-    private const int CheckInteractionGraceMs = 5000;
+    private const int CheckInteractionGraceMs = 2000;
 
     /// <summary>
     /// Per-group minimum interval (seconds) between consecutive fires within that group.
@@ -1647,16 +1656,26 @@ public static class TrapHandler
     private static readonly float[] _lastGroupFiredAt = { -1f, -1f, -1f };
 
     /// <summary>
-    /// Per-group deferred queues.  Rate-limited traps park here; <see cref="Tick"/> promotes
+    /// Per-group deferred pools.  Rate-limited traps park here; <see cref="Tick"/> promotes
     /// one entry per group per frame once the grace period and group cooldown have passed.
     /// Index matches <see cref="TrapGroup"/> ordinal.
+    ///
+    /// A List rather than a Queue because promotion picks a RANDOM entry, not the oldest:
+    /// the AP server delivers a released multiworld's items grouped by type, so FIFO drainage
+    /// played every Slime Ring, then every Vac Fill, then every Vac Spew in long uniform runs.
+    /// Random selection interleaves them. Safe with respect to the save watermark — traps are
+    /// ephemeral items tracked individually by index in <c>_ephemeralSet</c>, and anything
+    /// still parked here is in <c>_deferredSet</c> and re-queued on the next connect.
     /// </summary>
-    private static readonly Queue<(ApItemInfo apItem, int itemIndex)>[] _deferredByGroup =
+    private static readonly List<(ApItemInfo apItem, int itemIndex)>[] _deferredByGroup =
     {
         new(), // Spawn
         new(), // Weather
         new(), // Teleport
     };
+
+    /// <summary>RNG for deferred-trap promotion order.  Seeded from the clock — cosmetic only.</summary>
+    private static readonly System.Random _deferredRng = new();
 
     /// <summary>
     /// Returns true when it is safe to fire a trap in <paramref name="group"/>
@@ -1798,7 +1817,11 @@ public static class TrapHandler
                     bool cooldownOk = _lastGroupFiredAt[g] < 0f
                                    || now >= _lastGroupFiredAt[g] + GroupMinInterval[g];
                     if (!cooldownOk) continue;
-                    var (trapApItem, trapIndex) = q.Dequeue();
+                    // Pick a random parked trap rather than the oldest so that a released
+                    // multiworld's type-grouped item stream comes out interleaved.
+                    int pick = _deferredRng.Next(q.Count);
+                    var (trapApItem, trapIndex) = q[pick];
+                    q.RemoveAt(pick);
                     Plugin.Instance.ApClient.RequeueItem(trapApItem, trapIndex);
                     Logger.Info(
                         $"[AP] TrapHandler: promoted deferred {(TrapGroup)g} trap to item queue " +
@@ -1864,7 +1887,7 @@ public static class TrapHandler
             if (apItem != null)
             {
                 var q = _deferredByGroup[(int)deferGroup.Value];
-                q.Enqueue((apItem, itemIndex));
+                q.Add((apItem, itemIndex));
                 // Persist the deferred index so a disconnect before the trap fires doesn't
                 // lose it permanently (the watermark may advance past this index before Tick()
                 // promotes it; without persistence the trap would be silently skipped on reconnect).
@@ -2564,7 +2587,7 @@ public static class TrapHandler
         _lastGroupFiredAt[(int)TrapGroup.Weather] = UnityEngine.Time.time;
         Logger.Info(
             $"[AP] SlimeRainTrap: started Slime Rain (Tarr override) on {found.Count} director(s) for {durationSeconds}s");
-        SlimeRancher2AP.UI.StatusHUD.Instance?.ShowNotification("Trap: Slime Rain!");
+        SlimeRancher2AP.UI.StatusHUD.Instance?.ShowNotification("Trap: Tarr Rain!");
         return true;
     }
 

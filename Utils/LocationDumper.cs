@@ -16,6 +16,7 @@ using Il2CppMonomiPark.SlimeRancher.Shop;
 using Il2CppMonomiPark.SlimeRancher.Shop.Runtime;
 using Il2CppMonomiPark.SlimeRancher.UI.Shop.Pages;
 using Il2CppMonomiPark.SlimeRancher.World.ResearchDrone;
+using SlimeRancher2AP.Data;
 using SlimeRancher2AP.Utils;
 using System;
 using System.Collections.Generic;
@@ -1211,9 +1212,86 @@ public static class LocationDumper
         foreach (var activator in activators)
         {
             var controller = activator._researchDroneController;
-            var entryName  = controller?.ResearchDroneEntry?.name ?? "<null>";
-            log.LogInfo($"[AP-Dump] ResearchDrone  scene='{activator.gameObject.scene.name}'  entryName='{entryName}'");
+            var entry      = controller?.ResearchDroneEntry;
+            var entryName  = entry?.name ?? "<null>";
+            var archName   = entry?.archivedEntry?.name ?? "<none>";
+            log.LogInfo(
+                $"[AP-Dump] ResearchDrone  scene='{activator.gameObject.scene.name}'  " +
+                $"entryName='{entryName}'  archive='{archName}'");
         }
+    }
+
+    /// <summary>
+    /// Enumerates every loaded <c>ResearchDroneEntry</c> ScriptableObject and reports whether it
+    /// has an <c>archivedEntry</c>, and whether that archive is present in <see cref="LocationTable"/>.
+    ///
+    /// The archive location set was originally built by discovery — walking up to a drone with the
+    /// Archive Key and reading the warning the patch logs for unknown entries — so it was only ever
+    /// as complete as the drones that had actually been visited.  This dump answers the question
+    /// directly instead.
+    ///
+    /// SR2 streams zones, so <c>FindObjectsOfTypeAll</c> only sees entries whose owning scene is
+    /// currently loaded (plus any still resident from an earlier visit).  Run it once per zone and
+    /// merge the results; the trailing summary lists which of the table's known drones were covered.
+    /// </summary>
+    public static void DumpResearchDroneArchives()
+    {
+        var log = Plugin.Instance.Log;
+        log.LogInfo("[AP-Dump] ===== RESEARCH DRONE ARCHIVES =====");
+
+        var entries = Resources.FindObjectsOfTypeAll<ResearchDroneEntry>();
+        log.LogInfo($"[AP-Dump] Loaded ResearchDroneEntry assets: {entries.Count}");
+
+        // Archive entries are themselves ResearchDroneEntry assets, so the sweep returns both
+        // mains and archives.  Collect the archive names first so mains can be told apart.
+        var archiveNames = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var e in entries)
+        {
+            var a = e?.archivedEntry;
+            if (a != null && !string.IsNullOrEmpty(a.name)) archiveNames.Add(a.name);
+        }
+
+        var seenMains = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var entry in entries.OrderBy(e => e?.name ?? ""))
+        {
+            if (entry == null) continue;
+            var name = entry.name ?? "<null>";
+            if (archiveNames.Contains(name)) continue; // listed via its main below
+
+            var archive = entry.archivedEntry;
+            seenMains.Add(name);
+
+            bool droneKnown = LocationTable.TryGetByEntryName(name, out var droneInfo) && droneInfo != null;
+
+            if (archive == null)
+            {
+                log.LogInfo(
+                    $"[AP-Dump] Drone '{name}'  archive=<NONE>  " +
+                    $"(drone location: {(droneKnown ? droneInfo!.Id.ToString() : "NOT IN TABLE")})");
+                continue;
+            }
+
+            bool archKnown = LocationTable.TryGetByEntryName(archive.name, out var archInfo) && archInfo != null;
+            log.LogInfo(
+                $"[AP-Dump] Drone '{name}'  archive='{archive.name}'  " +
+                $"archiveLocation={(archKnown ? archInfo!.Id.ToString() : "*** MISSING FROM LOCATIONTABLE ***")}  " +
+                $"(drone location: {(droneKnown ? droneInfo!.Id.ToString() : "NOT IN TABLE")})");
+        }
+
+        // Coverage summary: which table drones this run did NOT observe, so it is obvious when
+        // more zones still need to be visited before the picture is complete.
+        var tableDrones = LocationTable.All
+            .Where(l => l.Type == LocationType.ResearchDrone && !string.IsNullOrEmpty(l.EntryName))
+            .Select(l => l.EntryName!)
+            .ToList();
+        var missing = tableDrones.Where(n => !seenMains.Contains(n)).ToList();
+        log.LogInfo(
+            $"[AP-Dump] Coverage: {tableDrones.Count - missing.Count}/{tableDrones.Count} known drones " +
+            $"observed in this dump.");
+        if (missing.Count > 0)
+            log.LogInfo($"[AP-Dump] Not loaded (visit their zones and dump again): {string.Join(", ", missing)}");
+
+        log.LogInfo("[AP-Dump] ===== END RESEARCH DRONE ARCHIVES =====");
     }
 
     private static void DumpSwitches(BepInEx.Logging.ManualLogSource log)

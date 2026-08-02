@@ -87,7 +87,13 @@ public class StatusHUD : MonoBehaviour
             _notifications.Dequeue();
     }
 
-    private void OnGUI()
+    // OnGUI is not part of the Update loop, so it is measured separately — and it runs at least
+    // twice per frame (Layout + Repaint), which the "calls" column in the report will show.
+    private static readonly System.Action _drawBody = () => Instance?.DrawGui();
+
+    private void OnGUI() => SlimeRancher2AP.Utils.ModProfiler.Time("StatusHUD.OnGUI", _drawBody);
+
+    private void DrawGui()
     {
         var prev = GUI.color;
         try
@@ -103,9 +109,11 @@ public class StatusHUD : MonoBehaviour
         if (GUI.Button(new Rect(8, 36, 130, 26), modOn ? "AP: Enabled" : "AP: Disabled"))
             Plugin.Instance.SetModEnabled(!modOn);
 
-        // Notifications — stacked below the mod toggle button (start at y=70)
+        // Notifications — stacked below the mod toggle button (start at y=70).
+        // ToArray() allocates, and OnGUI runs at least twice per frame (Layout + Repaint),
+        // so the empty case must not touch the queue at all.
         GUI.color = Color.white;
-        var notices = _notifications.ToArray();
+        var notices = _notifications.Count > 0 ? _notifications.ToArray() : System.Array.Empty<(string message, float expiry)>();
         for (int i = notices.Length - 1; i >= 0; i--)
         {
             float row      = 70f + (notices.Length - 1 - i) * 26f;
