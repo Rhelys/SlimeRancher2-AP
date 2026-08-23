@@ -372,6 +372,15 @@ public class DebugPanel : MonoBehaviour
 
         // Exercises the popup path without a live multiworld. Bypasses TierFor (which needs AP
         // flags) and goes straight to the queue, so it also demonstrates the rate limit.
+        y = SectionLabel(x, y, "Prismacore Hunt");
+        GUI.Label(new Rect(x + 4, y, PanelW - 8, LabelH),
+            $"Prisma Shards: {Archipelago.PrismaShardHandler.Progress}   " +
+            $"encounter {(Archipelago.PrismaShardHandler.IsEncounterUnlocked ? "UNLOCKED" : "SEALED")}");
+        y += LabelH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Grant Prisma Shard"))
+            ItemHandler.ApplyById(ItemTable.PrismaShard, -1);
+        y += BtnH + Gap;
+
         y = SectionLabel(x, y, "Item Notifications");
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Test: Major popup"))
             ItemNotifier.DebugShowMajor("Progressive Vacpack Upgrade");

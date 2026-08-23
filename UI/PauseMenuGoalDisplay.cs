@@ -1,4 +1,4 @@
-using Il2CppMonomiPark.SlimeRancher.UI;
+﻿using Il2CppMonomiPark.SlimeRancher.UI;
 using SlimeRancher2AP.Archipelago;
 using System.Linq;
 using TMPro;
@@ -156,6 +156,15 @@ public static class PauseMenuGoalDisplay
             case "prismacore":
                 body = "STABILIZE THE PRISMACORE";
                 break;
+            case "prismacore_hunt":
+            {
+                int have = Archipelago.PrismaShardHandler.Collected;
+                int need = Archipelago.PrismaShardHandler.Required;
+                body = have >= need
+                    ? $"STABILIZE THE PRISMACORE - SHARDS {have}/{need} (UNLOCKED)"
+                    : $"COLLECT PRISMA SHARDS - {have}/{need}";
+                break;
+            }
             case "plort_seller":
             {
                 // Per-type progress display is a future bespoke panel; for now show the

@@ -1,6 +1,6 @@
-namespace SlimeRancher2AP.Data;
+﻿namespace SlimeRancher2AP.Data;
 
-public enum ItemType { RegionAccess, Upgrade, Gadget, Filler, Useful, UpgradeComponent, Trap, ConservatoryExpansion, RanchPlot }
+public enum ItemType { RegionAccess, Upgrade, Gadget, Filler, Useful, UpgradeComponent, Trap, ConservatoryExpansion, RanchPlot, PrismaShard }
 
 /// <summary>Describes a single Archipelago item this game can send or receive.</summary>
 public record ItemInfo(long Id, string Name, ItemType Type);
@@ -193,6 +193,15 @@ public static class ItemTable
     public const long IncineratorUpgradePlortCollector = 819672; // 'PlortCollectorIncerator Upgrade' (game asset typo is real)
 
     // -------------------------------------------------------------------------
+    // Prisma Shard: 819673 — the prismacore_hunt goal's collectible.
+    //
+    // Deliberately NOT Filler/Useful/Trap: those types are ephemeral-guarded and skipped on
+    // replay, and while the running count comes from the server snapshot rather than replay
+    // state, giving shards their own type keeps them out of that machinery entirely.
+    // -------------------------------------------------------------------------
+    public const long PrismaShard = 819673;
+
+    // -------------------------------------------------------------------------
     // Item rows
     // -------------------------------------------------------------------------
 
@@ -351,6 +360,9 @@ public static class ItemTable
         new(PondUpgradePlortCollector,   "Pond Upgrade: Plort Collector",   ItemType.RanchPlot),
         new(IncineratorUpgradeAshTrough,      "Incinerator Upgrade: Ash Trough",      ItemType.RanchPlot),
         new(IncineratorUpgradePlortCollector, "Incinerator Upgrade: Plort Collector", ItemType.RanchPlot),
+
+        // Prismacore Hunt
+        new(PrismaShard, "Prisma Shard", ItemType.PrismaShard),
     };
 
     private static readonly Dictionary<long, ItemInfo> _byId = All.ToDictionary(i => i.Id);

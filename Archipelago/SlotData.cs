@@ -249,6 +249,17 @@ public class SlotData
     /// </summary>
     public string ItemNotifications { get; init; } = "progression_useful";
 
+    /// <summary>
+    /// Prisma Shards needed to unlock the Prismacore encounter (<c>prismacore_hunt</c> goal).
+    /// Slot data key: <c>"prisma_shards_required"</c>.
+    /// </summary>
+    public int PrismaShardsRequired { get; init; } = 0;
+
+    /// <summary>
+    /// Total Prisma Shards placed in the pool. Display only — the gate uses
+    /// <see cref="PrismaShardsRequired"/>. Slot data key: <c>"prisma_shards_total"</c>.
+    /// </summary>
+    public int PrismaShardsTotal { get; init; } = 0;
 
     public static SlotData Parse(Dictionary<string, object> raw)
     {
@@ -293,6 +304,8 @@ public class SlotData
             RandomizeConservatoryExpansions = GetBool(raw, "randomize_conservatory_expansions", defaultVal: false),
             PlortMarketMode                 = GetString(raw, "plort_market_mode", "disabled"),
             ItemNotifications               = GetString(raw, "item_notifications", "progression_useful"),
+            PrismaShardsRequired            = (int)GetLong(raw, "prisma_shards_required", 0),
+            PrismaShardsTotal               = (int)GetLong(raw, "prisma_shards_total", 0),
         };
     }
 

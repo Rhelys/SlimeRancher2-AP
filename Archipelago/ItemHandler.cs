@@ -247,6 +247,14 @@ public static class ItemHandler
             case ItemType.RanchPlot:
                 ApplyRanchPlot(item, apItem, itemIndex); // count-based, always succeeds
                 break;
+            case ItemType.PrismaShard:
+                // Nothing to grant in-world: the shard exists only as a counter for the
+                // prismacore_hunt gate. Invalidate the cache so the next gate check recounts.
+                PrismaShardHandler.MarkDirty();
+                Logger.Info(
+                    $"[AP] Prisma Shard received — {PrismaShardHandler.Collected}/" +
+                    $"{PrismaShardHandler.Required}");
+                break;
         }
 
         if (advanceWatermark)
