@@ -100,6 +100,20 @@ internal static class RegionGateActivatePatch
 
         Logger.Info(
             $"[AP] Blocked gate Activate: '{switchName}' ('{regionName}' not yet received) — button left enabled.");
+
+        // Tell the player why the button did nothing. Without this the gate reads as broken:
+        // the check IS sent (so other players are unblocked) but the gate deliberately stays
+        // shut, which is indistinguishable from a bug from the player's side.
+        // Keyed per region so pressing two different gates each explain themselves.
+        // regionName is the AP item name ("Ember Valley Access"); the region itself is that minus
+        // the suffix. Naming both tells the player which region AND what unlocks it.
+        var displayName = regionName.EndsWith(" Access")
+            ? regionName.Substring(0, regionName.Length - " Access".Length)
+            : regionName;
+        SlimeRancher2AP.UI.ApPopup.ShowThrottled(
+            $"gate-press-{regionName}", $"{displayName} is locked",
+            "Archipelago", $"Requires: {regionName}");
+
         return false;
     }
 

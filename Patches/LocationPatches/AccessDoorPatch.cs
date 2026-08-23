@@ -1,4 +1,4 @@
-using HarmonyLib;
+﻿using HarmonyLib;
 using Il2CppMonomiPark.SlimeRancher.UI.AccessDoor;
 using Il2CppMonomiPark.SlimeRancher.UI.Framework.Displays;
 using Il2CppMonomiPark.SlimeRancher.UI.Purchase;
@@ -203,6 +203,9 @@ internal static class AccessDoorPurchasePatch
         if (Plugin.Instance.SaveManager.IsChecked(locInfo.Id))
         {
             Logger.Info($"[AP] Expansion already checked, blocking re-purchase: {locInfo.Name}");
+            // Already sent, still shut — say so, or the terminal reads as broken on re-press.
+            UI.ApPopup.ShowThrottled($"expansion-{doorId}", "Expansion Access required",
+                                     "Archipelago", "Expansion locked");
             return false;
         }
 
@@ -210,6 +213,13 @@ internal static class AccessDoorPurchasePatch
         Logger.Info($"[AP] Conservatory expansion check sent: {locInfo.Name} (door='{doorId}')");
         // If the AP item for this door already arrived before the check was sent, open the door now.
         Archipelago.ItemHandler.TriggerPendingDoorUnlock(doorId);
+
+        // Same reasoning as the region gate: the check is sent (unblocking other players) but the
+        // door deliberately stays locked until our own Access item arrives. Silence here is
+        // indistinguishable from the terminal being broken.
+        UI.ApPopup.ShowThrottled($"expansion-{doorId}", "Expansion Access required",
+                                 "Archipelago", "Expansion locked");
+
         return false; // block original — no Newbucks spent, door stays locked until AP item received
     }
 }

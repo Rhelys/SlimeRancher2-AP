@@ -1,4 +1,4 @@
-using HarmonyLib;
+﻿using HarmonyLib;
 using Il2CppMonomiPark.SlimeRancher.Economy;
 using Il2CppMonomiPark.SlimeRancher.UI;
 using Il2CppMonomiPark.SlimeRancher.UI.Plot;
@@ -43,7 +43,7 @@ internal static class RanchPlotInteractPatch
         if (RanchPlotHandler.CanBuildOnPlot(plot, out var blockMessage)) return true;
 
         Logger.Info($"[AP] Plot interaction blocked — {blockMessage}");
-        StatusHUD.Instance?.ShowNotification(blockMessage);
+        ApPopup.ShowThrottled("plot-locked", blockMessage, "Archipelago", "Plot locked");
         return false; // do not open the plot purchase UI
     }
 }
@@ -67,7 +67,8 @@ internal static class RanchPlotReplacePatch
                 Logger.Warning(
                     $"[AP] Blocked plot build: {newType} — its Plans item has not been received " +
                     "(menu filter was bypassed)");
-                StatusHUD.Instance?.ShowNotification($"AP: {newType} locked - Plans item not received yet");
+                ApPopup.ShowThrottled("plot-plans", $"{newType} Plans not received",
+                                      "Archipelago", "Building locked");
                 // The game already charged the purchase before Replace — give it back.
                 RanchPlotHandler.RefundNewbucks(
                     RanchPlotHandler.VanillaBuildCost(newType), $"blocked locked {newType} build");
@@ -82,7 +83,7 @@ internal static class RanchPlotReplacePatch
             && !RanchPlotHandler.CanBuildOnPlot(oldLandPlot, out var blockMessage))
         {
             Logger.Warning($"[AP] Blocked plot build at Replace — {blockMessage}");
-            StatusHUD.Instance?.ShowNotification(blockMessage);
+            ApPopup.ShowThrottled("plot-slot", blockMessage, "Archipelago", "Plot locked");
             RanchPlotHandler.RefundNewbucks(
                 RanchPlotHandler.VanillaBuildCost(newType), "blocked build (no free plot slot)");
             __result = null;
@@ -108,7 +109,8 @@ internal static class RanchPlotUpgradePatch
         if (upgradeItem == null || RanchPlotHandler.HasItem(upgradeItem.Value)) return true;
 
         Logger.Info($"[AP] Blocked plot upgrade: {upgrade} on {building} — item not received yet");
-        StatusHUD.Instance?.ShowNotification("AP: upgrade locked - its item has not been received yet");
+        ApPopup.ShowThrottled("plot-upgrade", "Upgrade not received yet",
+                              "Archipelago", "Upgrade locked");
         __result = false;
         return false;
     }
