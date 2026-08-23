@@ -26,10 +26,22 @@
   </ItemGroup>
 
   <!-- Static assets embedded in the DLL — loaded at runtime via GetManifestResourceStream.
-       logo.png must be present; convert static\logo.webp to static\logo.png to enable the tab icon. -->
+       logo.png must be present; convert static\logo.webp to static\logo.png to enable the tab icon.
+
+       Two files, ONE logical name. logo-small.png is the shipped asset; logo.png is the
+       full-resolution original, kept in the repo as the source to re-export from but not
+       embedded when the small one exists.
+
+       Why: the runtime has no usable PNG decoder (ImageConversion.LoadImage is stripped from
+       this IL2CPP build), so the mod inflates the PNG by hand and copies the pixels into an
+       IL2CPP array one byte at a time. At the original 2034x2112 that is 17.2 MB of individual
+       interop writes — measured at ~450 ms of main-thread stall. At 247x256 it is 253 KB, 68x
+       less work. Nothing on screen uses more than a couple of hundred pixels of it. -->
   <ItemGroup>
+    <EmbeddedResource Include="static\logo-small.png" LogicalName="SlimeRancher2-AP.logo.png"
+                      Condition="Exists('static\logo-small.png')" />
     <EmbeddedResource Include="static\logo.png" LogicalName="SlimeRancher2-AP.logo.png"
-                      Condition="Exists('static\logo.png')" />
+                      Condition="Exists('static\logo.png') And !Exists('static\logo-small.png')" />
   </ItemGroup>
 
   <ItemGroup>

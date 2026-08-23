@@ -1,4 +1,4 @@
-using SlimeRancher2AP.Data;
+﻿using SlimeRancher2AP.Data;
 
 namespace SlimeRancher2AP.Archipelago;
 
@@ -240,6 +240,16 @@ public class SlotData
     /// </summary>
     public string PlortMarketMode { get; init; } = "disabled";
 
+    /// <summary>
+    /// How prominently received items are announced on the HUD.
+    /// "none" = silent; "progression" = major popup for progression items only;
+    /// "progression_useful" = major popup for progression and useful; "all" = both of those
+    /// plus a small side notification for filler and traps.
+    /// Slot data key: <c>"item_notifications"</c>. Consumed by <see cref="UI.ItemNotifier"/>.
+    /// </summary>
+    public string ItemNotifications { get; init; } = "progression_useful";
+
+
     public static SlotData Parse(Dictionary<string, object> raw)
     {
         return new SlotData
@@ -282,6 +292,7 @@ public class SlotData
             GordoFeedRequirement           = (int)Math.Clamp(GetLong(raw, "gordo_feed_requirement", 100), 10, 200),
             RandomizeConservatoryExpansions = GetBool(raw, "randomize_conservatory_expansions", defaultVal: false),
             PlortMarketMode                 = GetString(raw, "plort_market_mode", "disabled"),
+            ItemNotifications               = GetString(raw, "item_notifications", "progression_useful"),
         };
     }
 

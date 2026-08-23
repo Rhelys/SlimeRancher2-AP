@@ -370,6 +370,16 @@ public class DebugPanel : MonoBehaviour
             SaveGuard.ForceAssociateCurrentSave();
         y += BtnH + Gap;
 
+        // Exercises the popup path without a live multiworld. Bypasses TierFor (which needs AP
+        // flags) and goes straight to the queue, so it also demonstrates the rate limit.
+        y = SectionLabel(x, y, "Item Notifications");
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Test: Major popup"))
+            ItemNotifier.DebugShowMajor("Progressive Vacpack Upgrade");
+        y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Test: Burst of 8 (rate limit)"))
+            for (int i = 1; i <= 8; i++) ItemNotifier.DebugShowMajor($"Test Item {i}");
+        y += BtnH + Gap;
+
         y = SectionLabel(x, y, "Performance");
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Log Mod Frame Cost (per-Tick ms)"))
             ModProfiler.Report();

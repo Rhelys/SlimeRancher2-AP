@@ -261,6 +261,10 @@ public static class ItemHandler
             // was just parked (trap rate-limit / expansion hold) and its AddDeferredItem entry
             // is exactly what protects it from being lost below the watermark on reconnect.
             Plugin.Instance.SaveManager.RemoveDeferredItem(itemIndex);
+
+            // Announce it. Hooked here rather than at the individual Notify() call sites so a
+            // requeued item cannot announce itself twice while it waits to actually apply.
+            SlimeRancher2AP.UI.ItemNotifier.OnItemApplied(item, apItem);
         }
     }
 
@@ -1568,6 +1572,14 @@ public static class TrapHandler
     /// </summary>
     public static void MarkRegionOpen(string regionItemName)
         => _runtimeOpenRegions.Add(regionItemName);
+
+    /// <summary>
+    /// True if this region's gate was observed opening during THIS session. In-memory only —
+    /// a false answer means "not seen", not "closed", so callers must fall back to reading the
+    /// switch state rather than treating it as authoritative.
+    /// </summary>
+    public static bool IsRegionOpenThisSession(string regionItemName)
+        => _runtimeOpenRegions.Contains(regionItemName);
 
     /// <summary>
     /// Clears all per-group deferred trap queues.  Called on disconnect to prevent traps

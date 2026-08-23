@@ -1,4 +1,4 @@
-using BepInEx;
+﻿using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Unity.IL2CPP;
 using HarmonyLib;
@@ -140,6 +140,8 @@ public class ApUpdateBehaviour : MonoBehaviour
     private static readonly Action _tGoldLucky    = SlimeRancher2AP.Patches.LocationPatches.GoldLuckySpawnRatePatch.TryApplyIfNeeded;
     private static readonly Action _tMarketMode   = SlimeRancher2AP.Patches.EconomyPatches.PlortMarketModePatch.TryApplyIfNeeded;
     private static readonly Action _tDronePoll    = SlimeRancher2AP.Patches.LocationPatches.ResearchDronePatch.Tick;
+    private static readonly Action _tNotifier     = SlimeRancher2AP.UI.ItemNotifier.Tick;
+    private static readonly Action _tPopup        = SlimeRancher2AP.UI.ApPopup.Tick;
 
     private void Update()
     {
@@ -177,6 +179,8 @@ public class ApUpdateBehaviour : MonoBehaviour
         Prof.Time("GoldLuckySpawnRate",   _tGoldLucky);
         Prof.Time("PlortMarketMode",      _tMarketMode);
         Prof.Time("ResearchDronePoll",    _tDronePoll);
+        Prof.Time("ItemNotifier",         _tNotifier);
+        Prof.Time("ApPopup",              _tPopup);
 #if DEBUG
         SlimeRancher2AP.Utils.DebugTrace.Once("Update.5 — after TrapHandler.Tick");
 #endif
@@ -229,6 +233,10 @@ public class ApUpdateBehaviour : MonoBehaviour
                 _droneSpawnNextTry  = 0f;
                 SlimeRancher2AP.Patches.LocationPatches.ComponentAcqDroneSpawnerFix.ClearSpawnedSet();
                 SlimeRancher2AP.UI.PauseMenuGoalDisplay.Reset();
+                SlimeRancher2AP.UI.ItemNotifier.Reset();
+                SlimeRancher2AP.UI.ApPopup.Reset();
+                // Decode the AP logo here rather than on the first popup — see Prewarm().
+                SlimeRancher2AP.UI.ApPopup.Prewarm();
             }
         }
         if (UnityEngine.Time.time < _droneSpawnDeadline

@@ -359,12 +359,36 @@ prologues changed → trampoline crashes), so some detection is done by **pollin
 
 ---
 
+## Item Notifications (`UI/ItemNotifier.cs`)
+
+Received items are announced through the game's own HUD rather than the mod's IMGUI corner
+text. Driven by the apworld's `item_notifications` option (`none` / `progression` /
+`progression_useful` / `all`), read from slot data as `SlotData.ItemNotifications`.
+
+- **Major popup** = `PreviewPopupStack.EnqueuePopup(PreviewPopupViewModel)` — the same popup the
+  game shows for a new Slimepedia entry. Built from a runtime `PreviewPopupStandaloneConfig`
+  (pinned with `HideFlags.DontUnloadUnusedAsset`), with `Category` **copied from**
+  `PopupDirector.ComponentPopupConfig` rather than guessed at an enum value.
+- **Text**: the view model's fields are `LocalizedString` and cannot carry a runtime item name.
+  Instead the popup's `LocalizeStringEvent`s are frozen and their TMP text written directly
+  (`ShopUiHelper.OverrideText`), re-asserted for ~15 frames because localization fills the label
+  asynchronously after bind.
+- **Icon**: `OptionsMenuInjectionPatch.GetLogoSprite()` — the same AP logo as the shop UI and
+  conversation callouts.
+- **Volume**: one popup per 3 s, queue capped at 20 (overflow collapses into a single
+  "+N more items" popup), and fully suppressed once `GoalHandler.IsGoalComplete` — finishing
+  your own goal releases every remaining item at once.
+- Hooked at the single success path in `ItemHandler.Apply` (where the watermark advances), not
+  at the individual `Notify()` call sites, so a requeued item cannot announce itself twice.
+- Test without a server: F9 → Misc → "Test: Major popup" / "Test: Burst of 8".
+
 ## Stubs / Known Incomplete Work
 
 Items still genuinely incomplete (history of completed work lives in git, not here):
 
 | Area | Status |
 |---|---|
+| Minor item notifications | `item_notifications: all` routes filler/traps to the mod's existing IMGUI corner text, NOT the vanilla side-notification list (`ItemAcquisitionNotificationList`). That list is fed by `INotificationProvider` implementations, which need an IL2CPP type registration to implement from managed code. `NotificationEntry`'s public ctor takes an arbitrary `Sprite`, so a real provider is feasible if the corner text proves unsatisfying. |
 | Plort Market / Market Recovery | Implemented mod-side: first-sale checks in `PlortMarketPatch`; saturation, sale-override, immediate price refresh, and declarative Market Recovery in `PlortMarketModePatch`. In-development warnings removed from the apworld `options.py` (2026-07-06) to allow full testing — **in-game verification still in progress**. |
 | Unverified gadget asset names | `GadgetDefinition.name` guesses marked `(?)` in `ItemHandler.SimpleGadgets`: `MarketLink`, `SuperHydroTurret`, `PortableScareSlime`, `GordoSnareAdvanced`, `MedStation`. Verify via F9 → DumpGadgets; a wrong name logs "not found" instead of granting. (`DashPad`, `SpringPad`, `PortableWaterTap`, `PrismaDisruptionDetector`, `DreamLanternT2` are confirmed.) |
 | Unverified upgrade names | A handful of `UpgradeDefinition.name` values are educated guesses: `AmmoCapacity`, `TankGuard`, `GoldenSureshot`, `ShadowSureshot`, `ArchiveKey`, `EnergyDelay`, `EnergyRegen`. Verify via `DumpUpgradeComponents` in the debug panel. |

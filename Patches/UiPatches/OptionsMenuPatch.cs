@@ -228,8 +228,10 @@ internal static class OptionsMenuInjectionPatch
             var loaded = false;
             try
             {
-                var raw = new Il2CppStructArray<byte>(rgba.LongLength);
-                for (int i = 0; i < rgba.Length; i++) raw[i] = rgba[i];
+                // Bulk-copy via the managed-array constructor. The previous per-element loop
+                // crossed the interop boundary once per byte, which at the original 2034×2112
+                // was 17.2 million writes and ~450 ms of main-thread stall.
+                var raw = new Il2CppStructArray<byte>(rgba);
                 tex.LoadRawTextureData(raw);
                 tex.Apply();
                 loaded = true;
@@ -246,9 +248,11 @@ internal static class OptionsMenuInjectionPatch
             {
                 try
                 {
-                    var colors = new Il2CppStructArray<Color32>((long)(w * h));
-                    for (int i = 0; i < w * h; i++)
-                        colors[i] = new Color32(rgba[i*4], rgba[i*4+1], rgba[i*4+2], rgba[i*4+3]);
+                    // Build managed-side, then hand over in one copy — same reasoning as above.
+                    var managed = new Color32[w * h];
+                    for (int i = 0; i < managed.Length; i++)
+                        managed[i] = new Color32(rgba[i*4], rgba[i*4+1], rgba[i*4+2], rgba[i*4+3]);
+                    var colors = new Il2CppStructArray<Color32>(managed);
                     tex.SetPixels32(colors);
                     tex.Apply();
                     loaded = true;
