@@ -36,9 +36,26 @@ internal static class PuzzleSlotLockableActivatePatch
         if (LocationTable.TryGetByObjectName(posKey, out var locInfo) && locInfo != null
             && locInfo.Type == LocationType.ShadowPlortDoor)
         {
+            // Suppression is UNCONDITIONAL and deliberately not gated by randomize_shadow_doors.
+            // Several of these doors are dispensers that hand out a blueprint / upgrade
+            // component / spawned items, and handing those out for free conflicts with the same
+            // items being randomized into the pool. The option decides only whether the door is
+            // an AP check; the vanilla reward is suppressed either way.
             SuppressVanillaReward(__instance);
-            Plugin.Instance.ApClient.SendCheck(locInfo.Id);
-            Logger.Info($"[AP] Shadow Plort Door check: '{locInfo.Name}' (id={locInfo.Id}) posKey='{posKey}'");
+
+            bool isCheck = string.Equals(
+                Plugin.Instance.ApClient.SlotData?.RandomizeShadowDoors, "locations",
+                System.StringComparison.OrdinalIgnoreCase);
+
+            if (isCheck)
+            {
+                Plugin.Instance.ApClient.SendCheck(locInfo.Id);
+                Logger.Info($"[AP] Shadow Plort Door check: '{locInfo.Name}' (id={locInfo.Id}) posKey='{posKey}'");
+            }
+            else
+            {
+                Logger.Info($"[AP] Shadow Plort Door opened (not a check): '{locInfo.Name}' posKey='{posKey}'");
+            }
         }
 
         return true;

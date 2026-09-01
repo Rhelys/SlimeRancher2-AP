@@ -33,6 +33,16 @@ public class SlotData
     public bool   RandomizeGordos        { get; init; } = true;
     public bool   RandomizePods          { get; init; } = true;
     public bool   RandomizeMapNodes      { get; init; } = true;
+    /// <summary>
+    /// Informational only — no mod behaviour depends on this.
+    /// </summary>
+    /// <remarks>
+    /// Fabricator crafts are AP location checks in both modes. The option decides what the
+    /// apworld puts in them: a shuffled multiworld item when true, or the upgrade that craft
+    /// grants in the vanilla game, locked in place, when false. Either way the mod sends the
+    /// check and applies whatever item comes back, so nothing here should gate on it.
+    /// Retained for diagnostics. Slot data key: <c>"randomize_fabricator"</c>.
+    /// </remarks>
     public bool   RandomizeFabricator    { get; init; } = true;
     public bool   RandomizeSlimepedia          { get; init; } = false;
     public bool   RandomizeSlimepediaResources { get; init; } = false;
@@ -79,6 +89,19 @@ public class SlotData
     /// Slot data key: <c>"randomize_plort_doors"</c>.
     /// </summary>
     public string RandomizePlortDoors      { get; init; } = "vanilla";
+
+    /// <summary>
+    /// Grey Labyrinth shadow plort doors (25). <c>"disabled"</c> — not checks;
+    /// <c>"locations"</c> — opening a door sends a check. Only meaningful when the Grey
+    /// Labyrinth is in scope (every goal except <c>labyrinth_open</c>).
+    /// </summary>
+    /// <remarks>
+    /// The vanilla reward is suppressed in BOTH modes — several of these doors are dispensers
+    /// that hand out a blueprint / upgrade component / spawned items, which would conflict
+    /// with the same items being randomized into the pool. This flag gates only the check.
+    /// Slot data key: <c>"randomize_shadow_doors"</c>.
+    /// </remarks>
+    public string RandomizeShadowDoors     { get; init; } = "disabled";
 
     /// <summary>
     /// When true, the first time each of the 25 sellable plort types is sold at the Plort Market
@@ -225,6 +248,13 @@ public class SlotData
     public int GordoFeedRequirement { get; init; } = 100;
 
     /// <summary>
+    /// Percentage of the vanilla Shadow Plort count required to trigger a Grey Labyrinth
+    /// shadow plort door / dispenser. 100 = vanilla. Clamped to 10–200; the resulting count
+    /// is always at least 1. Slot data key: <c>"shadow_plort_requirement"</c>.
+    /// </summary>
+    public int ShadowPlortRequirement { get; init; } = 100;
+
+    /// <summary>
     /// When true, each of the 5 conservatory expansion terminals is a location check.
     /// Interacting and confirming sends the check; the expansion unlocks only when the
     /// corresponding AP item is received (no Newbucks cost in randomized mode).
@@ -283,6 +313,7 @@ public class SlotData
             RandomizeResearchDrones  = GetBool(raw, "randomize_research_drones", defaultVal: false),
             RandomizeGhostlyDrones   = GetBool(raw, "randomize_ghostly_drones",  defaultVal: false),
             RandomizePlortDoors      = GetString(raw, "randomize_plort_doors", "vanilla"),
+            RandomizeShadowDoors     = GetString(raw, "randomize_shadow_doors", "disabled"),
             RandomizePlortMarket     = GetBool(raw, "randomize_plort_market",     defaultVal: false),
             RandomizeShop            = GetBool(raw, "randomize_shop",             defaultVal: false),
             RandomizeSanctuary       = GetBool(raw, "randomize_sanctuary",        defaultVal: false),
@@ -301,6 +332,7 @@ public class SlotData
             WeatherFrequencyMultiplier     = (int)GetLong(raw, "weather_frequency_multiplier", 1),
             StartWithResourceHarvester     = GetBool(raw, "start_with_resource_harvester",    defaultVal: false),
             GordoFeedRequirement           = (int)Math.Clamp(GetLong(raw, "gordo_feed_requirement", 100), 10, 200),
+            ShadowPlortRequirement         = (int)Math.Clamp(GetLong(raw, "shadow_plort_requirement", 100), 10, 200),
             RandomizeConservatoryExpansions = GetBool(raw, "randomize_conservatory_expansions", defaultVal: false),
             PlortMarketMode                 = GetString(raw, "plort_market_mode", "disabled"),
             ItemNotifications               = GetString(raw, "item_notifications", "progression_useful"),
