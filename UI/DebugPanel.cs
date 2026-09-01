@@ -380,6 +380,12 @@ public class DebugPanel : MonoBehaviour
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Grant Prisma Shard"))
             ItemHandler.ApplyById(ItemTable.PrismaShard, -1);
         y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Grant Nullifier blueprint"))
+            PrismacoreFulfiller.GrantNullifierBlueprint();
+        y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Ring all loaded Harmonizer bells"))
+            PrismacoreFulfiller.RingAllBells();
+        y += BtnH + Gap;
 
         y = SectionLabel(x, y, "Item Notifications");
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Test: Major popup"))
@@ -521,6 +527,9 @@ public class DebugPanel : MonoBehaviour
         y += BtnH + Gap;
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Conversation Conditions"))
             LocationDumper.DumpConversationConditions();
+        y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Prismacore State"))
+            LocationDumper.DumpPrismacoreState();
         y += BtnH + Gap;
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Access Doors"))
             LocationDumper.DumpAccessDoors();

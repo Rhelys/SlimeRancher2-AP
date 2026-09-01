@@ -1,6 +1,6 @@
-﻿using HarmonyLib;
+using HarmonyLib;
 using Il2CppMonomiPark.SlimeRancher.Dialogue.CommStation;
-using Il2CppMonomiPark.SlimeRancher.UI.CommStation;
+using Il2CppMonomiPark.SlimeRancher.World;
 using SlimeRancher2AP.Archipelago;
 
 namespace SlimeRancher2AP.Patches.PlayerPatches;
@@ -10,57 +10,58 @@ namespace SlimeRancher2AP.Patches.PlayerPatches;
 /// (<c>prismacore_hunt</c> goal only).
 ///
 /// <para>
-/// <b>Why this hook.</b> The obvious targets — <c>BossFightController.TryToStartFight</c>,
-/// <c>StartPhases</c>, <c>CompleteFight</c> — are all CallerCount(0) and crash the trampoline
-/// since the 5/13/2026 update. But the fight is started FROM a conversation
-/// (<c>TryToStartFight(IConversation)</c>), and <c>ConversationViewHolder.ShowConversation</c> is
-/// CallerCount(2) and already carries a Postfix elsewhere in this mod. Refusing to show the
-/// conversation prevents the fight from ever being offered.
+/// <b>Why this hook.</b> An earlier version refused the fight conversation instead, via a Prefix
+/// on <c>ConversationViewHolder.ShowConversation</c>. That softlocked the game: returning false
+/// skipped populating the dialogue view, but the caller had already opened the dialogue UI, so
+/// the player was left staring at an empty box (with a stale nameplate from the pooled view) and
+/// no way to close it. Observed directly —
+/// <c>"encounter blocked — 'GigiCore_StartFight' refused"</c> followed 20 ms later by
+/// <c>"Conversation started: 'GigiCore_StartFight'"</c>. Suppressing a conversation mid-open is
+/// not something this UI survives.
 /// </para>
 ///
 /// <para>
-/// Gigi is the only way to start or re-enter the encounter, so covering her two start
-/// conversations covers every route in.
+/// Blocking the fight itself is both safer and better-targeted: the conversation plays normally
+/// so the UI stays healthy, and every route into the encounter funnels through
+/// <c>TryToStartFight</c> regardless of which conversation triggered it. That also removes the
+/// old name list — <c>GigiCore_StartFight</c>, <c>_StartFightAlt</c> and the never-verified
+/// <c>_RetryFight</c> are all covered without having to enumerate them.
+/// </para>
+///
+/// <para>
+/// <b>Patch safety.</b> <c>TryToStartFight</c> is CallerCount(0), the same profile as
+/// <c>GordoEat.Awake</c> and <c>PlortDepositor.Awake</c>, both of which this mod patches
+/// successfully in shipping builds.
 /// </para>
 /// </summary>
-[HarmonyPatch(typeof(ConversationViewHolder), nameof(ConversationViewHolder.ShowConversation))]
+[HarmonyPatch(typeof(BossFightController), nameof(BossFightController.TryToStartFight))]
 internal static class PrismacoreGatePatch
 {
-    /// <summary>
-    /// Conversations that begin the boss fight. Both must be blocked: the game picks between
-    /// them depending on whether this is a first attempt or a retry.
-    /// </summary>
-    private static readonly HashSet<string> FightStarters = new()
-    {
-        "GigiCore_StartFight",
-        "GigiCore_StartFightAlt",
-    };
-
     private static bool Prefix(IConversation conversation)
     {
         try
         {
-            if (conversation == null) return true;
             if (!Plugin.Instance.ModEnabled) return true;
             if (!PrismaShardHandler.IsHuntGoal) return true;
             if (PrismaShardHandler.IsEncounterUnlocked) return true;
 
-            var name = conversation.TryCast<FixedConversation>()?.GetDebugName();
-            if (name == null || !FightStarters.Contains(name)) return true;
+            string name = "?";
+            try { name = conversation?.TryCast<FixedConversation>()?.GetDebugName() ?? "?"; }
+            catch { /* name is for logging only */ }
 
             Logger.Info(
-                $"[AP] Prismacore encounter blocked — '{name}' refused, " +
+                $"[AP] Prismacore fight blocked — started from '{name}', " +
                 $"Prisma Shards {PrismaShardHandler.Progress}");
 
             UI.ApPopup.ShowThrottled(
                 "prismacore-gate", "The Prismacore is sealed",
                 "Archipelago", $"Prisma Shards: {PrismaShardHandler.Progress}");
 
-            return false;   // do not show the conversation — the fight is never offered
+            return false;   // the conversation still plays; the fight simply does not begin
         }
         catch (System.Exception ex)
         {
-            // Never let a gate failure swallow a conversation the player needs.
+            // Never let a gate failure block a fight the player is entitled to.
             Logger.Warning($"[AP] PrismacoreGatePatch threw: {ex.Message}");
             return true;
         }

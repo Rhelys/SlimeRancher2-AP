@@ -340,6 +340,7 @@ public class ArchipelagoClient
         SaveGuard.Reset();
         RanchPlotHandler.Reset();
         PrismaShardHandler.Reset();
+        PrismacoreFulfiller.Reset();
         ItemHandler.ClearHeldDroneModules();
         // Unregister and close the socket before nulling Session.
         // Without DisconnectAsync the underlying WebSocket stays open and the AP

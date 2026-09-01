@@ -22,6 +22,25 @@ public static class PrismaShardHandler
     private static int  _cached;
     private static bool _dirty = true;
 
+#if DEBUG
+    /// <summary>
+    /// Shards granted by the debug panel, added on top of the server count.
+    /// </summary>
+    /// <remarks>
+    /// The real count is read from the AP server snapshot, which a local debug grant cannot
+    /// add to — so without this the debug button recounts the same snapshot and appears to do
+    /// nothing. Debug builds only; never affects a real session's total.
+    /// </remarks>
+    private static int _debugGranted;
+
+    /// <summary>Adds one debug shard and invalidates the cache.</summary>
+    public static void DebugGrant()
+    {
+        _debugGranted++;
+        MarkDirty();
+    }
+#endif
+
     /// <summary>Invalidates the cached count. Called when a shard is applied.</summary>
     public static void MarkDirty() => _dirty = true;
 
@@ -30,6 +49,9 @@ public static class PrismaShardHandler
     {
         _cached = 0;
         _dirty  = true;
+#if DEBUG
+        _debugGranted = 0;
+#endif
     }
 
     /// <summary>True when the active goal is the shard hunt.</summary>
@@ -45,18 +67,24 @@ public static class PrismaShardHandler
     {
         get
         {
-            if (!_dirty) return _cached;
+            if (_dirty)
+            {
+                var snapshot = Plugin.Instance.ApClient.Session?.Items?.AllItemsReceived;
+                if (snapshot != null)   // else stay dirty — retry once a session exists
+                {
+                    int count = 0;
+                    for (int i = 0; i < snapshot.Count; i++)
+                        if (snapshot[i].ItemId == Data.ItemTable.PrismaShard) count++;
 
-            var snapshot = Plugin.Instance.ApClient.Session?.Items?.AllItemsReceived;
-            if (snapshot == null) return _cached;   // stay dirty — retry once a session exists
-
-            int count = 0;
-            for (int i = 0; i < snapshot.Count; i++)
-                if (snapshot[i].ItemId == Data.ItemTable.PrismaShard) count++;
-
-            _cached = count;
-            _dirty  = false;
+                    _cached = count;
+                    _dirty  = false;
+                }
+            }
+#if DEBUG
+            return _cached + _debugGranted;
+#else
             return _cached;
+#endif
         }
     }
 

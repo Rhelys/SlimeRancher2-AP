@@ -9,6 +9,7 @@ using Il2CppMonomiPark.SlimeRancher.RecipePinning;
 using Il2CppMonomiPark.SlimeRancher.UI.Map;
 using Il2CppMonomiPark.SlimeRancher.World;
 using Il2CppMonomiPark.SlimeRancher.Slime;
+using Il2CppMonomiPark.SlimeRancher.Labyrinth;
 using Il2CppMonomiPark.SlimeRancher.DataModel;
 using Il2CppMonomiPark.SlimeRancher.Weather;
 using Il2CppMonomiPark.SlimeRancher.Drone;
@@ -286,6 +287,87 @@ public static class LocationDumper
     /// Call from the debug panel Misc page while a save is loaded. Assets must be resident
     /// (stand in the relevant zone so conversation assets stream in first).
     /// </summary>
+    /// <summary>
+    /// Dumps the state of the Prismacore encounter prerequisites — the Nullifier blueprint,
+    /// every DiscordantWall, and any world object whose name suggests it is one of the
+    /// "Harmonizer" devices that must be activated before the fight.
+    /// </summary>
+    /// <remarks>
+    /// Written because the conversation-conditions dump proved the GigiCore_* conversations
+    /// carry NO serialized conditions — the prerequisite is decided in code at runtime, so the
+    /// only way to find the state it reads is to look at the room. Run it in the Prismacore
+    /// area, ideally once before and once after activating a device, and diff the output.
+    /// </remarks>
+    public static void DumpPrismacoreState()
+    {
+        var log = Plugin.Instance.Log;
+        log.LogInfo("[AP-Dump] ========== PRISMACORE STATE DUMP ==========");
+
+        // --- Nullifier (asset name 'Harmonizer', pedia title 'Nullifier') ---
+        try
+        {
+            var def = UnityEngine.Resources.FindObjectsOfTypeAll<GadgetDefinition>()
+                                 .FirstOrDefault(g => g != null && g.name == "Harmonizer");
+            log.LogInfo($"[AP-Dump] Nullifier GadgetDefinition ('Harmonizer'): "
+                        + (def == null ? "NOT FOUND" : "found"));
+        }
+        catch (Exception ex) { log.LogWarning($"[AP-Dump] Nullifier lookup failed: {ex.Message}"); }
+
+        // --- Discordant walls (what the Nullifier dispels) ---
+        try
+        {
+            var walls = UnityEngine.Resources.FindObjectsOfTypeAll<DiscordantWall>();
+            log.LogInfo($"[AP-Dump] DiscordantWall count={walls.Length}");
+            for (int i = 0; i < walls.Length && i < 40; i++)
+            {
+                var w = walls[i];
+                if (w == null) continue;
+                string lvl = "?", cur = "?", tgt = "?";
+                try { lvl = w._currentLevel.ToString(); } catch { }
+                try { cur = w._currentHarmonizationAmount.ToString("0.##"); } catch { }
+                try { tgt = w._targetHarmonizationAmount.ToString("0.##"); } catch { }
+                log.LogInfo($"[AP-Dump]   wall '{w.gameObject?.name ?? "?"}'  level={lvl}  "
+                            + $"harmonization={cur}/{tgt}  scene={w.gameObject?.scene.name ?? "-"}");
+            }
+        }
+        catch (Exception ex) { log.LogWarning($"[AP-Dump] DiscordantWall scan failed: {ex.Message}"); }
+
+        // --- The Harmonizer bells ---
+        // Identified from a live log: activating one emitted
+        //   [AP-Gate] InvisibleSwitch DOWN: name='labySwitchBell' scene='zoneLabyrinthCorePath'
+        // so the devices are WorldStateInvisibleSwitch objects, not any of the Prisma/Stabilizer
+        // components. A name-based GameObject scan missed them entirely — hence listing the
+        // switches directly, with their model state.
+        try
+        {
+            var switches = UnityEngine.Resources.FindObjectsOfTypeAll<WorldStateInvisibleSwitch>();
+            log.LogInfo($"[AP-Dump] WorldStateInvisibleSwitch count={switches.Length}");
+            int bells = 0, bellsDown = 0;
+            for (int i = 0; i < switches.Length; i++)
+            {
+                var sw = switches[i];
+                if (sw == null) continue;
+                string nm = "?", scene = "-", state = "no model";
+                try { nm = sw.gameObject?.name ?? "?"; } catch { }
+                try { var sc = sw.gameObject.scene; scene = sc.IsValid() ? (sc.name ?? "-") : "-"; } catch { }
+                try { var m = sw._model; if (m != null) state = m.state.ToString(); } catch { }
+
+                bool isBell = nm.IndexOf("Bell", StringComparison.OrdinalIgnoreCase) >= 0;
+                if (isBell)
+                {
+                    bells++;
+                    if (state == "DOWN") bellsDown++;
+                }
+                log.LogInfo($"[AP-Dump]   switch '{nm}'  state={state}  scene={scene}"
+                            + (isBell ? "   <-- BELL" : ""));
+            }
+            log.LogInfo($"[AP-Dump] bells loaded={bells}  down={bellsDown}");
+        }
+        catch (Exception ex) { log.LogWarning($"[AP-Dump] Switch scan failed: {ex.Message}"); }
+
+        log.LogInfo("[AP-Dump] =========== PRISMACORE STATE DUMP END ===========");
+    }
+
     public static void DumpConversationConditions()
     {
         var log = Plugin.Instance.Log;

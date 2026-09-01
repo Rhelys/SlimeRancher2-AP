@@ -135,6 +135,16 @@ public static class ItemHandler
             case ItemType.UpgradeComponent:      ApplyUpgradeComponent(item, null, itemIndex); break;
             case ItemType.Trap:                  ApplyTrap(item, null, itemIndex);             break; // return ignored — debug path has no requeue
             case ItemType.RanchPlot:             ApplyRanchPlot(item, null, itemIndex);        break;
+#if DEBUG
+            // The live path only recounts the AP server snapshot, which a local grant cannot
+            // add to — so the debug panel keeps its own offset instead.
+            case ItemType.PrismaShard:
+                PrismaShardHandler.DebugGrant();
+                Logger.Info(
+                    $"[AP-Debug] Prisma Shard granted — {PrismaShardHandler.Progress}" +
+                    $"  encounter {(PrismaShardHandler.IsEncounterUnlocked ? "UNLOCKED" : "SEALED")}");
+                break;
+#endif
         }
 
         // Intentionally do NOT call UpdateLastItemIndex here.
@@ -974,12 +984,12 @@ public static class ItemHandler
         [ItemTable.WarpDepotViolet] = "WarpDepotViolet",
         [ItemTable.WarpDepotSnowy]  = "WarpDepotSnowy",
 
-        // Functional gadgets (?)
-        [ItemTable.MarketLink]         = "MarketLink",         // (?)
-        [ItemTable.SuperHydroTurret]   = "SuperHydroTurret",   // (?)
-        [ItemTable.PortableScareSlime] = "PortableScareSlime", // (?)
-        [ItemTable.GordoSnareAdvanced] = "GordoSnareAdvanced", // (?)
-        [ItemTable.MedStation]         = "MedStation",         // (?)
+        // Functional gadgets — all names confirmed against docs/dumps/Gadget.txt
+        [ItemTable.MarketLink]         = "MarketLink",
+        [ItemTable.SuperHydroTurret]   = "SuperHydroTurret",
+        [ItemTable.PortableScareSlime] = "PortableScareSlime",
+        [ItemTable.GordoSnareAdvanced] = "GordoSnareAdvanced",
+        [ItemTable.MedStation]         = "MedStation",
         [ItemTable.DreamLanternT2]     = "DreamLanternT2",     // confirmed via DumpGadgets
 
         // Movement / utility gadgets (confirmed via DumpGadgets)

@@ -142,6 +142,7 @@ public class ApUpdateBehaviour : MonoBehaviour
     private static readonly Action _tDronePoll    = SlimeRancher2AP.Patches.LocationPatches.ResearchDronePatch.Tick;
     private static readonly Action _tNotifier     = SlimeRancher2AP.UI.ItemNotifier.Tick;
     private static readonly Action _tPopup        = SlimeRancher2AP.UI.ApPopup.Tick;
+    private static readonly Action _tPrismacore   = SlimeRancher2AP.Archipelago.PrismacoreFulfiller.Tick;
 
     private void Update()
     {
@@ -181,6 +182,7 @@ public class ApUpdateBehaviour : MonoBehaviour
         Prof.Time("ResearchDronePoll",    _tDronePoll);
         Prof.Time("ItemNotifier",         _tNotifier);
         Prof.Time("ApPopup",              _tPopup);
+        Prof.Time("PrismacoreFulfiller",  _tPrismacore);
 #if DEBUG
         SlimeRancher2AP.Utils.DebugTrace.Once("Update.5 — after TrapHandler.Tick");
 #endif
@@ -235,6 +237,7 @@ public class ApUpdateBehaviour : MonoBehaviour
                 SlimeRancher2AP.UI.PauseMenuGoalDisplay.Reset();
                 SlimeRancher2AP.UI.ItemNotifier.Reset();
                 SlimeRancher2AP.UI.ApPopup.Reset();
+                SlimeRancher2AP.Archipelago.PrismacoreFulfiller.Rearm();
                 // Decode the AP logo here rather than on the first popup — see Prewarm().
                 SlimeRancher2AP.UI.ApPopup.Prewarm();
             }
