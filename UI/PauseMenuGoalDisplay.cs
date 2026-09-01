@@ -81,28 +81,71 @@ public static class PauseMenuGoalDisplay
                 // created on first open is picked up without waiting out the interval.
                 _nextScan = now + RescanSeconds;
                 var roots = Resources.FindObjectsOfTypeAll<PauseMenuRoot>();
+                PauseMenuRoot? sceneRoot = null;
                 for (int i = 0; i < roots.Length; i++)
                 {
                     var r = roots[i];
                     if (r == null) continue;
-                    // Cache the first live root regardless of active state — an inactive root is
-                    // still the one that will be activated when the player opens the menu.
-                    _cachedRoot = r;
-                    if (r.isActiveAndEnabled && r.gameObject.activeInHierarchy) activeRoot = r;
-                    break;
+
+                    // FindObjectsOfTypeAll also returns prefabs and other loaded assets, which
+                    // are never active in a hierarchy. Caching one permanently disables this
+                    // display: the fast path above never re-scans once _cachedRoot is set, so
+                    // the label can never appear again for the rest of the scene. Only a root
+                    // that belongs to a loaded scene is the real menu.
+                    if (!r.gameObject.scene.IsValid()) continue;
+
+                    // Keep the first scene root as the fallback (inactive = menu simply closed),
+                    // but keep looking for one that is actually active rather than stopping at
+                    // the first hit.
+                    sceneRoot ??= r;
+                    if (r.isActiveAndEnabled && r.gameObject.activeInHierarchy)
+                    {
+                        sceneRoot  = r;
+                        activeRoot = r;
+                        break;
+                    }
                 }
+                if (sceneRoot != null) _cachedRoot = sceneRoot;
+#if DEBUG
+                // Records what the scan actually saw, so a future "label never appears" report
+                // can be settled from the log instead of another instrumented build.
+                int inScene = 0;
+                for (int i = 0; i < roots.Length; i++)
+                    if (roots[i] != null && roots[i].gameObject.scene.IsValid()) inScene++;
+                Utils.DebugTrace.Once(
+                    $"PauseMenu — scan: {roots.Length} root(s), {inScene} in a scene, "
+                    + $"cached={sceneRoot != null}, active={activeRoot != null}");
+#endif
             }
         }
         catch { _cachedRoot = null; return; } // scene transition — re-scan next poll
 
-        if (activeRoot == null) return; // menu closed — the labels (children) hide with it
+        if (activeRoot == null)
+        {
+#if DEBUG
+            // timeScale 0 means the game is paused, so a root SHOULD be active. If this fires,
+            // the cached root is the wrong object (FindObjectsOfTypeAll also returns prefabs).
+            if (Time.timeScale == 0f)
+                Utils.DebugTrace.Once($"PauseMenu — paused but no active root (cached={_cachedRoot != null})");
+#endif
+            return; // menu closed — the labels (children) hide with it
+        }
 
         try
         {
-            UpdateInjectedLabel(activeRoot, LabelName, BuildGoalText(),       CreateLabel);
+            var goalText = BuildGoalText();
+#if DEBUG
+            Utils.DebugTrace.Once($"PauseMenu — goal text: {goalText ?? "<null>"}");
+#endif
+            UpdateInjectedLabel(activeRoot, LabelName, goalText,              CreateLabel);
             UpdateInjectedLabel(activeRoot, PanelName, BuildPlortPanelText(), CreatePlortPanel);
         }
-        catch { /* menu tearing down mid-tick — retry on next poll */ }
+        catch (System.Exception ex)
+        {
+            // Was silent, which hid real failures — the menu genuinely can tear down mid-tick,
+            // so this stays non-fatal, but it must not disappear without a trace.
+            Logger.Warning($"[AP] PauseMenuGoalDisplay tick failed: {ex.Message}");
+        }
     }
 
     /// <summary>
@@ -122,8 +165,18 @@ public static class PauseMenuGoalDisplay
             return;
         }
 
+        bool creating = label == null;
         label ??= create(root);
-        if (label == null) return;
+        if (label == null)
+        {
+#if DEBUG
+            Utils.DebugTrace.Once($"PauseMenu — create failed for '{name}'");
+#endif
+            return;
+        }
+#if DEBUG
+        if (creating) Utils.DebugTrace.Once($"PauseMenu — created '{name}'");
+#endif
 
         label.gameObject.SetActive(true);
         label.text = text;
