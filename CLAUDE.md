@@ -278,21 +278,83 @@ Grant via: `SceneContext.Instance.GadgetDirector.AddBlueprint(gadgetDef, false)`
 
 ---
 
+## Fabricator modes (`randomize_fabricator`)
+
+**Fabricator craft locations are AP checks in BOTH modes.** The option controls only what the
+apworld puts in them:
+
+- `true`  — each craft holds a shuffled multiworld item.
+- `false` — each craft is locked to the upgrade it grants in the vanilla game
+  (`VANILLA_FABRICATOR_ITEMS` in the apworld's `items.py`, an exact 1:1 cover of the 38 craft
+  locations by the 38 upgrade item copies).
+
+Because of this, **no mod code may gate on `SlotData.RandomizeFabricator`** — the field is
+retained for diagnostics only. Gating on it leaves all 38 crafts unsendable in a
+non-randomized seed, and therefore unobtainable. `FabricatorPatch.IsEnabled` is the single
+switch every fabricator patch consults, and it checks only mod-enabled + active session.
+
+The vanilla upgrade grant is suppressed in both modes: `FabricatorUpgradeBlockPatch` blocks
+every `UpgradeModel.IncrementUpgradeLevel` except those wrapped by
+`ItemHandler.IsApplyingItem`. Crafting therefore sends the check and the upgrade arrives via
+the AP item pipeline — one application, not two. That suppression keys off the same
+`IsEnabled`, so widening it automatically covers the non-randomized case.
+
+Requires the matching apworld: an older one sending `randomize_fabricator: false` produces a
+seed with no fabricator locations, and the mod will send 38 checks the server does not have.
+
+---
+
+## Prismacore encounter prerequisites (`prismacore_hunt`)
+
+Vanilla gates the Prismacore fight behind two things the hunt goal replaces with shards.
+`PrismacoreFulfiller` **satisfies** them rather than bypassing them — forcing the fight past
+un-rung bells leaves world state vanilla never produces and risks an unwinnable encounter.
+
+| Prerequisite | Player-facing | How the mod satisfies it |
+|---|---|---|
+| Nullifier blueprint (20 Prisma Plorts) | "Nullifier" | `GadgetDirector.AddBlueprint` on the **`Harmonizer`** GadgetDefinition |
+| All 5 Harmonizers activated | "Harmonizers" | `SetStateForAll(DOWN, immediate:false)` on every `WorldStateInvisibleSwitch` named `labySwitchBell` |
+
+**Naming is inverted from what the assets suggest** — verify before touching this. The gadget
+asset `Harmonizer` displays as *"Nullifier"* (pedia dump: `entry='Harmonizer' title='Nullifier'`)
+and dispels `DiscordantWall`s. The in-game *"Harmonizers"* are unrelated: 5 bell switches named
+`labySwitchBell`, one each in `zoneLabStrandEntrance`, `zoneLabValleyEntrance_B`,
+`zoneLabyrinthDreamland_C`, `zoneLabyrinthTerrarium_FoyerGazebo`, `zoneLabyrinthCorePath`.
+
+`Tick()` is condition-driven, not fired on the final shard: shards arrive from anywhere in the
+multiworld, so the last one usually lands with no Labyrinth scene loaded and nothing to ring. It
+polls only once `IsEncounterUnlocked` passes, and goes dormant after 3 idle passes — `Rearm()` on
+scene change wakes it, because the Labyrinth streams and bells load in batches (observed: 3 rung
+on approach, 2 more after zoning in).
+
+**Do not gate the fight by refusing a conversation.** A Prefix returning false on
+`ConversationViewHolder.ShowConversation` skips populating the view but does not cancel the
+interaction — the dialogue UI opens empty, with a stale nameplate from the pooled view, and
+softlocks the game. Gate `BossFightController.TryToStartFight` instead. It also covers every
+route in: `GigiCore_NeedsWaterTank` and `GigiCore_DontStartFight` both call it, and neither
+would have appeared in a list of fight-starting conversation names.
+
+The Water Tank is also required — Gigi refuses with `GigiCore_NeedsWaterTank` — which is why
+both prismacore goals carry `can_carry_water` in the apworld's victory rule.
+
+---
+
 ## Goal Detection (mod side)
 
 The apworld sends a goal option via slot data. The mod reads this on connect and enables the
 appropriate win condition detector. When the condition is met, the mod calls
 `session.SetGoalAchieved()`. All detectors live in `Archipelago/GoalHandler.cs`.
 
-The four goal keys (from `options.py` `Goal.current_key`, sent verbatim in slot data):
+The goal keys (from `options.py` `Goal.current_key`, sent verbatim in slot data):
 
 | Goal | Slot Data Value | Mod Detection Method |
 |---|---|---|
 | Open Grey Labyrinth | `"labyrinth_open"` | ✅ **Verified in-game.** `InvisibleSwitchPatch` on `energyBeamReceiver` fires for `zoneStrandLabyrinthGate` and `zoneGorgeGateTransfer`; both must go DOWN. Note: progress is in-memory only — both switches must report DOWN within one connected session. |
-| Newbucks Milestone | `"newbucks"` | ✅ **Implemented, untested in-game.** `PlayerStateAddCurrencyPatch` accumulates every positive Newbucks `AddCurrency` into the persisted `ApSaveManager.NewbucksEarned` counter (the game's own `AmountEverCollected` is vestigial and never updated); `GoalHandler.Tick()` polls it against `newbucks_goal_amount`. |
-| Stabilize Prismacore | `"prismacore"` | ✅ **Implemented, untested in-game.** `CoreRoomControllerPatch` Postfix on `CoreRoomController.UpdateState` fires the goal on `POST_FIGHT` (boss complete, core stabilized). `PRE_FIGHT` fires on scene load and is ignored. |
-| Complete the Slimepedia | `"slimepedia"` | ✅ **Implemented, untested in-game.** `GoalHandler.Tick()` polls the Slimes / Resources / Radiant Slimes `PediaRuntimeCategory` groups — only categories enabled by the `randomize_slimepedia*` options count, and entries excluded by `disable_tarr` / `exclude_rng_slimes` / `exclude_weather_checks` are skipped (matching the apworld's location-pool exclusions). **Scope is the AP location table, never `PediaRuntimeCategory.AllUnlocked()`** — the game's categories can also grow at runtime via `OnPediaEntriesRegistered`/`AddDynamicItem`, and the old `AllUnlocked()` fast path made the goal unachievable by requiring entries with no AP location. `RadiantSlime` (819379) and `Sprinkles` (819684) are now real locations gated by `exclude_rng_slimes` and `randomize_sanctuary` respectively. Use F9 → "Log Slimepedia Goal Progress" to see exactly which tracked entries remain locked. |
-| Plort Seller | `"plort_seller"` | ✅ **Implemented, untested in-game.** Sell N of EACH in-scope plort type (N from slot data `plort_goal_amount`, rolled per seed between the min/max options). Scope: all 25 Plort Market types (5 GL plorts included — GL locations are in the pool for this goal) minus `exclude_rng_slimes` (Gold, Yolky) and `exclude_weather_checks` (Dervish, Tangle). Per-type counters accumulated by `PlortMarketPatch` (`PlortEconomyDirector.RegisterSold` Postfix) into persisted `ApSaveManager` state; `GoalHandler.Tick()` polls. Pause menu shows the goal line (target + types complete) plus a left-side panel listing every in-scope plort with sold/target, green when reached (`PauseMenuGoalDisplay`). |
+| Newbucks Milestone | `"newbucks"` | ✅ **Verified in-game.** `PlayerStateAddCurrencyPatch` accumulates every positive Newbucks `AddCurrency` into the persisted `ApSaveManager.NewbucksEarned` counter (the game's own `AmountEverCollected` is vestigial and never updated); `GoalHandler.Tick()` polls it against `newbucks_goal_amount`. |
+| Stabilize Prismacore | `"prismacore"` | ✅ **Verified in-game.** `CoreRoomControllerPatch` Postfix on `CoreRoomController.UpdateState` fires the goal on `POST_FIGHT` (boss complete, core stabilized). `PRE_FIGHT` fires on scene load and is ignored. |
+| Complete the Slimepedia | `"slimepedia"` | ✅ **Verified in-game.** `GoalHandler.Tick()` polls the Slimes / Resources / Radiant Slimes `PediaRuntimeCategory` groups — only categories enabled by the `randomize_slimepedia*` options count, and entries excluded by `disable_tarr` / `exclude_rng_slimes` / `exclude_weather_checks` are skipped (matching the apworld's location-pool exclusions). **Scope is the AP location table, never `PediaRuntimeCategory.AllUnlocked()`** — the game's categories can also grow at runtime via `OnPediaEntriesRegistered`/`AddDynamicItem`, and the old `AllUnlocked()` fast path made the goal unachievable by requiring entries with no AP location. `RadiantSlime` (819379) and `Sprinkles` (819684) are now real locations gated by `exclude_rng_slimes` and `randomize_sanctuary` respectively. Use F9 → "Log Slimepedia Goal Progress" to see exactly which tracked entries remain locked. |
+| Plort Seller | `"plort_seller"` | ✅ **Verified in-game.** Sell N of EACH in-scope plort type (N from slot data `plort_goal_amount`, rolled per seed between the min/max options). Scope: all 25 Plort Market types (5 GL plorts included — GL locations are in the pool for this goal) minus `exclude_rng_slimes` (Gold, Yolky) and `exclude_weather_checks` (Dervish, Tangle). Per-type counters accumulated by `PlortMarketPatch` (`PlortEconomyDirector.RegisterSold` Postfix) into persisted `ApSaveManager` state; `GoalHandler.Tick()` polls. Pause menu shows the goal line (target + types complete) plus a left-side panel listing every in-scope plort with sold/target, green when reached (`PauseMenuGoalDisplay`). |
+| Prismacore Hunt | `"prismacore_hunt"` | ✅ **Verified in-game.** Same victory condition as `prismacore` (`CoreRoomControllerPatch` on `POST_FIGHT`) with an entry requirement: `PrismacoreGatePatch` blocks `BossFightController.TryToStartFight` until `PrismaShardHandler.IsEncounterUnlocked`. Collecting shards does not win — it only unlocks the fight. Counts come from `Session.Items.AllItemsReceived`, cached and invalidated on receipt (plus a DEBUG-only offset so the debug panel can grant testable shards, which the server snapshot cannot). `PrismacoreFulfiller` satisfies the vanilla prerequisites once the shards are in. See **Prismacore encounter prerequisites** below. |
 
 Slot data key: `"goal"` — parsed in `SlotData.cs` (`SlotData.Goal`).
 
@@ -390,9 +452,6 @@ Items still genuinely incomplete (history of completed work lives in git, not he
 |---|---|
 | Minor item notifications | `item_notifications: all` routes filler/traps to the mod's existing IMGUI corner text, NOT the vanilla side-notification list (`ItemAcquisitionNotificationList`). That list is fed by `INotificationProvider` implementations, which need an IL2CPP type registration to implement from managed code. `NotificationEntry`'s public ctor takes an arbitrary `Sprite`, so a real provider is feasible if the corner text proves unsatisfying. |
 | Plort Market / Market Recovery | Implemented mod-side: first-sale checks in `PlortMarketPatch`; saturation, sale-override, immediate price refresh, and declarative Market Recovery in `PlortMarketModePatch`. In-development warnings removed from the apworld `options.py` (2026-07-06) to allow full testing — **in-game verification still in progress**. |
-| Unverified gadget asset names | `GadgetDefinition.name` guesses marked `(?)` in `ItemHandler.SimpleGadgets`: `MarketLink`, `SuperHydroTurret`, `PortableScareSlime`, `GordoSnareAdvanced`, `MedStation`. Verify via F9 → DumpGadgets; a wrong name logs "not found" instead of granting. (`DashPad`, `SpringPad`, `PortableWaterTap`, `PrismaDisruptionDetector`, `DreamLanternT2` are confirmed.) |
-| Unverified upgrade names | A handful of `UpgradeDefinition.name` values are educated guesses: `AmmoCapacity`, `TankGuard`, `GoldenSureshot`, `ShadowSureshot`, `ArchiveKey`, `EnergyDelay`, `EnergyRegen`. Verify via `DumpUpgradeComponents` in the debug panel. |
-| Goal testing | `newbucks`, `prismacore`, and `slimepedia` goal detectors are implemented but **untested in-game** (`labyrinth_open` is verified). |
 | `labyrinth_open` cross-session progress | Switch-open state is in-memory only; both beam gates must report DOWN within one connected session unless scene restore re-fires `SetStateForAll` (unverified). |
 | `Patches/UiPatches/MainMenuPatch.cs` | Stub — `MainMenuUI` class/method TBD; the "Archipelago" connect entry lives in Options → Archipelago instead. Cosmetic — does not affect functionality. |
 

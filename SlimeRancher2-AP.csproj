@@ -129,6 +129,10 @@
     <MakeDir Directories="$(GameDir)\BepInEx\plugins\SlimeRancher2-AP\" />
     <ItemGroup>
       <_PluginDlls Include="$(OutputPath)*.dll" />
+      <!-- The mod's own .pdb too: without it, exception line numbers in the BepInEx log come
+           from whatever build was deployed last, which is worse than having none. Only our
+           own symbols — dependency .pdbs are not wanted in the plugins folder. -->
+      <_PluginDlls Include="$(OutputPath)$(AssemblyName).pdb" Condition="Exists('$(OutputPath)$(AssemblyName).pdb')" />
     </ItemGroup>
     <Copy SourceFiles="@(_PluginDlls)"
           DestinationFolder="$(GameDir)\BepInEx\plugins\SlimeRancher2-AP\"
