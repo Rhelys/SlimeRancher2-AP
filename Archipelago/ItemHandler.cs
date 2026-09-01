@@ -259,7 +259,7 @@ public static class ItemHandler
                 break;
             case ItemType.PrismaShard:
                 // Nothing to grant in-world: the shard exists only as a counter for the
-                // prismacore_hunt gate. Invalidate the cache so the next gate check recounts.
+                // prisma_shard_hunt gate. Invalidate the cache so the next gate check recounts.
                 PrismaShardHandler.MarkDirty();
                 Logger.Info(
                     $"[AP] Prisma Shard received — {PrismaShardHandler.Collected}/" +

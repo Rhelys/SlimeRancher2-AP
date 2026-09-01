@@ -280,7 +280,7 @@ public class SlotData
     public string ItemNotifications { get; init; } = "progression_useful";
 
     /// <summary>
-    /// Prisma Shards needed to unlock the Prismacore encounter (<c>prismacore_hunt</c> goal).
+    /// Prisma Shards needed to unlock the Prismacore encounter (<c>prisma_shard_hunt</c> goal).
     /// Slot data key: <c>"prisma_shards_required"</c>.
     /// </summary>
     public int PrismaShardsRequired { get; init; } = 0;

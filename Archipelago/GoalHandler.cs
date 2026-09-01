@@ -187,9 +187,9 @@ public static class GoalHandler
 
         var goal = Plugin.Instance.ApClient.SlotData?.Goal;
 
-        // prismacore_hunt is the same victory condition — the shards gate ENTRY to the fight,
+        // prisma_shard_hunt is the same victory condition — the shards gate ENTRY to the fight,
         // they are not the win themselves. Beating the boss is still what completes the goal.
-        if ((goal == "prismacore" || goal == "prismacore_hunt")
+        if ((goal == "prismacore" || goal == "prisma_shard_hunt")
             && state == CoreRoomController.CoreRoomState.POST_FIGHT)
         {
             Logger.Info($"[AP] Prismacore stabilized (POST_FIGHT state, goal='{goal}')");

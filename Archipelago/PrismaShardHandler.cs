@@ -1,7 +1,7 @@
 namespace SlimeRancher2AP.Archipelago;
 
 /// <summary>
-/// Tracks Prisma Shards for the <c>prismacore_hunt</c> goal and answers the one question the
+/// Tracks Prisma Shards for the <c>prisma_shard_hunt</c> goal and answers the one question the
 /// gate needs: may the player start the Prismacore encounter yet?
 ///
 /// <para>
@@ -56,7 +56,7 @@ public static class PrismaShardHandler
 
     /// <summary>True when the active goal is the shard hunt.</summary>
     public static bool IsHuntGoal
-        => Plugin.Instance.ApClient.SlotData?.Goal == "prismacore_hunt";
+        => Plugin.Instance.ApClient.SlotData?.Goal == "prisma_shard_hunt";
 
     /// <summary>Shards required to unlock the encounter, from slot data.</summary>
     public static int Required

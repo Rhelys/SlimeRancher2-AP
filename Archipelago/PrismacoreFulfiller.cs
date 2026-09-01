@@ -8,7 +8,7 @@ namespace SlimeRancher2AP.Archipelago;
 /// Satisfies the vanilla prerequisites for the Prismacore encounter, rather than bypassing them.
 ///
 /// <para>
-/// The <c>prismacore_hunt</c> goal replaces the normal unlock path (deposit 20 Prisma Plorts for
+/// The <c>prisma_shard_hunt</c> goal replaces the normal unlock path (deposit 20 Prisma Plorts for
 /// the Nullifier blueprint, then activate every Harmonizer) with collecting Prisma Shards. Simply
 /// forcing the fight conversation past those checks would leave the world in a state vanilla
 /// never produces — hologram offline, bells un-rung — and risks an unwinnable encounter. So this

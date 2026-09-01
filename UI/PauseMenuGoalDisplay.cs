@@ -209,7 +209,7 @@ public static class PauseMenuGoalDisplay
             case "prismacore":
                 body = "STABILIZE THE PRISMACORE";
                 break;
-            case "prismacore_hunt":
+            case "prisma_shard_hunt":
             {
                 int have = Archipelago.PrismaShardHandler.Collected;
                 int need = Archipelago.PrismaShardHandler.Required;

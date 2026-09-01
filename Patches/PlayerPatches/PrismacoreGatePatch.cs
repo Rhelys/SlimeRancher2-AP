@@ -7,7 +7,7 @@ namespace SlimeRancher2AP.Patches.PlayerPatches;
 
 /// <summary>
 /// Blocks the Prismacore boss encounter until enough Prisma Shards have been collected
-/// (<c>prismacore_hunt</c> goal only).
+/// (<c>prisma_shard_hunt</c> goal only).
 ///
 /// <para>
 /// <b>Why this hook.</b> An earlier version refused the fight conversation instead, via a Prefix
