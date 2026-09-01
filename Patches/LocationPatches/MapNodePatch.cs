@@ -29,7 +29,7 @@ internal static class MapNodePatch
 {
     private static void Postfix(MapNodeActivator __instance)
     {
-        if (!Plugin.Instance.ModEnabled || !Plugin.Instance.SaveManager.HasActiveSession) return;
+        if (!Plugin.Instance.ModEnabled || !Plugin.Instance.SaveManager.IsSaveBound) return;
 
         // randomize_map_nodes=false removes all map node locations from the seed — do not send
         // checks. Only gate when slot data is available; when temporarily offline (SlotData null)

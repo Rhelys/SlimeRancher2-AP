@@ -142,7 +142,11 @@ public static class PrismacoreFulfiller
             var director = SceneContext.Instance?.GadgetDirector;
             if (director == null)
             {
-                Logger.Warning("[AP-Prismacore] GadgetDirector not ready — load a save first");
+                // Expected while a save is still loading — the poll simply retries. Not a
+                // warning: it fired twice on every single load and read like a fault.
+#if DEBUG
+                Utils.DebugTrace.Once("[AP-Prismacore] GadgetDirector not ready yet — will retry");
+#endif
                 return false;
             }
 

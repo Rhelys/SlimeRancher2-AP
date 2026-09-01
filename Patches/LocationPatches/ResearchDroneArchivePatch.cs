@@ -42,7 +42,7 @@ internal static class ResearchDroneArchivePatch
         // Only send a check when entering archive view (not when toggling back).
         if (!__instance.isInArchive) return;
 
-        if (!Plugin.Instance.ModEnabled || !Plugin.Instance.SaveManager.HasActiveSession)
+        if (!Plugin.Instance.ModEnabled || !Plugin.Instance.SaveManager.IsSaveBound)
             return;
 
         if (Plugin.Instance.ApClient?.SlotData?.RandomizeResearchDrones != true)

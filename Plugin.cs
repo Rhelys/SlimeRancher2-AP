@@ -238,6 +238,8 @@ public class ApUpdateBehaviour : MonoBehaviour
                 SlimeRancher2AP.UI.ItemNotifier.Reset();
                 SlimeRancher2AP.UI.ApPopup.Reset();
                 SlimeRancher2AP.Archipelago.PrismacoreFulfiller.Rearm();
+                // The upgrade model is repopulated by Push on the next save load.
+                SlimeRancher2AP.Archipelago.ItemHandler.ResetUpgradeRestoreState();
                 // Decode the AP logo here rather than on the first popup — see Prewarm().
                 SlimeRancher2AP.UI.ApPopup.Prewarm();
             }

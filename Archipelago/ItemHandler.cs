@@ -740,6 +740,9 @@ public static class ItemHandler
     /// </summary>
     private static readonly Dictionary<string, int> _upgradeLevels = new();
 
+    /// <summary>One-shot guard for the null-model warning.</summary>
+    private static bool _warnedNullModel;
+
     /// <summary>Called by <c>ActorUpgradeHandlerPatch.OnUpgradeChangedPostfix</c>.</summary>
     public static void TrackUpgradeLevel(string upgradeName, int newLevel)
         => _upgradeLevels[upgradeName] = newLevel;
@@ -755,6 +758,46 @@ public static class ItemHandler
     public static void ResetUpgradeTracking() => _upgradeLevels.Clear();
 
     /// <summary>
+    /// True once <c>UpgradeModel.Push</c> has restored the SR2 save's upgrade levels into the
+    /// model this session.
+    /// </summary>
+    /// <remarks>
+    /// Reconciling against the AP watermark before this is meaningless: the model is still
+    /// empty, every upgrade reads level -1, and the "repair" re-applies the whole set from the
+    /// snapshot. Observed in a player log — 13 upgrades all reported
+    /// <c>SR2 model level=-1</c> on a save at watermark 191, because validation ran ~0.6s after
+    /// the handler was cached but before Push had run. Anything the watermark does not account
+    /// for is silently dropped in that window.
+    /// </remarks>
+    public static bool UpgradesRestored { get; private set; }
+
+    /// <summary>Clears the restore signal. Called on disconnect and on scene change.</summary>
+    public static void ResetUpgradeRestoreState() => UpgradesRestored = false;
+
+    /// <summary>
+    /// Called from <c>UpgradeModelPushPatch</c> once the save's upgrade levels are in the model.
+    /// Rebuilds the tracked cache from the model so it reflects what the player actually holds,
+    /// including upgrades that never came through AP.
+    /// </summary>
+    public static void OnUpgradesRestored()
+    {
+        UpgradesRestored = true;
+
+        foreach (var info in Data.ItemTable.All)
+        {
+            var name = GetUpgradeName(info.Id);
+            if (name == null || _upgradeLevels.ContainsKey(name)) continue;
+
+            var def = Resources.FindObjectsOfTypeAll<UpgradeDefinition>()
+                               .FirstOrDefault(d => d.name == name);
+            if (def == null) continue;
+
+            int level = GetRealModelLevel(def);
+            if (level >= 0) _upgradeLevels[name] = level;
+        }
+    }
+
+    /// <summary>
     /// Returns the last tracked model level for <paramref name="upgradeName"/>, or -1 if the
     /// upgrade has never been applied this session (not yet tracked).
     /// Used by <c>UpgradeModelGetLevelPatch</c> to floor the patched return value so that
@@ -763,6 +806,86 @@ public static class ItemHandler
     /// </summary>
     public static int GetTrackedLevel(string upgradeName)
         => _upgradeLevels.TryGetValue(upgradeName, out var lvl) ? lvl : -1;
+
+    /// <summary>
+    /// Reads the true <c>UpgradeModel</c> level for <paramref name="def"/>, or -1 when the
+    /// handler or model is not ready yet.
+    /// </summary>
+    /// <remarks>
+    /// Bypasses <c>UpgradeModelGetLevelPatch</c>, which would otherwise return the Fabricator
+    /// checked count rather than the level the player actually holds. The flag is saved and
+    /// restored rather than blindly cleared, so calling this from inside an item application
+    /// cannot end that application's suppression early.
+    /// </remarks>
+
+    /// <summary>
+    /// Writes an absolute upgrade level into the <c>UpgradeModel</c>, which is what SR2 saves
+    /// and what the game's own queries read.
+    /// </summary>
+    /// <remarks>
+    /// <b>Not</b> <c>ActorUpgradeHandler.ApplyUpgrade</c>. That applies stat MODIFIERS
+    /// (<c>_appliedModifiers</c> / <c>SetModifiersFromModel</c>) and never touches the model, so
+    /// an upgrade granted through it works for the rest of the session, is never saved, and is
+    /// absent from <c>PlayerUpgradeObtainedQueryComponent</c> — which is why Gigi could insist a
+    /// player needed a Water Tank they were visibly carrying, and why watermark reconciliation
+    /// re-applied the same upgrades on every single load.
+    ///
+    /// Confirmed by read-back: after ApplyUpgrade the model still reported -1.
+    ///
+    /// Writing the model matches what vanilla does — the Fabricator drives
+    /// <c>IncrementUpgradeLevel</c>, which is exactly why FabricatorUpgradeBlockPatch has to
+    /// intercept it. The handler picks the change up through its own OnUpgradeChanged and
+    /// applies the modifiers itself, so ApplyUpgrade must NOT also be called or the modifiers
+    /// would be applied twice.
+    /// </remarks>
+    private static bool WriteModelLevel(UpgradeDefinition def, int level)
+    {
+        var model = UpgradeHandler?._model;
+        if (model == null) return false;
+
+        bool previous = IsApplyingItem;
+        try
+        {
+            IsApplyingItem = true;          // allow the write past FabricatorUpgradeBlockPatch
+            model.SetUpgradeLevel(def, level);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"[AP] SetUpgradeLevel('{def?.name}', {level}) failed: {ex.Message}");
+            return false;
+        }
+        finally { IsApplyingItem = previous; }
+    }
+
+    public static int GetRealModelLevel(UpgradeDefinition def)
+    {
+        if (def == null || UpgradeHandler == null) return -1;
+
+        // Diagnostic: a null _model makes every level read -1, which looks identical to "the
+        // player has nothing" and causes ValidateAndRepairUpgrades to re-apply the same
+        // upgrades on every connect. Logged once so the cause is unambiguous in a log.
+        if (UpgradeHandler._model == null)
+        {
+            if (!_warnedNullModel)
+            {
+                _warnedNullModel = true;
+                Logger.Warning(
+                    "[AP] ActorUpgradeHandler._model is NULL — every upgrade level reads -1, so " +
+                    "watermark reconciliation cannot see what the save actually holds.");
+            }
+            return -1;
+        }
+
+        bool previous = IsApplyingItem;
+        try
+        {
+            IsApplyingItem = true;
+            return UpgradeHandler._model?.GetUpgradeLevel(def) ?? -1;
+        }
+        catch { return -1; }
+        finally { IsApplyingItem = previous; }
+    }
 
     /// <summary>
     /// Maps an AP item ID to the corresponding UpgradeDefinition asset name, or null if
@@ -821,6 +944,16 @@ public static class ItemHandler
             expectedLevels[name] = expectedLevels.GetValueOrDefault(name) + 1;
         }
 
+        // Seed every AP-known upgrade at count 0, not just the ones the server has delivered.
+        // Without this the loop below only ever sees upgrades the player HAS received, so an
+        // upgrade they hold that the watermark does not account for is never examined at all —
+        // exactly the case worth surfacing. Level for count 0 is -1, i.e. "should not have it".
+        foreach (var d in ItemTable.All)
+        {
+            var n = GetUpgradeName(d.Id);
+            if (n != null) expectedLevels.TryAdd(n, 0);
+        }
+
         if (expectedLevels.Count == 0) return;
 
         foreach (var kvp in expectedLevels)
@@ -832,9 +965,10 @@ public static class ItemHandler
                                       .FirstOrDefault(d => d.name == upgradeName);
             if (upgradeDef == null) continue;
 
-            IsApplyingItem = true;
-            int currentLevel = UpgradeHandler._model?.GetUpgradeLevel(upgradeDef) ?? -1;
-            IsApplyingItem = false;
+            // Shared read path, so the null-model diagnostic covers this too. An earlier
+            // version read _model inline here and the diagnostic sat in GetRealModelLevel,
+            // which validation never called — the warning could not fire no matter the cause.
+            int currentLevel = GetRealModelLevel(upgradeDef);
 
             // Always log the comparison — this is the first thing to look at when a player
             // reports a missing upgrade tier (e.g. "crafted Extra Tank II but only have one
@@ -845,6 +979,21 @@ public static class ItemHandler
 
             if (currentLevel >= targetLevel)
             {
+                if (currentLevel > targetLevel)
+                {
+                    // Game state is AHEAD of the watermark: the player holds a tier the AP
+                    // server never delivered. Deliberately NOT corrected downward — the level
+                    // may be legitimately theirs (a save that predates the mod, or an upgrade
+                    // crafted while disconnected, when FabricatorPatch.IsEnabled is false and
+                    // the vanilla grant is not suppressed). Removing it could strip progress a
+                    // player earned. Logged loudly instead, because it is otherwise invisible
+                    // and is the shape of "I got an upgrade that was meant to be just a check".
+                    Logger.Warning(
+                        $"[AP] Upgrade drift: '{upgradeName}' SR2 level={currentLevel} exceeds " +
+                        $"AP-expected {targetLevel} (items received={kvp.Value}) — game state is " +
+                        $"ahead of the watermark; not corrected.");
+                }
+
                 // SR2 save is correct — still record the level so the tracked cache is
                 // repopulated after ResetUpgradeTracking() (disconnect) even when no
                 // repair is needed. UpgradeObtainedQueryPatch reads this cache.
@@ -858,8 +1007,18 @@ public static class ItemHandler
             IsApplyingItem = true;
             try
             {
-                UpgradeHandler.ApplyUpgrade(upgradeDef, targetLevel);
+                WriteModelLevel(upgradeDef, targetLevel);
                 _upgradeLevels[upgradeName] = targetLevel;
+
+                // Read back immediately. If this reports targetLevel the write landed and the
+                // problem is persistence (the level is lost before the next load); if it still
+                // reports the old value the write is not reaching the model we read from.
+                IsApplyingItem = false;
+                int readBack = GetRealModelLevel(upgradeDef);
+                IsApplyingItem = true;
+                Logger.Info(
+                    $"[AP] Upgrade repair read-back: '{upgradeName}' now reports {readBack} " +
+                    $"(wanted {targetLevel}) — {(readBack >= targetLevel ? "write landed" : "WRITE DID NOT LAND")}");
             }
             catch (Exception ex)
             {
@@ -928,7 +1087,7 @@ public static class ItemHandler
         IsApplyingItem = true;
         try
         {
-            UpgradeHandler.ApplyUpgrade(upgradeDef, targetLevel);
+            WriteModelLevel(upgradeDef, targetLevel);
         }
         catch (Exception ex)
         {

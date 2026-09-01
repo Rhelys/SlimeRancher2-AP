@@ -26,7 +26,7 @@ internal static class ShopPatchState
 {
     internal static bool IsEnabled =>
         Plugin.Instance.ModEnabled
-        && Plugin.Instance.SaveManager.HasActiveSession
+        && Plugin.Instance.SaveManager.IsSaveBound
         && (Plugin.Instance.ApClient.SlotData?.RandomizeShop ?? false);
 
     /// <summary>

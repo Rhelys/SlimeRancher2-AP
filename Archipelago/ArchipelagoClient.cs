@@ -21,6 +21,37 @@ public class ArchipelagoClient
 {
     public ArchipelagoSession? Session    { get; private set; }
     public SlotData?           SlotData   { get; private set; }
+
+    /// <summary>
+    /// Restores slot data from the persisted copy for an offline session. No-op when a live
+    /// connection has already supplied it, or when nothing has been persisted yet.
+    /// </summary>
+    public void RestorePersistedSlotData()
+    {
+        // Guard on the connection, not on SlotData being null. Loading save A offline and then
+        // save B offline would otherwise keep A's options, because SlotData is already non-null
+        // — silently applying the wrong seed's settings to a different slot.
+        if (IsConnected) return;
+
+        var json = Plugin.Instance.SaveManager.SlotDataJson;
+        if (string.IsNullOrEmpty(json)) return;
+
+        try
+        {
+            var raw = Newtonsoft.Json.JsonConvert
+                .DeserializeObject<Dictionary<string, object>>(json);
+            if (raw == null) return;
+
+            SlotData = SlotData.Parse(raw);
+            Logger.Info(
+                $"[AP] Slot data restored from disk for offline play: goal='{SlotData.Goal}' " +
+                $"region_access_mode='{SlotData.RegionAccessMode}'");
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"[AP] Could not restore persisted slot data: {ex.Message}");
+        }
+    }
     public DeathLinkHandler?   DeathLink  { get; private set; }
 
     public bool IsConnected => Session?.Socket.Connected ?? false;
@@ -81,6 +112,12 @@ public class ArchipelagoClient
     // connect so that if the SR2 save is behind the AP watermark (e.g. the game crashed
     // before the autosave after items were applied), the correct levels are restored.
     private volatile bool _pendingUpgradeValidation;
+
+    /// <summary>Seconds to wait for UpgradeModel.Push before reconciling regardless.</summary>
+    private const float UpgradeRestoreGraceSeconds = 10f;
+
+    /// <summary>Deadline for the Push wait; 0 when no validation is pending.</summary>
+    private float _upgradeRestoreDeadline;
 
     /// <summary>
     /// Returns scout info for a location.  Checks the live cache first (online),
@@ -149,6 +186,20 @@ public class ArchipelagoClient
                     data.SaveSeedToConfig(Plugin.Instance.Config);
 
                     SlotData = SlotData.Parse(success.SlotData);
+
+                    // Persist the raw slot data so the next offline session can reload the
+                    // options. Without it, every option-gated check (pods, gordos, drones,
+                    // shop, market) sees SlotData == null offline and bails, so an offline
+                    // session records nothing and the watermark can never reconcile it.
+                    try
+                    {
+                        Plugin.Instance.SaveManager.PersistSlotData(
+                            Newtonsoft.Json.JsonConvert.SerializeObject(success.SlotData));
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Warning($"[AP] Could not persist slot data: {ex.Message}");
+                    }
                     Logger.Info(
                         $"[AP] SlotData: goal='{SlotData.Goal}' region_access_mode='{SlotData.RegionAccessMode}' " +
                         $"conversation_checks='{SlotData.ConversationChecks}' " +
@@ -362,6 +413,7 @@ public class ArchipelagoClient
         _connectTimeWatermark     = -1;
         while (_mainThreadActions.TryDequeue(out _)) { } // drop stale deferred actions
         _pendingUpgradeValidation = false;
+        _upgradeRestoreDeadline   = 0f;
         GateReturnEnforcer.Clear();
         PlortDoorPoller.Reset();
         TrapHandler.ClearDeferred();
@@ -598,13 +650,38 @@ public class ArchipelagoClient
         SlimeRancher2AP.Utils.DebugTrace.Once("ProcessItemQueue.5 — exited lock");
 #endif
 
-        // Upgrade validation: runs once per connect, as soon as UpgradeHandler is available.
-        // Compares expected levels (from AP snapshot) against actual SR2 model levels and
-        // applies any correction — handles the case where SR2 was behind due to a crash.
+        // Upgrade validation: compares expected levels (from the AP snapshot) against actual SR2
+        // model levels and applies any correction — handles the case where SR2 was behind due to
+        // a crash.
+        //
+        // Waits for UpgradeModel.Push as well as the handler. Auto-connect finishes before the
+        // handler is even constructed, so without the restore signal this could run against an
+        // empty model, read every upgrade as level -1 and re-apply the whole set from the
+        // snapshot — discarding anything the watermark does not account for.
+        //
+        // The wait is bounded: if Push never fires (a save with no upgrades may not call it) we
+        // reconcile anyway once the grace period is up, rather than skipping reconciliation
+        // entirely.
         if (_pendingUpgradeValidation && ItemHandler.UpgradeHandler != null)
         {
-            _pendingUpgradeValidation = false;
-            ItemHandler.ValidateAndRepairUpgrades();
+            if (_upgradeRestoreDeadline <= 0f)
+                _upgradeRestoreDeadline = UnityEngine.Time.time + UpgradeRestoreGraceSeconds;
+
+            bool restored = ItemHandler.UpgradesRestored;
+            bool timedOut = UnityEngine.Time.time >= _upgradeRestoreDeadline;
+
+            if (restored || timedOut)
+            {
+                if (!restored)
+                    Logger.Warning(
+                        "[AP] Upgrade validation: UpgradeModel.Push never fired within " +
+                        $"{UpgradeRestoreGraceSeconds}s — reconciling against a possibly " +
+                        "unrestored model.");
+
+                _pendingUpgradeValidation = false;
+                _upgradeRestoreDeadline   = 0f;
+                ItemHandler.ValidateAndRepairUpgrades();
+            }
         }
 
 
@@ -772,7 +849,10 @@ public class ArchipelagoClient
     public void SendCheck(long locationId)
     {
         if (!Plugin.Instance.ModEnabled) return;
-        if (!Plugin.Instance.SaveManager.HasActiveSession) return;
+        // IsSaveBound, not HasActiveSession: a check made while offline is still a real
+        // check. It is marked locally, persisted, and flushed by FlushPendingChecks on the
+        // next connect — which is what advances the watermark.
+        if (!Plugin.Instance.SaveManager.IsSaveBound) return;
         if (Plugin.Instance.SaveManager.IsChecked(locationId)) return;
 
         // A save that is not associated with this AP slot must not send checks — its game

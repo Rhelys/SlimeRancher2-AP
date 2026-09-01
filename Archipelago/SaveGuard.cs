@@ -37,7 +37,7 @@ public static class SaveGuard
     public static bool IsSaveTrusted()
     {
         var saveManager = Plugin.Instance.SaveManager;
-        if (!saveManager.HasActiveSession) { Reset(); return false; }
+        if (!saveManager.IsSaveBound) { Reset(); return false; }
 
         var current = GetCurrentSaveName();
         if (string.IsNullOrEmpty(current)) return false; // main menu / save not open yet

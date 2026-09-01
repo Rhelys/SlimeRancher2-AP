@@ -155,7 +155,19 @@ internal static class LoadGamePatch
             $"[AP] LoadGamePatch: HasActiveSession={activeSession} watermark={Plugin.Instance.SaveManager.LastItemIndex}");
         if (!activeSession &&
             !string.IsNullOrEmpty(binding.Seed) && !string.IsNullOrEmpty(binding.Slot))
+        {
             Plugin.Instance.SaveManager.PreloadLastItemIndex(binding.Seed, binding.Slot);
+
+            // Bind the save file now, without waiting for the connection. If the server is
+            // unreachable the player still gets correct AP behaviour offline: checks are
+            // recorded and persisted, and the fabricator keeps suppressing vanilla grants so
+            // an offline craft cannot hand out an upgrade the multiworld still owns.
+            Plugin.Instance.SaveManager.BindOfflineSave(binding.Seed, binding.Slot);
+
+            // Reload the options from the persisted copy so option-gated checks evaluate the
+            // same way offline as they do connected.
+            Plugin.Instance.ApClient.RestorePersistedSlotData();
+        }
 
         // Kick off connection in background; game load proceeds immediately.
         var connectData = new ArchipelagoData

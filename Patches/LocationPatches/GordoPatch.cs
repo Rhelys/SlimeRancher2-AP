@@ -16,7 +16,7 @@ internal static class GordoPatch
 #if DEBUG
         SlimeRancher2AP.Utils.DebugTrace.All("GordoPatch.Postfix — entry");
 #endif
-        if (!Plugin.Instance.ModEnabled || !Plugin.Instance.SaveManager.HasActiveSession) return;
+        if (!Plugin.Instance.ModEnabled || !Plugin.Instance.SaveManager.IsSaveBound) return;
 
         // randomize_gordos=false removes all gordo locations from the seed — do not send checks.
         // Only gate when slot data is available; when temporarily offline (SlotData null) the

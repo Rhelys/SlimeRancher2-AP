@@ -28,7 +28,7 @@ internal static class PlortMarketPatch
 
     private static void Postfix(IdentifiableType id, int count, int price)
     {
-        if (!Plugin.Instance.ModEnabled || !Plugin.Instance.SaveManager.HasActiveSession) return;
+        if (!Plugin.Instance.ModEnabled || !Plugin.Instance.SaveManager.IsSaveBound) return;
         var slotData = Plugin.Instance.ApClient.SlotData;
         if (slotData == null) return;
 

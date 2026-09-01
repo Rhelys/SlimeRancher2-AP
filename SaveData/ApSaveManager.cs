@@ -35,6 +35,7 @@ public class ApSaveManager
     private readonly ConfigFile _pluginConfig;
 
     private ConfigFile?          _saveFile;
+    private ConfigEntry<string>? _slotDataJson;
     private ConfigEntry<string>? _checkedLocations;
     private ConfigEntry<int>?    _lastItemIndex;
     private ConfigEntry<string>? _unlockedRegions;
@@ -66,6 +67,7 @@ public class ApSaveManager
     // and the HasActiveSession guard to fail to block PreloadLastItemIndex.
     private volatile int  _lastItemIdx      = -1;
     private volatile bool _sessionActive    = false;
+    private volatile bool _saveBound       = false;
     private long _newbucksEarnedVal = 0;
 
     // Scout data — loaded from JSON on connect, updated after fresh server scout.
@@ -86,6 +88,32 @@ public class ApSaveManager
     /// value written by the background connection thread.
     /// </summary>
     public bool HasActiveSession => _sessionActive;
+
+    /// <summary>
+    /// True when this save's AP config file is bound — either by a live connection or by
+    /// <see cref="BindOfflineSave"/>. Guards anything that must behave identically online and
+    /// offline: recording location checks, and suppressing vanilla fabricator grants.
+    /// </summary>
+    /// <remarks>
+    /// Distinct from <see cref="HasActiveSession"/> on purpose. Gating check-recording and
+    /// grant-suppression on a live connection meant an offline craft handed the player the
+    /// upgrade for real AND recorded no check, so the multiworld's copy of that upgrade was
+    /// still out there and the watermark could never reconcile it.
+    /// </remarks>
+    public bool IsSaveBound => _saveBound;
+
+    /// <summary>
+    /// Raw slot data JSON from the last successful connect, or empty when never connected.
+    /// </summary>
+    public string SlotDataJson => _slotDataJson?.Value ?? "";
+
+    /// <summary>Persists the raw slot data so an offline session can reload the options.</summary>
+    public void PersistSlotData(string json)
+    {
+        if (_slotDataJson == null || string.IsNullOrEmpty(json)) return;
+        if (_slotDataJson.Value == json) return;   // unchanged — avoid rewriting the file
+        _slotDataJson.Value = json;
+    }
 
     /// <summary>All locally-tracked checked location IDs (for flush-on-reconnect).</summary>
     public IReadOnlyCollection<long> CheckedLocations => _checkedSet;
@@ -187,6 +215,7 @@ public class ApSaveManager
         // Clear the session flag FIRST so HasActiveSession returns false immediately,
         // preventing any concurrent LoadGamePatch from seeing a half-torn-down session.
         _sessionActive           = false;
+        _saveBound               = false;
         _saveFile                = null;
         _checkedLocations        = null;
         _lastItemIndex           = null;
@@ -227,6 +256,35 @@ public class ApSaveManager
         // concurrent main-thread call to PreloadLastItemIndex sees HasActiveSession=true
         // and exits immediately, rather than overwriting the watermark we're about to load.
         _sessionActive = true;
+        LoadSaveState(seed, slotName);
+    }
+
+    /// <summary>
+    /// Binds the save file for an AP-bound save WITHOUT a server connection, so an offline
+    /// session can still record checks and keep the fabricator's vanilla-grant suppression on.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately does not set <see cref="HasActiveSession"/> — nothing that needs a live
+    /// server should start working just because the save is bound. Checks made here are marked
+    /// locally, persisted, and flushed by FlushPendingChecks on the next connect, which is what
+    /// advances the watermark.
+    /// </remarks>
+    public void BindOfflineSave(string seed, string slotName)
+    {
+        if (_sessionActive) return;   // a live session already owns the binding
+        LoadSaveState(seed, slotName);
+        Logger.Info(
+            $"[AP] Offline save binding: seed={seed} slot={slotName} — checks will be recorded " +
+            "locally and flushed on the next connect.");
+    }
+
+    /// <summary>
+    /// Binds the per-slot config file and deserializes all persisted progress into memory.
+    /// Shared by <see cref="OnConnected"/> and <see cref="BindOfflineSave"/>.
+    /// </summary>
+    private void LoadSaveState(string seed, string slotName)
+    {
+        _saveBound = true;
 
         var safeSlot = string.Concat(slotName.Split(Path.GetInvalidFileNameChars()));
         var dir      = Path.Combine(BepInEx.Paths.ConfigPath, "SlimeRancher2-AP");
@@ -256,6 +314,10 @@ public class ApSaveManager
             "The SR2 save game this AP slot is bound to (set on the first in-save session). " +
             "Loading a different save while connected pauses item delivery and checks. " +
             "Clear this value to re-associate the slot with the next save you load.");
+        _slotDataJson            = _saveFile.Bind("Progress", "SlotDataJson", "",
+            "Raw slot data from the last successful connect, as JSON. Reloaded when the save is " +
+            "opened offline so option-gated checks (pods, gordos, drones, shop, market) still " +
+            "evaluate correctly with no server.");
         _plortsSold              = _saveFile.Bind("Progress", "PlortsSold", "",
             "Per-type plorts sold at the market, as 'PinkPlort:12,RockPlort:3,...' " +
             "(tracked via PlortEconomyDirector.RegisterSold for the plort_seller goal)");

@@ -45,7 +45,7 @@ internal static class TreasurePodUIInteractablePatch
 {
     private static void Prefix(TreasurePodUIInteractable __instance)
     {
-        if (!Plugin.Instance.ModEnabled || !Plugin.Instance.SaveManager.HasActiveSession)
+        if (!Plugin.Instance.ModEnabled || !Plugin.Instance.SaveManager.IsSaveBound)
             return;
         if (SceneContext.Instance?.PlayerState?._model == null)
             return;
@@ -85,7 +85,7 @@ internal static class TreasurePodActivatePatch
         if (!__instance.gameObject.name.StartsWith("node"))
             return true;
 
-        if (!Plugin.Instance.ModEnabled || !Plugin.Instance.SaveManager.HasActiveSession)
+        if (!Plugin.Instance.ModEnabled || !Plugin.Instance.SaveManager.IsSaveBound)
             return true;
         if (SceneContext.Instance?.PlayerState?._model == null)
             return true;

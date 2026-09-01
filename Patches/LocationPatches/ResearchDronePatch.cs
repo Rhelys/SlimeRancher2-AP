@@ -41,7 +41,7 @@ internal static class ResearchDronePatch
     /// <summary>Called every Update frame from <c>ApUpdateBehaviour</c>.</summary>
     internal static void Tick()
     {
-        if (!Plugin.Instance.ModEnabled || !Plugin.Instance.SaveManager.HasActiveSession) return;
+        if (!Plugin.Instance.ModEnabled || !Plugin.Instance.SaveManager.IsSaveBound) return;
         float now = UnityEngine.Time.unscaledTime;
         if (now < _nextPoll) return;
         _nextPoll = now + PollSeconds;

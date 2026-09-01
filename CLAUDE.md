@@ -244,6 +244,38 @@ Grant via: `SceneContext.Instance.GadgetDirector.AddBlueprint(gadgetDef, false)`
   observed via **`InvisibleSwitchPatch`** (safe to patch; fires repeatedly while a beam is active).
 - Find switches: `Resources.FindObjectsOfTypeAll<WorldStatePrimarySwitch>()`
 
+### Upgrades: write the model, never just the modifiers
+
+**Grant upgrades with `UpgradeModel.SetUpgradeLevel(def, level)`** — see
+`ItemHandler.WriteModelLevel`. Do NOT use `ActorUpgradeHandler.ApplyUpgrade`: that applies stat
+MODIFIERS only and never touches `UpgradeModel`, so the upgrade works for the session, is never
+saved, and is invisible to `PlayerUpgradeObtainedQueryComponent`. That single defect caused both
+"Gigi says I need a Water Tank I'm carrying" and reconciliation re-applying every upgrade on
+every load. Confirmed by read-back: after `ApplyUpgrade` the model still reported -1.
+
+`UpgradeModelGetLevelPatch` overrides `UpgradeModel.GetUpgradeLevel` **globally** (a native
+detour — the managed Fabricator properties do not cover native call sites) to return the
+Fabricator checked count. It lies to the game, so every path that reads a level for a real
+decision needs an exemption. Currently three:
+
+1. Fabricator cost-check — `IsCrafting && !WasCraftBlocked`
+2. AP item pipeline — `ItemHandler.IsApplyingItem`
+3. **Modifier recompute** — `UpgradeLevelTrackingPatch.IsApplyingModifiers`, covering both
+   `ActorUpgradeHandler.OnUpgradeChanged` and `SetModifiersFromModel`
+
+Exemption 3 is a depth counter, not a bool: `SetModifiersFromModel` raises per-upgrade changes
+inside itself, and a bool would be cleared by the inner event while the outer pass ran.
+
+`UpgradeModel.Push` (save restore) raises **no** per-upgrade events — the handler rebuilds
+everything through `SetModifiersFromModel` in one pass. Reconciliation therefore waits for a
+`Push` signal (`UpgradeModelPushPatch`) before comparing against the watermark, or it reads an
+empty model and "repairs" the whole set from the snapshot.
+
+If a fourth recompute path ever appears, stop adding exemptions and invert the override so it
+applies only to the Fabricator UI.
+
+---
+
 ### Harmony Patch Rules
 
 - Parameter names in Postfix/Prefix must **exactly** match the original method's parameter names — use `nameof()` or verify from `apis/` decompile

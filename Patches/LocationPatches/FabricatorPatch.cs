@@ -46,7 +46,7 @@ internal static class FabricatorPatch
     /// </remarks>
     internal static bool IsEnabled =>
         Plugin.Instance.ModEnabled
-        && Plugin.Instance.SaveManager.HasActiveSession;
+        && Plugin.Instance.SaveManager.IsSaveBound;
 
     /// <summary>
     /// True while <c>FabricateAndSpendCost</c> is executing with AP mode active.

@@ -15,14 +15,67 @@ namespace SlimeRancher2AP.Patches.PlayerPatches;
 [HarmonyPatch(typeof(ActorUpgradeHandler), "OnUpgradeChanged")]
 internal static class UpgradeLevelTrackingPatch
 {
+    /// <summary>
+    /// True while the handler is responding to an upgrade change — i.e. recomputing the stat
+    /// modifiers for the new level.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="UpgradeModelGetLevelPatch"/> must return the REAL level during this window.
+    /// The recompute reads levels back out of the model to decide which modifiers to apply; if
+    /// it sees the Fabricator checked count instead (-1 for anything the player has not crafted)
+    /// it applies nothing, and an upgrade the player owns silently stops working. Observed as a
+    /// jetpack that stopped functioning the moment an unrelated Energy Tank was granted.
+    ///
+    /// Latent until the mod started writing UpgradeModel: nothing used to trigger a recompute.
+    /// </remarks>
+    internal static bool IsApplyingModifiers => _modifierDepth > 0;
+
+    /// <summary>Nesting depth — SetModifiersFromModel may raise per-upgrade changes inside it.</summary>
+    private static int _modifierDepth;
+
+    internal static void BeginModifierRecompute() => _modifierDepth++;
+
+    internal static void EndModifierRecompute()
+    {
+        if (_modifierDepth > 0) _modifierDepth--;
+    }
+
+    private static void Prefix() => BeginModifierRecompute();
+
     private static void Postfix(UpgradeDefinition definition, int fromLevel, int toLevel)
     {
 #if DEBUG
         SlimeRancher2AP.Utils.DebugTrace.Once("UpgradeLevelTrackingPatch.Postfix — first entry");
 #endif
-        if (!Plugin.Instance.ModEnabled) return;
-        try { ItemHandler.TrackUpgradeLevel(definition.name, toLevel); } catch { /* guard against partially-initialised UpgradeDefinition during scene load */ }
+        try
+        {
+            if (!Plugin.Instance.ModEnabled) return;
+            try { ItemHandler.TrackUpgradeLevel(definition.name, toLevel); } catch { /* guard against partially-initialised UpgradeDefinition during scene load */ }
+        }
+        finally { EndModifierRecompute(); }
     }
+}
+
+/// <summary>
+/// Widens the modifier-recompute suppression window to cover
+/// <c>ActorUpgradeHandler.SetModifiersFromModel</c>.
+/// </summary>
+/// <remarks>
+/// Guarding <c>OnUpgradeChanged</c> alone was not enough. Save restore goes through
+/// <c>UpgradeModel.Push</c>, which does NOT raise a per-upgrade change event — confirmed in a
+/// log where UpgradeLevelTrackingPatch first fired on a later item grant, well after the model
+/// had been restored. The handler instead rebuilds every modifier from the model in one pass
+/// here, reading each level back through <c>GetUpgradeLevel</c>. With the Fabricator override
+/// live that reads -1 for anything uncrafted, so a correctly-restored model produced no
+/// modifiers at all and owned upgrades did nothing.
+///
+/// CallerCount(1), so it is a safe patch target.
+/// </remarks>
+[HarmonyPatch(typeof(ActorUpgradeHandler), nameof(ActorUpgradeHandler.SetModifiersFromModel))]
+internal static class SetModifiersFromModelPatch
+{
+    private static void Prefix()  => UpgradeLevelTrackingPatch.BeginModifierRecompute();
+    private static void Postfix() => UpgradeLevelTrackingPatch.EndModifierRecompute();
 }
 
 /// <summary>
@@ -154,6 +207,12 @@ internal static class UpgradeModelGetLevelPatch
         if (ItemHandler.IsApplyingItem)
             return true;
 
+        // Block while the handler is recomputing stat modifiers in response to an upgrade
+        // change. That recompute reads levels back out of the model; handing it the Fabricator
+        // checked count makes it apply no modifier at all, so an owned upgrade stops working.
+        if (UpgradeLevelTrackingPatch.IsApplyingModifiers)
+            return true;
+
         if (!FabricatorPatch.IsEnabled)
             return true;
 
@@ -196,7 +255,20 @@ internal static class UpgradeObtainedQueryPatch
         if (!FabricatorPatch.IsEnabled) return true;
         var def = __instance._upgradeDefinition;
         if (def == null || string.IsNullOrEmpty(def.name)) return true;
-        __result = ItemHandler.GetTrackedLevel(def.name) >= __instance._requiredLevel;
+
+        // Read the REAL model level, not just the tracked cache.
+        //
+        // The cache is cleared on disconnect and only repopulated from AP items inside the
+        // watermark, so an upgrade the SR2 save genuinely holds can be missing from it — and
+        // this query would then deny an upgrade the player is carrying. Reported in the wild as
+        // "the hologram keeps saying I need a water tank even though I have one".
+        //
+        // GetRealModelLevel suppresses UpgradeModelGetLevelPatch for the read, which would
+        // otherwise return the Fabricator checked count instead of the real level.
+        int level = System.Math.Max(
+            ItemHandler.GetRealModelLevel(def),
+            ItemHandler.GetTrackedLevel(def.name));
+        __result  = level >= __instance._requiredLevel;
         return false;
     }
 }
