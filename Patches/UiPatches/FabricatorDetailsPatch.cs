@@ -64,9 +64,10 @@ internal static class FabricatorDetailsPatch
             return;
         }
 
-        // Only override when connected and fabricator is randomized; otherwise preserve normal display
-        if (!Plugin.Instance.ApClient.IsConnected
-            || !(Plugin.Instance.ApClient.SlotData?.RandomizeFabricator ?? true))
+        // Only override when connected; otherwise preserve normal display. Craft locations are
+        // AP checks regardless of randomize_fabricator, so the AP name/description is correct
+        // in both modes — in a non-randomized seed it simply names the player's own upgrade.
+        if (!Plugin.Instance.ApClient.IsConnected)
         {
             if (nameEvent != null) nameEvent.enabled = true;
             if (descEvent != null) descEvent.enabled = true;

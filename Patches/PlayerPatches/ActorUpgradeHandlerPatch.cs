@@ -54,7 +54,7 @@ internal static class FabricatorUpgradeBlockPatch
     private static bool Prefix()
     {
         if (!FabricatorPatch.IsEnabled)
-            return true;              // fabricator not randomized — vanilla behaviour, allow all
+            return true;              // no AP session — vanilla behaviour, allow all
         bool allow = ItemHandler.IsApplyingItem; // true = AP pipeline grant → allow
         if (!allow && FabricatorPatch.IsCrafting)
             WasCraftBlocked = true;   // transition: cost-check phase → display-refresh phase
@@ -181,7 +181,7 @@ internal static class UpgradeModelGetLevelPatch
 /// model level rather than the Fabricator checked count.
 /// </summary>
 /// <remarks>
-/// When <c>randomize_fabricator</c> is on, <see cref="UpgradeModelGetLevelPatch"/> returns
+/// In AP mode <see cref="UpgradeModelGetLevelPatch"/> returns
 /// <c>checkedCount - 1</c> from <c>UpgradeModel.GetUpgradeLevel</c>.  For an AP-granted upgrade
 /// that hasn't been crafted at the Fabricator (checkedCount = 0), that returns −1, which would
 /// cause prerequisite checks like the Prismacore fight to consider the upgrade absent even though

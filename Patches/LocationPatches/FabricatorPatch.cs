@@ -35,13 +35,18 @@ namespace SlimeRancher2AP.Patches.LocationPatches;
 internal static class FabricatorPatch
 {
     /// <summary>
-    /// True when the fabricator is in AP mode and the randomize_fabricator option is on.
-    /// All fabricator-related patches check this before modifying behaviour.
+    /// True when the fabricator is in AP mode. All fabricator-related patches check this
+    /// before modifying behaviour.
     /// </summary>
+    /// <remarks>
+    /// Deliberately does NOT consult <c>randomize_fabricator</c>. Craft locations are AP
+    /// checks in both modes — the option controls only what they CONTAIN (a shuffled item, or
+    /// the upgrade that craft grants in the vanilla game, locked there by the apworld). Gating
+    /// on it would leave every craft in a non-randomized seed unsendable, and so unobtainable.
+    /// </remarks>
     internal static bool IsEnabled =>
         Plugin.Instance.ModEnabled
-        && Plugin.Instance.SaveManager.HasActiveSession
-        && (Plugin.Instance.ApClient.SlotData?.RandomizeFabricator ?? true);
+        && Plugin.Instance.SaveManager.HasActiveSession;
 
     /// <summary>
     /// True while <c>FabricateAndSpendCost</c> is executing with AP mode active.
