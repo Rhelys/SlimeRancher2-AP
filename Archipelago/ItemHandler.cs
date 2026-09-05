@@ -772,7 +772,32 @@ public static class ItemHandler
     public static bool UpgradesRestored { get; private set; }
 
     /// <summary>Clears the restore signal. Called on disconnect and on scene change.</summary>
+    /// <remarks>
+    /// Deliberately does NOT clear <see cref="NoRestoreExpected"/>: a new game creates the save
+    /// and then transitions scene, so a flag cleared here would be wiped moments after the
+    /// new-game path set it.
+    /// </remarks>
     public static void ResetUpgradeRestoreState() => UpgradesRestored = false;
+
+    /// <summary>
+    /// True when the active save was created fresh this session, so no <c>UpgradeModel.Push</c>
+    /// is coming and there is nothing to wait for.
+    /// </summary>
+    /// <remarks>
+    /// A new game never routes through <c>AutoSaveDirector.BeginLoad</c> and has no persisted
+    /// upgrade levels to restore, so <c>Push</c> is never called. Without this, reconciliation
+    /// sat out the full grace period and then logged a warning about an unrestored model on
+    /// every single new game — for a model that was correctly empty. Reconciling immediately is
+    /// right here: the new-game path requests a full replay, so the AP snapshot is the only
+    /// source the model should be built from.
+    /// </remarks>
+    public static bool NoRestoreExpected { get; private set; }
+
+    /// <summary>Marks the active save as freshly created — no restore <c>Push</c> will arrive.</summary>
+    public static void MarkFreshSave() => NoRestoreExpected = true;
+
+    /// <summary>Marks the active save as loaded from disk — a restore <c>Push</c> is expected.</summary>
+    public static void MarkLoadedSave() => NoRestoreExpected = false;
 
     /// <summary>
     /// Called from <c>UpgradeModelPushPatch</c> once the save's upgrade levels are in the model.

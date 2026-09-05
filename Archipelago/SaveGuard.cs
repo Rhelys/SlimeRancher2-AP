@@ -45,6 +45,31 @@ public static class SaveGuard
         if (current == _evaluatedSave) return _trusted;
         _evaluatedSave = current;
 
+        // Seed check first — it is stronger evidence than the slot association.
+        //
+        // The save records the seed it belongs to. If we are connected to a DIFFERENT seed,
+        // this save belongs to another run no matter what the slot association says. That
+        // matters most for a brand-new slot, where AssociatedSaveName is empty and the branch
+        // below would happily adopt a save that plainly belongs elsewhere — which is how a
+        // save bound to one seed silently became the save for another.
+        var liveSeed = Plugin.Instance.ApClient.Session?.RoomState.Seed;
+        if (!string.IsNullOrEmpty(ExpectedSeed) && !string.IsNullOrEmpty(liveSeed)
+            && !string.Equals(ExpectedSeed, liveSeed, StringComparison.Ordinal))
+        {
+            _trusted = false;
+            Logger.Warning(
+                $"[AP] SaveGuard: save '{current}' belongs to seed {ExpectedSeed} but the " +
+                $"connected server is seed {liveSeed} — item delivery and location checks are " +
+                "PAUSED for this save.");
+            // Notification, not a modal: this path runs mid-load (SaveGuard is consulted
+            // lazily, by the first thing that wants to send a check), and a modal raised then
+            // renders but cannot be clicked. LoadGamePatch blocks the load up front for the
+            // case we can detect early; this is only the backstop for the rest.
+            UI.StatusHUD.Instance?.ShowNotification(
+                "AP: this save belongs to a different seed - items and checks paused");
+            return _trusted;
+        }
+
         var associated = saveManager.AssociatedSaveName;
         if (string.IsNullOrEmpty(associated))
         {
@@ -70,7 +95,32 @@ public static class SaveGuard
         return _trusted;
     }
 
+    /// <summary>
+    /// Seed the currently-loading save says it belongs to, taken from its own AP binding.
+    /// Empty for a vanilla save, or before any save has been loaded this session.
+    /// </summary>
+    public static string ExpectedSeed { get; private set; } = "";
+
+    /// <summary>Records the seed a save is bound to. Called by the load-game patch.</summary>
+    public static void SetExpectedSeed(string? seed)
+    {
+        ExpectedSeed   = seed ?? "";
+        _evaluatedSave = null;   // re-evaluate trust for the incoming save
+    }
+
     /// <summary>Clears the per-save evaluation cache (called on disconnect).</summary>
+    /// <remarks>
+    /// <see cref="ExpectedSeed"/> is deliberately NOT cleared here. It describes the SAVE that is
+    /// loaded, not the session, and loading an AP save reconnects — <c>Connect</c> calls
+    /// <c>Disconnect</c>, which lands here. Clearing it made the seed check dead code on exactly
+    /// the path it exists for: the load recorded the seed, the reconnect wiped it moments later,
+    /// and <see cref="IsSaveTrusted"/> then fell through to the association branch. That branch
+    /// only catches this when the slot has already adopted some other save, so on a fresh config
+    /// a wrong-seed save was adopted silently.
+    ///
+    /// Its lifetime is "until the next save is established" instead, which every path that
+    /// establishes one already honours: new game and vanilla load clear it, an AP load sets it.
+    /// </remarks>
     public static void Reset()
     {
         _evaluatedSave = null;

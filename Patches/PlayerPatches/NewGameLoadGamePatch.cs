@@ -68,6 +68,15 @@ internal static class NewGamePatch
         // during save creation.  Save-slot icon support can be revisited by patching
         // the save slot *display* UI instead of new-game creation.
 
+        // A fresh save has no prior seed binding — clear any expectation left over from an
+        // earlier load attempt, or SaveGuard will judge this save against the wrong seed.
+        SaveGuard.SetExpectedSeed(null);
+
+        // No UpgradeModel.Push is coming for a save that was just created — there is nothing on
+        // disk to restore. Without this, upgrade reconciliation waits out the whole grace period
+        // and then warns about an "unrestored" model that is correctly empty.
+        SlimeRancher2AP.Archipelago.ItemHandler.MarkFreshSave();
+
         StatusHUD.Instance?.ShowNotification(
             $"New AP game — slot {slotIndex + 1} linked to {data.SlotName}");
     }
@@ -89,9 +98,15 @@ internal static class NewGamePatch
 [HarmonyPatch(typeof(AutoSaveDirector), "BeginLoad")]
 internal static class LoadGamePatch
 {
-    private static void Prefix(AutoSaveDirector __instance, GameSaveIdentifier __0)
+    /// <summary>Set by the "load anyway" confirm action so the retry is not blocked again.</summary>
+    private static bool _bypassSeedCheck;
+
+    /// <summary>Newline for modal text, built explicitly to avoid escape-sequence mangling.</summary>
+    private static readonly string NewLine = ((char)10).ToString();
+
+    private static bool Prefix(AutoSaveDirector __instance, GameSaveIdentifier __0)
     {
-        if (!Plugin.Instance.ModEnabled) return;
+        if (!Plugin.Instance.ModEnabled) return true;
 #if DEBUG
         // Reset the Once() deduplication set so all patch traces can fire again
         // for this Continue attempt, even if they already fired on the main menu.
@@ -101,7 +116,7 @@ internal static class LoadGamePatch
 
         // Resolve slot index from GameName via the live save summary list.
         int slotIndex = ResolveSlotIndex(__instance, __0.GameName);
-        if (slotIndex < 0) return;
+        if (slotIndex < 0) return true;
 
         var binding = SaveBindingManager.Load(slotIndex);
         if (binding == null)
@@ -119,12 +134,61 @@ internal static class LoadGamePatch
                 Plugin.Instance.ApClient.Disconnect();
                 StatusHUD.Instance?.ShowNotification("Vanilla save loaded — Archipelago disconnected");
             }
-            return;
+            SaveGuard.SetExpectedSeed(null);   // vanilla save — no seed to match
+            return true;
         }
 
         Logger.Info(
             $"[AP] LoadGamePatch: slot {slotIndex} ({__0.GameName}) has AP binding " +
             $"(seed={binding.Seed}, slot={binding.Slot}) — auto-connecting...");
+
+        // Wrong-seed protection, applied BEFORE the load starts.
+        //
+        // SaveGuard also detects this, but only once something asks it to — by which point the
+        // save is already loading, and a modal raised mid-load is not interactable. Catching it
+        // here keeps the player on the save-select screen where a dialog still works.
+        //
+        // Only decidable while connected: an offline load has no live seed to compare, and the
+        // auto-connect below may land on a different seed entirely — SaveGuard remains the
+        // backstop for that.
+        if (!_bypassSeedCheck
+            && Plugin.Instance.ApClient.IsConnected
+            && !string.IsNullOrEmpty(binding.Seed))
+        {
+            var liveSeed = Plugin.Instance.ApClient.Session?.RoomState.Seed;
+            if (!string.IsNullOrEmpty(liveSeed)
+                && !string.Equals(liveSeed, binding.Seed, System.StringComparison.Ordinal))
+            {
+                Logger.Warning(
+                    $"[AP] LoadGamePatch: save is bound to seed {binding.Seed} but the connected " +
+                    $"server is seed {liveSeed} — load blocked pending confirmation.");
+
+                StatusHUD.Instance?.ShowWarningModal(
+                    "This save belongs to a different Archipelago seed." + NewLine + NewLine +
+                    "Save seed: " + binding.Seed + NewLine +
+                    "Connected: " + liveSeed + NewLine + NewLine +
+                    "Loading it will not send checks or receive items until you connect to the " +
+                    "matching seed. Connect to that seed first, or load the save for this one.",
+                    () =>
+                    {
+                        _bypassSeedCheck = true;
+                        __instance.BeginLoad(__0);
+                    },
+                    "Load Anyway");
+
+                return false;   // stay on the save-select screen
+            }
+        }
+        _bypassSeedCheck = false;
+
+        // Record the seed only once the load is actually going ahead. Setting it before the
+        // check above left a REJECTED save's seed in place, which then condemned the next save
+        // loaded — including a brand-new one created for the connected seed.
+        SaveGuard.SetExpectedSeed(binding.Seed);
+
+        // A real load restores upgrade levels through UpgradeModel.Push, so reconciliation must
+        // wait for that signal rather than reading an empty model.
+        SlimeRancher2AP.Archipelago.ItemHandler.MarkLoadedSave();
 
         // If already connected to the correct session, no need to reconnect.
         // But do schedule upgrade re-validation: the scene is about to reload and SR2's
@@ -135,7 +199,7 @@ internal static class LoadGamePatch
         {
             Logger.Info("[AP] LoadGamePatch: already connected to correct AP session — scheduling upgrade re-validation for scene reload.");
             Plugin.Instance.ApClient.ScheduleUpgradeValidation();
-            return;
+            return true;
         }
 
         // Pre-load LastItemIndex BEFORE connecting so that when Session.Items.ItemReceived
@@ -178,6 +242,7 @@ internal static class LoadGamePatch
             Password = binding.Password,
         };
         Plugin.Instance.ApClient.Connect(connectData);
+        return true;
     }
 
     /// <summary>

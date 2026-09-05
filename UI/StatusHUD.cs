@@ -23,6 +23,7 @@ public class StatusHUD : MonoBehaviour
     private bool            _showModal           = false;
     private string          _modalMessage        = "";
     private System.Action?  _modalConfirmAction  = null;
+    private string          _modalConfirmLabel   = "Create Anyways";
 
     // -------------------------------------------------------------------------
 
@@ -43,11 +44,18 @@ public class StatusHUD : MonoBehaviour
     /// "Go Back" (dismiss) and "Create Anyways" (invokes the action).
     /// When null a single centred "Dismiss" button is shown.
     /// </summary>
-    public void ShowWarningModal(string message, System.Action? confirmAction = null)
+    /// <param name="confirmLabel">
+    /// Text for the risky-action button. Defaults to the new-game wording; the load-game caller
+    /// overrides it, since offering "Create Anyways" for a save that already exists misdescribes
+    /// what the button does.
+    /// </param>
+    public void ShowWarningModal(string message, System.Action? confirmAction = null,
+                                 string confirmLabel = "Create Anyways")
     {
         _showModal           = true;
         _modalMessage        = message;
         _modalConfirmAction  = confirmAction;
+        _modalConfirmLabel   = string.IsNullOrEmpty(confirmLabel) ? "Create Anyways" : confirmLabel;
     }
 
     /// <summary>
@@ -171,11 +179,11 @@ public class StatusHUD : MonoBehaviour
                     _modalConfirmAction = null;
                 }
 
-                // "Create Anyways" on the right (orange — signals a risky action)
+                // Confirm on the right (orange — signals a risky action)
                 GUI.color = new Color(0.85f, 0.5f, 0.1f, 1f);
                 GUI.DrawTexture(new Rect(bx + W - 40 - BtnW, btnY, BtnW, BtnH), Texture2D.whiteTexture);
                 GUI.color = Color.white;
-                if (GUI.Button(new Rect(bx + W - 40 - BtnW, btnY, BtnW, BtnH), "Create Anyways"))
+                if (GUI.Button(new Rect(bx + W - 40 - BtnW, btnY, BtnW, BtnH), _modalConfirmLabel))
                 {
                     _showModal = false;
                     var action = _modalConfirmAction;

@@ -663,13 +663,22 @@ public class ArchipelagoClient
         // The wait is bounded: if Push never fires (a save with no upgrades may not call it) we
         // reconcile anyway once the grace period is up, rather than skipping reconciliation
         // entirely.
+        //
+        // A freshly created save is exempt from the wait entirely — it never routes through
+        // BeginLoad and has nothing to restore, so Push is never called and waiting only delays
+        // reconciliation by the full grace period before warning about a model that is correctly
+        // empty. See ItemHandler.NoRestoreExpected.
+        //
+        // unscaledTime, not time: the grace period is wall-clock, and Time.time stalls whenever
+        // the game sets timeScale to 0 (pause, scene load). That stretched the observed timeout
+        // to ~36s of real time on a new game.
         if (_pendingUpgradeValidation && ItemHandler.UpgradeHandler != null)
         {
             if (_upgradeRestoreDeadline <= 0f)
-                _upgradeRestoreDeadline = UnityEngine.Time.time + UpgradeRestoreGraceSeconds;
+                _upgradeRestoreDeadline = UnityEngine.Time.unscaledTime + UpgradeRestoreGraceSeconds;
 
-            bool restored = ItemHandler.UpgradesRestored;
-            bool timedOut = UnityEngine.Time.time >= _upgradeRestoreDeadline;
+            bool restored = ItemHandler.UpgradesRestored || ItemHandler.NoRestoreExpected;
+            bool timedOut = UnityEngine.Time.unscaledTime >= _upgradeRestoreDeadline;
 
             if (restored || timedOut)
             {
