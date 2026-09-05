@@ -24,6 +24,22 @@ public class ApSaveManager
         [JsonPropertyName("game")]   public string PlayerGame { get; init; } = "";
         [JsonPropertyName("prog")]   public bool   IsProgression { get; init; }
         [JsonPropertyName("trap")]   public bool   IsTrap        { get; init; }
+        /// <summary>ItemFlags.NeverExclude — Archipelago's "useful" tier.</summary>
+        [JsonPropertyName("useful")] public bool   IsUseful      { get; init; }
+
+        /// <summary>
+        /// Human-readable Archipelago tier for this item: Progression, Useful, Trap or Filler.
+        /// </summary>
+        /// <remarks>
+        /// Trap is checked before progression: a trap is never also progression, and reading
+        /// "Progression" on a trap would be actively misleading to someone deciding whether to
+        /// spend Newbucks on it.
+        /// </remarks>
+        public string Tier =>
+            IsTrap        ? "Trap"
+          : IsProgression ? "Progression"
+          : IsUseful      ? "Useful"
+          :                 "Filler";
     }
 
     private static readonly JsonSerializerOptions JsonOpts = new()

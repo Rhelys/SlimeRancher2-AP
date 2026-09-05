@@ -478,6 +478,7 @@ public class ArchipelagoClient
                     PlayerGame    = scout.Player?.Game ?? "Unknown",
                     IsProgression = scout.Flags.HasFlag(ItemFlags.Advancement),
                     IsTrap        = scout.Flags.HasFlag(ItemFlags.Trap),
+                    IsUseful      = scout.Flags.HasFlag(ItemFlags.NeverExclude),
                 };
             }
 

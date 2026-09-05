@@ -1,3 +1,4 @@
+using Archipelago.MultiClient.Net.Enums;
 using HarmonyLib;
 using Il2CppMonomiPark.SlimeRancher.UI.Shop;
 using Il2CppMonomiPark.SlimeRancher.UI.Shop.Pages;
@@ -17,12 +18,41 @@ namespace SlimeRancher2AP.Patches.UiPatches;
 internal static class ShopUiHelper
 {
     /// <summary>
+    /// Archipelago tier for a scouted item: Progression, Useful, Trap or Filler.
+    /// </summary>
+    /// <remarks>
+    /// Falls back to the persisted scout so the tier still shows offline, where the live scout
+    /// cache is empty. Trap is tested before progression — a trap is never also progression, and
+    /// labelling one "Progression" would actively mislead someone deciding how to spend Newbucks.
+    /// </remarks>
+    internal static string TierOf(LocationInfo info)
+    {
+        var live = Plugin.Instance.ApClient.GetScoutedItem(info.Id);
+        if (live != null)
+        {
+            if (live.Flags.HasFlag(ItemFlags.Trap))         return "Trap";
+            if (live.Flags.HasFlag(ItemFlags.Advancement))  return "Progression";
+            if (live.Flags.HasFlag(ItemFlags.NeverExclude)) return "Useful";
+            return "Filler";
+        }
+
+        return Plugin.Instance.SaveManager.GetScout(info.Id)?.Tier ?? "";
+    }
+
+    /// <summary>
     /// The scouted AP item name at this location — shown as the primary item name in the
     /// details panel and purchase popup. Falls back to a generic label until scout data
     /// arrives (scouting runs async right after connect).
     /// </summary>
+    /// <remarks>
+    /// The Archipelago tier is deliberately NOT appended here. It lives in the description line
+    /// built by <see cref="BuildScoutDescription"/> instead: the header is the item's name, and
+    /// a bracketed tag on the end of it reads as part of that name.
+    /// </remarks>
     internal static string HeaderText(LocationInfo info)
-        => Plugin.Instance.ApClient.GetScoutedItem(info.Id)?.ItemName ?? "Archipelago Check";
+        => Plugin.Instance.ApClient.GetScoutedItem(info.Id)?.ItemName
+           ?? Plugin.Instance.SaveManager.GetScout(info.Id)?.ItemName
+           ?? "Archipelago Check";
 
     /// <summary>Builds the "An Archipelago check for X" description for a location.</summary>
     internal static string BuildScoutDescription(LocationInfo info)
@@ -39,7 +69,7 @@ internal static class ShopUiHelper
             ? "your game"
             : (session?.Players.GetPlayerAlias(scouted.Player) ?? "Unknown");
 
-        string line = $"An Archipelago check for {owner}";
+        string line = $"An Archipelago check for {owner} ({TierOf(info)})";
         return sent ? $"{line}\n(Check sent)" : line;
     }
 
