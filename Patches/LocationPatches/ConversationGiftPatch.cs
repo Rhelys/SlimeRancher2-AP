@@ -217,6 +217,40 @@ internal static class ConversationActiveTrackerPatch
 
         return LocationTable.IsConversationIncluded(loc.Type, mode);
     }
+
+    /// <summary>
+    /// Assets the apworld puts in the item pool of EVERY seed, no matter how
+    /// <c>conversation_checks</c> is set, keyed by the game asset name a gift page carries.
+    /// </summary>
+    /// <remarks>
+    /// These must be suppressed even when conversations are not randomized. Both are added
+    /// unconditionally by <c>create_items</c> — Radiant Projector Blueprint in
+    /// SPECIAL_ACCESS_ITEMS, Archive Key Component in CRAFTING_COMPONENT_ITEMS — so a player
+    /// who receives one from a conversation holds it without the AP item, and the logic that
+    /// assumed they needed it no longer holds. For the Radiant Projector that means reaching the
+    /// Grey Labyrinth without its access item, which breaks every seed with GL in scope.
+    ///
+    /// The conversation-gifted gadgets are NOT here on purpose: the apworld already keeps them
+    /// out of the pool unless the matching conversation tier is enabled
+    /// (<c>_CONV_KEY_GADGET_NAMES</c> / <c>_CONV_CONDITIONAL_GADGET_NAMES</c>), so when
+    /// conversations are off the vanilla gift is the only source and must be allowed.
+    /// </remarks>
+    private static readonly HashSet<string> AlwaysApGiftAssets = new(StringComparer.Ordinal)
+    {
+        "EnergyBeamNode",       // Radiant Projector Blueprint  (ViktorStoryCipher4)
+        "ArchiveKeyComponent",  // Archive Key Component
+    };
+
+    /// <summary>
+    /// True when this gift hands over an item the AP pool always contains, so the in-game grant
+    /// must be suppressed regardless of the conversation-checks setting.
+    /// </summary>
+    internal static bool IsAlwaysApGift(string? assetName)
+        => Plugin.Instance != null
+           && Plugin.Instance.ModEnabled
+           && Plugin.Instance.SaveManager.IsSaveBound
+           && !string.IsNullOrEmpty(assetName)
+           && AlwaysApGiftAssets.Contains(assetName!);
 }
 
 // ---------------------------------------------------------------------------
@@ -251,12 +285,14 @@ internal static class ConversationPageGiftBlueprintPatch
         __state = director != null && __instance.gadget != null
                   && director.HasBlueprint(__instance.gadget);
 
-        if (ConversationActiveTrackerPatch.ShouldSuppressGift())
+        bool alwaysAp = ConversationActiveTrackerPatch.IsAlwaysApGift(__instance.gadget?.name);
+        if (ConversationActiveTrackerPatch.ShouldSuppressGift() || alwaysAp)
         {
             Logger.Info(
                 $"[AP-Conv] GiftBlueprint suppressed (AP will deliver item): " +
                 $"gadget='{__instance.gadget?.name}'  " +
-                $"conv='{ConversationActiveTrackerPatch.ActiveConversationDebugName}'");
+                $"conv='{ConversationActiveTrackerPatch.ActiveConversationDebugName}'" +
+                (alwaysAp ? "  [always an AP item]" : ""));
             return false; // skip ApplyChanges
         }
 
@@ -267,7 +303,8 @@ internal static class ConversationPageGiftBlueprintPatch
     {
         if (!Plugin.Instance.ModEnabled) return;
         if (__instance.gadget == null) return;
-        if (ConversationActiveTrackerPatch.ShouldSuppressGift()) return; // already logged in Prefix
+        if (ConversationActiveTrackerPatch.ShouldSuppressGift()
+            || ConversationActiveTrackerPatch.IsAlwaysApGift(__instance.gadget?.name)) return; // already logged in Prefix
 
         var gadgetName = __instance.gadget.name;
         var eventName  = __instance.noticeEvent?.name ?? "(null)";
@@ -342,12 +379,14 @@ internal static class ConversationPageGiftUpgradeComponentPatch
 {
     private static bool Prefix(ConversationPageGiftUpgradeComponent __instance)
     {
-        if (ConversationActiveTrackerPatch.ShouldSuppressGift())
+        bool alwaysAp = ConversationActiveTrackerPatch.IsAlwaysApGift(__instance.upgradeComponent?.name);
+        if (ConversationActiveTrackerPatch.ShouldSuppressGift() || alwaysAp)
         {
             Logger.Info(
                 $"[AP-Conv] GiftUpgradeComponent suppressed (AP will deliver item): " +
                 $"component='{__instance.upgradeComponent?.name}'  " +
-                $"conv='{ConversationActiveTrackerPatch.ActiveConversationDebugName}'");
+                $"conv='{ConversationActiveTrackerPatch.ActiveConversationDebugName}'" +
+                (alwaysAp ? "  [always an AP item]" : ""));
             return false;
         }
 
@@ -357,7 +396,8 @@ internal static class ConversationPageGiftUpgradeComponentPatch
     private static void Postfix(ConversationPageGiftUpgradeComponent __instance)
     {
         if (!Plugin.Instance.ModEnabled) return;
-        if (ConversationActiveTrackerPatch.ShouldSuppressGift()) return;
+        if (ConversationActiveTrackerPatch.ShouldSuppressGift()
+            || ConversationActiveTrackerPatch.IsAlwaysApGift(__instance.upgradeComponent?.name)) return;
 
         var compName = __instance.upgradeComponent?.name ?? "(null)";
         Logger.Info(
