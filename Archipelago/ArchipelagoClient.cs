@@ -391,6 +391,8 @@ public class ArchipelagoClient
         SaveGuard.Reset();
         RanchPlotHandler.Reset();
         PrismaShardHandler.Reset();
+        ShopCatalogHandler.Reset();
+        Patches.UiPatches.ShopCatalogNotice.Reset();
         PrismacoreFulfiller.Reset();
         ItemHandler.ClearHeldDroneModules();
         // Unregister and close the socket before nulling Session.

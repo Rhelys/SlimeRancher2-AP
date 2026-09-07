@@ -138,6 +138,15 @@ public static class ItemHandler
 #if DEBUG
             // The live path only recounts the AP server snapshot, which a local grant cannot
             // add to — so the debug panel keeps its own offset instead.
+            case ItemType.ShopCatalog:
+                // Unlike Prisma Shards the count is persisted, not snapshot-only, so the debug
+                // grant can go through the same path the live one does.
+                Plugin.Instance.SaveManager.AccumulateShopCatalog();
+                ShopCatalogHandler.MarkDirty();
+                Logger.Info(
+                    $"[AP-Debug] Shop Catalog granted — {ShopCatalogHandler.Held}/" +
+                    $"{ShopCatalogHandler.Total}");
+                break;
             case ItemType.PrismaShard:
                 PrismaShardHandler.DebugGrant();
                 Logger.Info(
@@ -264,6 +273,27 @@ public static class ItemHandler
                 Logger.Info(
                     $"[AP] Prisma Shard received — {PrismaShardHandler.Collected}/" +
                     $"{PrismaShardHandler.Required}");
+                break;
+            case ItemType.ShopCatalog:
+                // Nothing to grant in-world either — the copy count is the whole state. Persist
+                // it first so the count survives offline, where the server snapshot reads 0,
+                // then invalidate so the next shop open recounts.
+                Plugin.Instance.SaveManager.AccumulateShopCatalog();
+                ShopCatalogHandler.MarkDirty();
+                {
+                    int held     = ShopCatalogHandler.Held;
+                    int released = ShopCatalogHandler.CountInWave(held);
+                    Logger.Info(
+                        $"[AP] Progressive Shop Catalog received — {held}/" +
+                        $"{ShopCatalogHandler.Total}, releasing {released} shop item(s)");
+
+                    // The shop list is only rebuilt when the shop is opened (filtering it while
+                    // the UI is live corrupts the pooled rows), so without this the player has
+                    // no signal that anything changed until they happen to walk back to Polestar.
+                    if (released > 0)
+                        UI.StatusHUD.Instance?.ShowNotification(
+                            $"Shop Catalog {held} — {released} new items at Polestar Provisions");
+                }
                 break;
         }
 

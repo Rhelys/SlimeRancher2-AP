@@ -1,6 +1,6 @@
 ﻿namespace SlimeRancher2AP.Data;
 
-public enum ItemType { RegionAccess, Upgrade, Gadget, Filler, Useful, UpgradeComponent, Trap, ConservatoryExpansion, RanchPlot, PrismaShard }
+public enum ItemType { RegionAccess, Upgrade, Gadget, Filler, Useful, UpgradeComponent, Trap, ConservatoryExpansion, RanchPlot, PrismaShard, ShopCatalog }
 
 /// <summary>Describes a single Archipelago item this game can send or receive.</summary>
 public record ItemInfo(long Id, string Name, ItemType Type);
@@ -202,6 +202,17 @@ public static class ItemTable
     public const long PrismaShard = 819673;
 
     // -------------------------------------------------------------------------
+    // Progressive Shop Catalog: 819562 — releases the next wave of Polestar shop checks
+    // (apworld `shop_catalog` option).
+    //
+    // Its own type for the same reason as PrismaShard: Filler/Useful/Trap are ephemeral-guarded
+    // and skipped on replay, and a catalog copy that is skipped silently locks a shop wave the
+    // player has already earned. Holding N copies is the whole state — which copy arrived never
+    // matters, so there is no ordering to reconstruct.
+    // -------------------------------------------------------------------------
+    public const long ProgressiveShopCatalog = 819562;
+
+    // -------------------------------------------------------------------------
     // Item rows
     // -------------------------------------------------------------------------
 
@@ -363,6 +374,9 @@ public static class ItemTable
 
         // Prismacore Hunt
         new(PrismaShard, "Prisma Shard", ItemType.PrismaShard),
+
+        // Progressive Shop Catalog
+        new(ProgressiveShopCatalog, "Progressive Shop Catalog", ItemType.ShopCatalog),
     };
 
     private static readonly Dictionary<long, ItemInfo> _byId = All.ToDictionary(i => i.Id);

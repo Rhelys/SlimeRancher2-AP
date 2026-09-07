@@ -109,6 +109,21 @@ internal static class ShopTryPurchasePatch
             return false;
         }
 
+        // Locked behind a Progressive Shop Catalog wave. ShopCatalogListPatch normally keeps
+        // these out of the list entirely, so reaching here means something bound the item
+        // anyway — a stale pooled row, or a list read the filter does not cover. Refuse rather
+        // than trust the hiding: sending a check the seed's logic says is unreachable is worse
+        // than an odd-looking failed purchase.
+        if (!Archipelago.ShopCatalogHandler.IsUnlocked(info.Id))
+        {
+            Logger.Info(
+                $"[AP] Shop: '{info.Name}' is locked behind Shop Catalog " +
+                $"{Plugin.Instance.ApClient.SlotData?.ShopCatalogWaves[info.Id]} " +
+                $"(holding {Archipelago.ShopCatalogHandler.Held}) — purchase blocked");
+            __result = false;
+            return false;
+        }
+
         ShopPatchState.InFlightCheck = info;
         return true;
     }

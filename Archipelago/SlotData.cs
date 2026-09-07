@@ -291,6 +291,27 @@ public class SlotData
     /// </summary>
     public int PrismaShardsTotal { get; init; } = 0;
 
+    /// <summary>
+    /// Progressive Shop Catalog copies placed in this seed, or 0 when the option is off.
+    /// Slot data key: <c>"shop_catalog_items"</c>.
+    /// </summary>
+    /// <remarks>
+    /// This is the count the apworld actually placed, already lowered when the seed had too few
+    /// shop checks to divide — never the raw option. Reading the option instead would hide waves
+    /// that no catalog item can ever open.
+    /// </remarks>
+    public int ShopCatalogItems { get; init; } = 0;
+
+    /// <summary>
+    /// Wave index per shop location ID: 0 is on sale from the start, wave N needs N catalog
+    /// copies. Empty when the catalog is off. Slot data key: <c>"shop_catalog_waves"</c>.
+    /// </summary>
+    public IReadOnlyDictionary<long, int> ShopCatalogWaves { get; init; }
+        = new Dictionary<long, int>();
+
+    /// <summary>True when this seed gates shop checks behind catalog items.</summary>
+    public bool ShopCatalogActive => ShopCatalogItems > 0 && ShopCatalogWaves.Count > 0;
+
     public static SlotData Parse(Dictionary<string, object> raw)
     {
         return new SlotData
@@ -337,6 +358,8 @@ public class SlotData
             PlortMarketMode                 = GetString(raw, "plort_market_mode", "disabled"),
             ItemNotifications               = GetString(raw, "item_notifications", "progression_useful"),
             PrismaShardsRequired            = (int)GetLong(raw, "prisma_shards_required", 0),
+            ShopCatalogItems                = (int)GetLong(raw, "shop_catalog_items", 0),
+            ShopCatalogWaves                = GetIntMap(raw, "shop_catalog_waves"),
             PrismaShardsTotal               = (int)GetLong(raw, "prisma_shards_total", 0),
         };
     }
@@ -359,6 +382,55 @@ public class SlotData
         => d.TryGetValue(key, out var v) && v is not null
             ? Convert.ToInt64(v)
             : defaultVal;
+
+    /// <summary>
+    /// Reads a JSON object of <c>"locationId": wave</c> pairs.
+    /// </summary>
+    /// <remarks>
+    /// Handles both shapes slot data arrives in: a live server sends values the MultiClient has
+    /// already turned into Newtonsoft tokens, while the offline path deserialises persisted JSON
+    /// where a nested object lands as a <c>JObject</c>. Anything unparseable is skipped rather
+    /// than throwing — a malformed entry should cost one shop item's gating, not the whole
+    /// connection.
+    /// </remarks>
+    private static IReadOnlyDictionary<long, int> GetIntMap(Dictionary<string, object> d, string key)
+    {
+        var result = new Dictionary<long, int>();
+        if (!d.TryGetValue(key, out var v) || v is null) return result;
+
+        try
+        {
+            switch (v)
+            {
+                case Newtonsoft.Json.Linq.JObject jo:
+                    foreach (var prop in jo.Properties())
+                        if (long.TryParse(prop.Name, out var jid))
+                            result[jid] = prop.Value.ToObject<int>();
+                    break;
+
+                case System.Collections.IDictionary dict:
+                    foreach (System.Collections.DictionaryEntry e in dict)
+                    {
+                        if (e.Key?.ToString() is { } k && long.TryParse(k, out var did)
+                            && e.Value is not null)
+                            result[did] = Convert.ToInt32(e.Value);
+                    }
+                    break;
+
+                default:
+                    Logger.Warning(
+                        $"[AP] Slot data '{key}' had unexpected type {v.GetType().Name} — " +
+                        "shop catalog gating disabled for this seed.");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"[AP] Could not parse slot data '{key}': {ex.Message}");
+        }
+
+        return result;
+    }
 
     private static ConversationCheckMode GetConversationCheckMode(Dictionary<string, object> d, string key)
     {

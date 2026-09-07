@@ -57,6 +57,7 @@ public class ApSaveManager
     private ConfigEntry<string>? _unlockedRegions;
     private ConfigEntry<string>? _visitedZones;
     private ConfigEntry<long>?   _newbucksEarned;
+    private ConfigEntry<int>?    _shopCatalogsHeld;
     private ConfigEntry<string>? _appliedEphemeralIndices;
     private ConfigEntry<string>? _deferredItemIndices;
     private ConfigEntry<string>? _associatedSaveName;
@@ -85,6 +86,7 @@ public class ApSaveManager
     private volatile bool _sessionActive    = false;
     private volatile bool _saveBound       = false;
     private long _newbucksEarnedVal = 0;
+    private int  _shopCatalogsHeldVal = 0;
 
     // Scout data — loaded from JSON on connect, updated after fresh server scout.
     private Dictionary<long, PersistedScout> _scoutData = new();
@@ -97,6 +99,17 @@ public class ApSaveManager
     public int  LastItemIndex   => _lastItemIdx;
     /// <summary>Cumulative newbucks earned this AP run (tracked via PlayerState.AddCurrency Postfix).</summary>
     public long NewbucksEarned  => _newbucksEarnedVal;
+
+    /// <summary>
+    /// Progressive Shop Catalog copies applied to this save.
+    /// </summary>
+    /// <remarks>
+    /// Persisted rather than derived from the server snapshot alone: the shop can be opened
+    /// offline, and a snapshot read with no session returns 0 — which would hide every wave
+    /// the player has already earned. <see cref="Archipelago.ShopCatalogHandler"/> uses this
+    /// as a floor under the snapshot count.
+    /// </remarks>
+    public int  ShopCatalogsHeld => _shopCatalogsHeldVal;
 
     /// <summary>
     /// True once <see cref="OnConnected"/> has started processing the current session.
@@ -238,6 +251,7 @@ public class ApSaveManager
         _unlockedRegions         = null;
         _visitedZones            = null;
         _newbucksEarned          = null;
+        _shopCatalogsHeld        = null;
         _appliedEphemeralIndices = null;
         _deferredItemIndices     = null;
         _associatedSaveName      = null;
@@ -320,6 +334,9 @@ public class ApSaveManager
             "Comma-separated SceneGroup.ReferenceId strings for zones the player has physically visited");
         _newbucksEarned          = _saveFile.Bind("Progress", "NewbucksEarned", 0L,
             "Cumulative newbucks earned this AP run (tracked via PlayerState.AddCurrency)");
+        _shopCatalogsHeld        = _saveFile.Bind("Progress", "ShopCatalogsHeld", 0,
+            "Progressive Shop Catalog copies applied to this save. Persisted so the shop shows " +
+            "the right waves offline, where the server snapshot is unavailable.");
         _appliedEphemeralIndices = _saveFile.Bind("Progress", "AppliedEphemeralIndices", "",
             "Comma-separated item indices of filler/trap items already applied — never re-applied on replay");
         _deferredItemIndices     = _saveFile.Bind("Progress", "DeferredItemIndices", "",
@@ -374,6 +391,7 @@ public class ApSaveManager
 
         _lastItemIdx        = _lastItemIndex.Value;
         _newbucksEarnedVal  = _newbucksEarned.Value;
+        _shopCatalogsHeldVal = _shopCatalogsHeld?.Value ?? 0;
         Logger.Info($"[AP] OnConnected: _lastItemIdx loaded from disk = {_lastItemIdx}");
 
         // Load persisted scout data (may not exist on first connect)
@@ -531,6 +549,17 @@ public class ApSaveManager
         if (_saveFile == null || amount <= 0) return;
         _newbucksEarnedVal    += amount;
         _newbucksEarned!.Value = _newbucksEarnedVal;
+        _saveFile.Save();
+    }
+
+    /// <summary>
+    /// Records one more Progressive Shop Catalog copy and persists it.
+    /// </summary>
+    public void AccumulateShopCatalog()
+    {
+        if (_saveFile == null) return;
+        _shopCatalogsHeldVal   += 1;
+        _shopCatalogsHeld!.Value = _shopCatalogsHeldVal;
         _saveFile.Save();
     }
 
