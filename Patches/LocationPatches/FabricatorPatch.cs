@@ -78,7 +78,18 @@ internal static class FabricatorPatch
     {
         IsCrafting = false;  // always reset first, before any early return
 
-        if (__result != FabricationBlockedReason.NONE) { CraftingUpgradeName = null; return; }
+        if (__result != FabricationBlockedReason.NONE)
+        {
+            // Log it. A blocked craft spends nothing and sends nothing, so to the player it
+            // looks like the Fabricator slot simply does not respond — which is exactly how
+            // this was reported, with no trace in the log to work from.
+            if (IsEnabled)
+                Logger.Info(
+                    $"[AP] Fabricator: craft of '{__instance.UpgradeDefinition?.name ?? "?"}' " +
+                    $"refused by the game ({__result}) — no cost spent, no check sent");
+            CraftingUpgradeName = null;
+            return;
+        }
         if (!IsEnabled) { CraftingUpgradeName = null; return; }
 
         var upgradeName = __instance.UpgradeDefinition?.name;

@@ -195,13 +195,6 @@ internal static class UpgradeModelGetLevelPatch
 {
     private static bool Prefix(UpgradeDefinition definition, ref int __result)
     {
-        // Block during the cost-check phase of a Fabricator craft: IsCrafting=true but
-        // IncrementUpgradeLevel hasn't been blocked yet, meaning the native code is still
-        // computing which materials to spend.  Returning AP-tracked level here would make
-        // the game try to spend the wrong tier's materials and fail the craft.
-        if (FabricatorPatch.IsCrafting && !FabricatorUpgradeBlockPatch.WasCraftBlocked)
-            return true;
-
         // Block during AP item application: ApplyUpgrade needs the real model level to
         // compute the correct targetLevel.
         if (ItemHandler.IsApplyingItem)
@@ -223,8 +216,22 @@ internal static class UpgradeModelGetLevelPatch
         if (crafts.Count == 0) return true; // upgrade not tracked in AP — vanilla behaviour
 
         int checkedCount = crafts.Count(l => Plugin.Instance.SaveManager.IsChecked(l.Id));
-        // Add 1 for the craft that just happened (MarkChecked hasn't run yet in the Postfix).
-        if (FabricatorPatch.CraftingUpgradeName == upgradeName)
+
+        // The optimistic +1 counts the craft in flight so the display advances in the same
+        // frame. It must NOT apply during the cost-check phase — IsCrafting is set but
+        // IncrementUpgradeLevel has not been blocked yet, so the craft has not happened and
+        // counting it reports a level one too high.
+        //
+        // That phase used to return the real model level instead. Harmless when it was
+        // written: AP grants only wrote stat modifiers, so the model sat at -1 and this read
+        // as "nothing crafted". Once grants started writing UpgradeModel for real, an
+        // AP-granted upgrade reported its true level here, and the native
+        // NextUpgradeLevelExists check (level + 1 >= LevelCount) refused the craft outright —
+        // no materials spent, no check sent. Every single-tier upgrade was uncraftable the
+        // moment AP delivered it, and multi-tier ones broke once AP had delivered every tier.
+        bool costCheckPhase = FabricatorPatch.IsCrafting
+                              && !FabricatorUpgradeBlockPatch.WasCraftBlocked;
+        if (!costCheckPhase && FabricatorPatch.CraftingUpgradeName == upgradeName)
             checkedCount++;
 
         // Return pure checked count, independent of the AP-granted model level.
