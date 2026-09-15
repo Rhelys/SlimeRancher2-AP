@@ -543,6 +543,9 @@ public class DebugPanel : MonoBehaviour
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Prismacore State"))
             LocationDumper.DumpPrismacoreState();
         y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump World Switches (gate IDs)"))
+            LocationDumper.DumpWorldSwitches();
+        y += BtnH + Gap;
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Access Doors"))
             LocationDumper.DumpAccessDoors();
         y += BtnH + Gap;

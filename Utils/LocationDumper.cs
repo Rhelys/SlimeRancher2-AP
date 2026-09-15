@@ -2855,6 +2855,128 @@ public static class LocationDumper
     /// name, and world position. Use this to confirm how many ghostly drone spawners exist
     /// in the zone you're standing in and which ones the AP fix would call SpawnDrone() on.
     /// </summary>
+    /// <summary>
+    /// Dumps <c>GameModel.AllSwitches()</c> — the save-persistent world-switch registry — beside
+    /// the <c>WorldStatePrimarySwitch</c> objects currently loaded, so each registry key can be
+    /// matched to the GameObject name <c>RegionTable</c> already stores.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Why.</b> <c>GateReturnEnforcer.IsGateOpen</c> reads gate state by scanning loaded
+    /// scene objects, so an open gate in an unloaded scene reads as shut — that is what threw a
+    /// player out of the Grey Labyrinth from both entrances with the Rainbow Fields gate
+    /// genuinely open, just not loaded. <c>GameModel.GetSwitchState(switchId)</c> answers the
+    /// same question from save state without caring what is loaded, but it is keyed by
+    /// <c>WorldSwitchDefinition.ID</c> and the mod only knows GameObject names.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Run this standing in Rainbow Fields</b>, where the EV and SS gate switches
+    /// (<c>ruinSwitch</c> and <c>ruinSwitch (2)</c> in <c>zoneFields</c>) are loaded — the
+    /// cross-reference only resolves for switches whose GameObject currently exists. Registry
+    /// entries whose object is absent are still listed, with their state, so an unloaded gate
+    /// can be spot-checked against what the enforcer would have concluded.
+    /// </para>
+    /// </remarks>
+    public static void DumpWorldSwitches()
+    {
+        var log = Plugin.Instance.Log;
+        log.LogInfo("[AP-Dump] ========== WORLD SWITCH REGISTRY ==========");
+
+        var gameModel = SceneContext.Instance?.GameModel;
+        if (gameModel == null)
+        {
+            log.LogWarning("[AP-Dump] GameModel not available — load a save first.");
+            return;
+        }
+
+        // GameObject name -> definition ID, built from the switches that ARE loaded. This is the
+        // mapping RegionTable needs.
+        var resolved = new Dictionary<string, string>();
+        try
+        {
+            foreach (var sw in Resources.FindObjectsOfTypeAll<WorldStatePrimarySwitch>())
+            {
+                if (sw == null) continue;
+                try
+                {
+                    var go = sw.gameObject;
+                    // Prefabs come back from FindObjectsOfTypeAll too; only scene instances have
+                    // a valid scene and a bound model.
+                    if (go == null || !go.scene.IsValid()) continue;
+
+                    string defId = sw.SwitchDefinition?.ID ?? "(no definition)";
+                    string state = sw._model != null ? sw._model.state.ToString() : "(no model)";
+                    log.LogInfo(
+                        $"[AP-Dump]   LOADED  obj='{go.name}'  scene='{go.scene.name}'  " +
+                        $"definitionId='{defId}'  state={state}");
+                    if (defId != "(no definition)") resolved[go.name] = defId;
+                }
+                catch (System.Exception ex)
+                {
+                    log.LogWarning($"[AP-Dump]   switch read failed: {ex.Message}");
+                }
+            }
+        }
+        catch (System.Exception ex)
+        {
+            log.LogWarning($"[AP-Dump] Loaded-switch scan failed: {ex.Message}");
+        }
+
+        try
+        {
+            var all = gameModel.AllSwitches();
+            log.LogInfo($"[AP-Dump] --- registry: {all?.Count ?? 0} switch(es) ---");
+            if (all != null)
+            {
+                foreach (var kv in all)
+                {
+                    string id    = kv.Key ?? "(null)";
+                    string state = "(null model)";
+                    string obj   = "(not loaded)";
+                    try
+                    {
+                        var model = kv.Value;
+                        if (model != null)
+                        {
+                            state = model.state.ToString();
+                            var go = model.GetGameObject();
+                            if (go != null) obj = go.name;
+                        }
+                    }
+                    catch { /* entry unreadable — still worth listing its key */ }
+
+                    log.LogInfo($"[AP-Dump]   id='{id}'  state={state}  obj='{obj}'");
+                }
+            }
+        }
+        catch (System.Exception ex)
+        {
+            log.LogWarning($"[AP-Dump] AllSwitches() failed: {ex.Message}");
+        }
+
+        // The two lines that actually matter — the gate switches RegionTable names.
+        log.LogInfo("[AP-Dump] --- RegionTable gate switches ---");
+        foreach (var objName in new[] { "ruinSwitch", "ruinSwitch (2)" })
+        {
+            if (resolved.TryGetValue(objName, out var defId))
+            {
+                string live = "?";
+                try { live = gameModel.GetSwitchState(defId).ToString(); } catch { }
+                log.LogInfo(
+                    $"[AP-Dump]   '{objName}'  →  definitionId='{defId}'  " +
+                    $"GameModel.GetSwitchState='{live}'");
+            }
+            else
+            {
+                log.LogInfo(
+                    $"[AP-Dump]   '{objName}'  →  NOT RESOLVED (not loaded — run this in Rainbow Fields)");
+            }
+        }
+
+        log.LogInfo("[AP-Dump] ==========================================");
+    }
+
     public static void DumpGhostDroneSpawners()
     {
         var log = Plugin.Instance.Log;
