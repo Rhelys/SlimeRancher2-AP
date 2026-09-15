@@ -21,6 +21,32 @@ public static class RegionTable
         // PB uses a PuzzleSlotLockable — NOT a WorldStatePrimarySwitch; excluded from Map.
     };
 
+    /// <summary>
+    /// Region access item name → <c>WorldSwitchDefinition.ID</c> of its Rainbow Fields gate.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// These are the keys of <c>GameModel.switches</c>, the game's save-persistent switch
+    /// registry. Unlike a scene scan, that registry answers correctly while Rainbow Fields is
+    /// unloaded — confirmed by dump: standing in Starlight Strand, both gates were still listed
+    /// with <c>obj='(not loaded)'</c> and their true states (SS DOWN after opening, EV UP).
+    /// </para>
+    ///
+    /// <para>
+    /// IDs are also immune to the GameObject name collision that makes scanning unsafe: the same
+    /// dump found a DIFFERENT switch named <c>ruinSwitch</c> in <c>zoneStrand_Area4</c>
+    /// (<c>switch1251612338</c>), so a name-only match can read the wrong gate entirely.
+    /// </para>
+    ///
+    /// <para>Confirmed via F9 → Dumps → "Dump World Switches" on 2026-09-14.</para>
+    /// </remarks>
+    private static readonly Dictionary<string, string> ItemToSwitchDefinitionId = new()
+    {
+        ["Ember Valley Access"]     = "switch0365756481",   // zoneFields:ruinSwitch
+        ["Starlight Strand Access"] = "switch0876920914",   // zoneFields:ruinSwitch (2)
+        // PB uses a PuzzleSlotLockable, which is not in the world-switch registry.
+    };
+
     // Scene-qualified switch key → region item name (reverse lookup)
     private static readonly Dictionary<string, string> KeyToRegion =
         ItemToSwitchKey.ToDictionary(kv => kv.Value, kv => kv.Key);
@@ -70,6 +96,30 @@ public static class RegionTable
         // Strip the "scene:" prefix — callers only need the bare name for display.
         var colon = compositeKey.IndexOf(':');
         switchName = colon >= 0 ? compositeKey[(colon + 1)..] : compositeKey;
+        return true;
+    }
+
+    /// <summary>
+    /// Returns the world-switch definition ID for a region's Rainbow Fields gate — the key for
+    /// <c>GameModel.GetSwitchState</c>, which is readable whether or not the scene is loaded.
+    /// </summary>
+    public static bool TryGetSwitchDefinitionId(string itemName, out string definitionId)
+        => ItemToSwitchDefinitionId.TryGetValue(itemName, out definitionId!);
+
+    /// <summary>
+    /// Returns the scene AND object name of a region's gate switch, so a caller matching switch
+    /// objects can disambiguate. <see cref="TryGetSwitch"/> drops the scene and is display-only —
+    /// using it to identify a switch matches any scene's object of that name.
+    /// </summary>
+    public static bool TryGetSwitchSceneAndName(string itemName, out string sceneName, out string switchName)
+    {
+        sceneName = switchName = "";
+        if (!ItemToSwitchKey.TryGetValue(itemName, out var compositeKey)) return false;
+
+        var colon = compositeKey.IndexOf(':');
+        if (colon < 0) { switchName = compositeKey; return true; }
+        sceneName  = compositeKey[..colon];
+        switchName = compositeKey[(colon + 1)..];
         return true;
     }
 

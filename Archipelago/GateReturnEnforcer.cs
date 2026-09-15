@@ -32,6 +32,12 @@ public static class GateReturnEnforcer
     // EV and SS: catches zone-teleporter bypasses (gadget received without access item).
     // PB: catches PB→RF exit via gadget bypass (PB→EV walk is handled separately above).
     // Grey Labyrinth has no AP gate check; omitted.
+    /// <summary>
+    /// Zone holding the Rainbow Fields teleporter nodes, and the only destination for which the
+    /// exit rescue below is meaningful.
+    /// </summary>
+    private const string RainbowFieldsZone = "SceneGroup.ConservatoryFields";
+
     private static readonly Dictionary<string, long> ZoneGateLocations = new()
     {
         ["SceneGroup.RumblingGorge"]    = LocationConstants.RegionGate_EmberValley,
@@ -236,6 +242,28 @@ public static class GateReturnEnforcer
             Logger.Info($"[AP] GateReturnEnforcer: '{previousZone}' is not a gated zone — nothing to enforce on exit");
             return false;
         }
+
+        // Only when the player is actually heading for Rainbow Fields.
+        //
+        // The whole premise below is that the player rode the normal teleporter home and will
+        // arrive at the RF-side node, which sits behind the gate. Any other destination — walking
+        // Starlight Strand -> Grey Labyrinth, or Ember Valley -> Grey Labyrinth — does not touch
+        // that node, so there is nothing to be sealed behind and nothing to rescue them from.
+        //
+        // Without this the rule fired on every Labyrinth entry and threw the player back to
+        // spawn, because IsGateOpen reads the switch out of the loaded scene and Rainbow Fields
+        // is not loaded when the destination is the Labyrinth: the scan finds nothing and
+        // "unknown" is deliberately treated as closed. The same player leaving the same zone
+        // toward Rainbow Fields was cleared a minute earlier, with RF loading and the switch
+        // readable — reported as being teleported out of the Labyrinth from both entrances with
+        // every access item held and every gate check sent.
+        if (newZone != RainbowFieldsZone)
+        {
+            Logger.Info(
+                $"[AP] GateReturnEnforcer: '{previousZone}' → '{newZone}' is not a return to " +
+                "Rainbow Fields — the sealed-teleporter rescue does not apply");
+            return false;
+        }
         // The pass condition is whether the Rainbow Fields gate is PHYSICALLY OPEN — not whether
         // the check was sent and not whether the access item is held.
         //
@@ -279,12 +307,34 @@ public static class GateReturnEnforcer
 
     /// <summary>
     /// True only when the Rainbow Fields gate for <paramref name="zoneRef"/> is confirmed open.
-    ///
-    /// Reads <c>WorldSwitchModel.state</c> off the actual switch, which is the game's own
-    /// save-persistent record and the only sound source: it reflects the physical gate rather
-    /// than any AP bookkeeping. Unknown counts as closed — being teleported to spawn
-    /// unnecessarily is a minor annoyance, being sealed behind a shut gate is a soft-lock.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Reads <c>GameModel.GetSwitchState</c> — the game's save-persistent switch registry, keyed
+    /// by <c>WorldSwitchDefinition.ID</c>. Two reasons that beats scanning loaded objects:
+    /// </para>
+    ///
+    /// <para>
+    /// <b>It answers while the scene is unloaded.</b> The old scan read the switch out of
+    /// Rainbow Fields, so with RF unloaded an open gate read as shut. That is what threw a player
+    /// out of the Grey Labyrinth from both entrances with every access item held and both gate
+    /// checks sent. Confirmed by dump: standing in Starlight Strand, both gates were still in the
+    /// registry with <c>obj='(not loaded)'</c> and their true states.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>It cannot read the wrong switch.</b> The scan matched on GameObject name alone, and the
+    /// same dump found a different switch also named <c>ruinSwitch</c> in
+    /// <c>zoneStrand_Area4</c> — so standing in Starlight Strand, that object could answer for
+    /// the Ember Valley gate. RegionTable has always keyed switches by scene for exactly this
+    /// reason; the scan was the one place that dropped the scene.
+    /// </para>
+    ///
+    /// <para>
+    /// Unknown still counts as closed: being sent to spawn unnecessarily is an annoyance, being
+    /// sealed behind a shut gate is a soft-lock.
+    /// </para>
+    /// </remarks>
     private static bool IsGateOpen(string zoneRef)
     {
         if (!ZoneAccessItems.TryGetValue(zoneRef, out var itemName)) return false;
@@ -292,19 +342,44 @@ public static class GateReturnEnforcer
         // Fast path: the gate was seen opening this session.
         if (TrapHandler.IsRegionOpenThisSession(itemName)) return true;
 
-        if (!RegionTable.TryGetSwitch(itemName, out var switchName)) return false;
+        // Primary: the persistent registry, independent of what is loaded.
+        if (RegionTable.TryGetSwitchDefinitionId(itemName, out var definitionId))
+        {
+            try
+            {
+                var gameModel = SceneContext.Instance?.GameModel;
+                if (gameModel != null)
+                    return gameModel.GetSwitchState(definitionId) == SwitchHandler.State.DOWN;
+            }
+            catch (System.Exception ex)
+            {
+                Logger.Warning(
+                    $"[AP] GateReturnEnforcer: switch registry read failed for '{itemName}' " +
+                    $"({ex.Message}) — falling back to a scene scan");
+            }
+        }
+
+        // Fallback: scan loaded objects, scene-qualified. Only reached with no GameModel (main
+        // menu) or an unmapped region, where the answer is closed anyway.
+        if (!RegionTable.TryGetSwitchSceneAndName(itemName, out var sceneName, out var switchName))
+            return false;
 
         try
         {
             foreach (var sw in Resources.FindObjectsOfTypeAll<WorldStatePrimarySwitch>())
             {
-                if (sw == null || sw.gameObject.name != switchName) continue;
+                if (sw == null) continue;
+                var go = sw.gameObject;
+                // Scene must match: name alone collides across scenes.
+                if (go == null || go.name != switchName) continue;
+                if (!go.scene.IsValid() || go.scene.name != sceneName) continue;
+
                 var model = sw._model;
                 if (model == null) continue;              // not yet bound — treat as closed
                 if (model.state == SwitchHandler.State.DOWN) return true;
             }
         }
-        catch { /* Rainbow Fields not loaded yet — treat as closed */ }
+        catch { /* Rainbow Fields not loaded — treat as closed */ }
 
         return false;
     }
