@@ -143,6 +143,7 @@ public class ApUpdateBehaviour : MonoBehaviour
     private static readonly Action _tNotifier     = SlimeRancher2AP.UI.ItemNotifier.Tick;
     private static readonly Action _tPopup        = SlimeRancher2AP.UI.ApPopup.Tick;
     private static readonly Action _tPrismacore   = SlimeRancher2AP.Archipelago.PrismacoreFulfiller.Tick;
+    private static readonly Action _tQol          = SlimeRancher2AP.Patches.PlayerPatches.QualityOfLife.Tick;
     private static readonly Action _tSaveFlush    = () => Plugin.Instance?.SaveManager?.Flush();
 
     private void Update()
@@ -184,6 +185,7 @@ public class ApUpdateBehaviour : MonoBehaviour
         Prof.Time("ItemNotifier",         _tNotifier);
         Prof.Time("ApPopup",              _tPopup);
         Prof.Time("PrismacoreFulfiller",  _tPrismacore);
+        Prof.Time("QualityOfLife",        _tQol);
 #if DEBUG
         SlimeRancher2AP.Utils.DebugTrace.Once("Update.5 — after TrapHandler.Tick");
 #endif
