@@ -12,22 +12,26 @@ namespace SlimeRancher2AP.Archipelago;
 /// Detects when the configured goal condition is met and notifies the AP server.
 /// <list type="bullet">
 ///   <item><term>labyrinth_open</term><description>
-///     Tracks two WorldStateInvisibleSwitch openings via OnSwitchOpened() (InvisibleSwitchPatch).
-///     Both gates: EnergyBeamReceiver "energyBeamReceiver" → WorldStateInvisibleSwitch in sub-scenes.
-///     Strand: "zoneStrandLabyrinthGate:energyBeamReceiver" — confirmed.
-///     Valley: "zoneGorgeGateTransfer:energyBeamReceiver" — confirmed.
+///     Event-based: both Grey Labyrinth beam gates must open, reported through OnSwitchOpened()
+///     by InvisibleSwitchPatch (EnergyBeamReceiver "energyBeamReceiver" →
+///     WorldStateInvisibleSwitch). Keys: "zoneStrandLabyrinthGate:energyBeamReceiver" and
+///     "zoneGorgeGateTransfer:energyBeamReceiver". Opened gates are persisted, so the two can
+///     open in different sessions.
 ///   </description></item>
 ///   <item><term>newbucks</term><description>
-///     Polled via Tick() — checks PlayerModel.CurrencyInfo.AmountEverCollected (lifetime total).
+///     Polled via Tick() — compares the persisted <c>ApSaveManager.NewbucksEarned</c> counter
+///     (accumulated by PlayerStateAddCurrencyPatch; the game's own AmountEverCollected is never
+///     updated) against slot data "newbucks_goal_amount".
 ///   </description></item>
-///   <item><term>prismacore</term><description>
+///   <item><term>prismacore / prisma_shard_hunt</term><description>
 ///     Event-based: CoreRoomController.UpdateState Postfix fires OnCoreRoomStateChanged(POST_FIGHT)
-///     when the boss fight completes and the Prismacore is stabilized.
+///     when the boss fight completes and the Prismacore is stabilized. For prisma_shard_hunt the
+///     shards only unlock the fight (PrismacoreGatePatch); winning it is still the goal.
 ///   </description></item>
 ///   <item><term>slimepedia</term><description>
-///     Polled via Tick() — checks PediaRuntimeCategory.AllUnlocked() for BOTH the "Slimes"
-///     category (29 entries) and the "Resources" category (54 entries).
-///     Goal fires only when both categories are fully unlocked.
+///     Polled via Tick() — every entry the AP location table tracks must be unlocked, in each
+///     category enabled by the randomize_slimepedia* options, minus entries excluded by seed
+///     options. Never the game's AllUnlocked(): see <see cref="IsCategoryUnlockedForAp"/>.
 ///   </description></item>
 ///   <item><term>plort_seller</term><description>
 ///     Polled via Tick() — per-type sold counters (accumulated by PlortMarketPatch via
@@ -36,6 +40,12 @@ namespace SlimeRancher2AP.Archipelago;
 ///     RNG/weather exclusions.
 ///   </description></item>
 /// </list>
+/// <para>
+/// Detection runs whenever an AP save is bound and trusted, connected or not. Reaching the goal
+/// is persisted (<c>ApSaveManager.GoalReached</c>) and reported to the server immediately when
+/// connected, otherwise by <see cref="Initialize"/> on the next connect — so a goal met offline,
+/// including the one-shot Prismacore event, is never lost.
+/// </para>
 /// Call Initialize() after AP connect, Tick() each frame, and the On* event methods from patches.
 /// </summary>
 public static class GoalHandler
@@ -47,17 +57,13 @@ public static class GoalHandler
     // Keys are "scene:switchName". BOTH portals must open for the goal to fire.
     //
     // Both gates use: EnergyBeamReceiver (name='energyBeamReceiver') → WorldStateInvisibleSwitch.SetStateForAll(DOWN)
-    // Detected via InvisibleSwitchPatch → OnSwitchOpened.
-    //
-    // Strand gate: scene='zoneStrandLabyrinthGate' — switch name TBD from [AP-Gate] InvisibleSwitch DOWN log
-    // Valley gate: scene='zoneGorgeGateTransfer'  — switch name TBD from [AP-Gate] InvisibleSwitch DOWN log
+    // Detected via InvisibleSwitchPatch → OnSwitchOpened. Opened keys are persisted in
+    // ApSaveManager (LabyrinthGatesOpened), not held here.
     //
     // NOTE: The old LabyrinthSwitchStrand = "zoneStrand_Area4:ruinSwitch" was incorrect —
     //   "ruinSwitch" is a different WorldStatePrimarySwitch in the zone, not the labyrinth gate.
     private const string LabyrinthSwitchStrand = "zoneStrandLabyrinthGate:energyBeamReceiver";  // confirmed
     private const string LabyrinthSwitchValley = "zoneGorgeGateTransfer:energyBeamReceiver";   // confirmed
-
-    private static readonly HashSet<string> _openedLabyrinthSwitches = new();
 
     // -------------------------------------------------------------------------
     // Polling throttle (~60-frame cadence ≈ once per second)
@@ -72,8 +78,26 @@ public static class GoalHandler
 
     private static bool _goalAchieved = false;
 
-    /// <summary>True once the goal has been completed this session.</summary>
-    public static bool IsGoalComplete => _goalAchieved;
+    /// <summary>
+    /// True once the goal has been met — this session, or on any earlier one for the bound save
+    /// (persisted), so goal-gated behaviour such as trap and popup suppression survives reloads.
+    /// </summary>
+    public static bool IsGoalComplete => _goalAchieved || Plugin.Instance.SaveManager.GoalReached;
+
+    /// <summary>
+    /// True when goal progress should be tracked: an AP save is bound and trusted and its slot
+    /// data is known. Deliberately does not require a live connection — see the class remarks.
+    /// </summary>
+    /// <remarks>
+    /// Same trust rule as <c>ArchipelagoClient.SendCheck</c>: a save that is not associated with
+    /// this slot must not record the goal. Evaluated last by callers because it reads the
+    /// current save name across the IL2CPP boundary.
+    /// </remarks>
+    private static bool CanTrackGoal()
+        => Plugin.Instance.ModEnabled
+        && Plugin.Instance.SaveManager.IsSaveBound
+        && Plugin.Instance.ApClient.SlotData != null
+        && SaveGuard.IsSaveTrusted();
 
     // Newbucks goal caches
     private static int                _newbucksGoalAmount     = -1;
@@ -126,9 +150,15 @@ public static class GoalHandler
     /// </summary>
     public static void Initialize()
     {
-        _goalAchieved = false;
-        _tickCounter  = 0;
-        _openedLabyrinthSwitches.Clear();
+        Reset();
+
+        // A goal met while offline (or on an earlier connection) is reported now. Sending it
+        // again on every connect is harmless — the server treats it as idempotent.
+        if (Plugin.Instance.SaveManager.GoalReached)
+        {
+            Logger.Info("[AP] Goal was reached earlier — reporting it to the server.");
+            Plugin.Instance.ApClient.SetGoalComplete();
+        }
 
         var slotData = Plugin.Instance.ApClient.SlotData;
         if (slotData == null) return;
@@ -147,12 +177,21 @@ public static class GoalHandler
     // Polling (called from ApUpdateBehaviour.Update each frame)
     // -------------------------------------------------------------------------
 
+    /// <summary>Clears per-session state. Called by Initialize and on disconnect.</summary>
+    public static void Reset()
+    {
+        _goalAchieved = false;
+        _tickCounter  = 0;
+    }
+
     public static void Tick()
     {
-        if (!Plugin.Instance.ApClient.IsConnected || _goalAchieved) return;
+        if (IsGoalComplete) return;
 
         if (++_tickCounter < TickInterval) return;
         _tickCounter = 0;
+
+        if (!CanTrackGoal()) return;
 
         var goal = Plugin.Instance.ApClient.SlotData?.Goal;
         switch (goal)
@@ -175,25 +214,32 @@ public static class GoalHandler
     /// </summary>
     public static void OnSwitchOpened(string switchName, string sceneName)
     {
-        if (!Plugin.Instance.ApClient.IsConnected || _goalAchieved) return;
+        if (IsGoalComplete) return;
         if (Plugin.Instance.ApClient.SlotData?.Goal != "labyrinth_open") return;
 
         var key = $"{sceneName}:{switchName}";
-        if (key == LabyrinthSwitchStrand || key == LabyrinthSwitchValley)
+        if (key != LabyrinthSwitchStrand && key != LabyrinthSwitchValley) return;
+
+        // The receiver pulses continuously while a beam hits it — skip the trust check (which
+        // crosses the IL2CPP boundary) once this gate is already recorded.
+        var saveManager = Plugin.Instance.SaveManager;
+        if (saveManager.IsLabyrinthGateOpened(key)) return;
+        if (!CanTrackGoal()) return;
+
+        if (saveManager.MarkLabyrinthGateOpened(key))
         {
-            if (_openedLabyrinthSwitches.Add(key))  // Add() returns false if already present
-            {
-                Logger.Info(
-                    $"[AP] Labyrinth gate opened: '{key}' ({_openedLabyrinthSwitches.Count}/2)");
-                CheckLabyrinthComplete();
-            }
+            int opened = (saveManager.IsLabyrinthGateOpened(LabyrinthSwitchStrand) ? 1 : 0)
+                       + (saveManager.IsLabyrinthGateOpened(LabyrinthSwitchValley) ? 1 : 0);
+            Logger.Info($"[AP] Labyrinth gate opened: '{key}' ({opened}/2)");
+            CheckLabyrinthComplete();
         }
     }
 
     private static void CheckLabyrinthComplete()
     {
-        if (_openedLabyrinthSwitches.Contains(LabyrinthSwitchStrand) &&
-            _openedLabyrinthSwitches.Contains(LabyrinthSwitchValley))
+        var saveManager = Plugin.Instance.SaveManager;
+        if (saveManager.IsLabyrinthGateOpened(LabyrinthSwitchStrand) &&
+            saveManager.IsLabyrinthGateOpened(LabyrinthSwitchValley))
         {
             NotifyGoalComplete();
         }
@@ -206,7 +252,9 @@ public static class GoalHandler
     /// </summary>
     public static void OnCoreRoomStateChanged(CoreRoomController.CoreRoomState state)
     {
-        if (!Plugin.Instance.ApClient.IsConnected || _goalAchieved) return;
+        if (IsGoalComplete) return;
+        if (state != CoreRoomController.CoreRoomState.POST_FIGHT) return; // PRE_FIGHT etc. — cheap exit before the trust check
+        if (!CanTrackGoal()) return;
 
         var goal = Plugin.Instance.ApClient.SlotData?.Goal;
 
@@ -530,13 +578,23 @@ public static class GoalHandler
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// Marks the goal as achieved and notifies the AP server. Idempotent — safe to call multiple times.
+    /// Marks the goal as achieved, persists it, and notifies the AP server if connected (otherwise
+    /// <see cref="Initialize"/> reports it on the next connect). Idempotent — safe to call multiple times.
     /// </summary>
+    /// <remarks>
+    /// Also reached from the debug panel's force-goal button, which therefore persists the goal
+    /// for the bound save just like a real completion.
+    /// </remarks>
     public static void NotifyGoalComplete()
     {
-        if (_goalAchieved) return;
+        if (IsGoalComplete) return;
         _goalAchieved = true;
-        Logger.Info("[AP] Goal complete!");
+        Plugin.Instance.SaveManager.MarkGoalReached();
+
+        if (Plugin.Instance.ApClient.IsConnected)
+            Logger.Info("[AP] Goal complete!");
+        else
+            Logger.Info("[AP] Goal complete (offline) — it will be reported to the server on the next connection.");
         Plugin.Instance.ApClient.SetGoalComplete();
     }
 
@@ -546,9 +604,8 @@ public static class GoalHandler
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// Sets AmountEverCollected to the goal target so the next Force Check will trigger.
-    /// Calls PlayerModel.SetCurrencyAndAmountEverCollected, which is the only managed API
-    /// that writes AmountEverCollected. PlayerState.AddCurrency does NOT update it.
+    /// Raises the persisted <c>NewbucksEarned</c> counter to the goal target so the next Force
+    /// Check will trigger.
     /// </summary>
     public static void DebugSetLifetimeNewbucksToGoal()
     {
@@ -628,14 +685,14 @@ public static class GoalHandler
     {
         Logger.Info("[AP-Debug] Simulating both Labyrinth gate opens");
 
-        // Strand: WorldStatePrimarySwitch
+        // Strand beam gate
         {
             var key = LabyrinthSwitchStrand;
             var idx = key.IndexOf(':');
             if (idx >= 0) OnSwitchOpened(key[(idx + 1)..], key[..idx]);
         }
 
-        // Valley: WorldStateInvisibleSwitch (name TBD — read from [AP-Gate] InvisibleSwitch DOWN log)
+        // Valley beam gate
         {
             var key = LabyrinthSwitchValley;
             var idx = key.IndexOf(':');

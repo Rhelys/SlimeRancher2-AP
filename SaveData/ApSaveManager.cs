@@ -62,6 +62,8 @@ public class ApSaveManager
     private ConfigEntry<string>? _deferredItemIndices;
     private ConfigEntry<string>? _associatedSaveName;
     private ConfigEntry<string>? _plortsSold;
+    private ConfigEntry<bool>?   _goalReached;
+    private ConfigEntry<string>? _labyrinthGatesOpened;
 
     // In-memory mirror of _plortsSold, keyed by IdentifiableType.name (e.g. "PinkPlort").
     private readonly Dictionary<string, long> _plortsSoldMap = new();
@@ -70,6 +72,8 @@ public class ApSaveManager
     private readonly HashSet<string> _regionSet       = new();
     private readonly HashSet<string> _visitedZoneSet  = new();
     private readonly HashSet<int>    _ephemeralSet    = new();
+    // Labyrinth beam-gate keys ("scene:switchName") seen opening, for the labyrinth_open goal.
+    private readonly HashSet<string> _labyrinthGateSet = new();
     // Indices of items that were received but could not be applied yet and whose application
     // may outlive the session: rate-limited traps parked in TrapHandler's deferred queues, and
     // conservatory expansions held until the player presses the terminal / the door's sub-scene
@@ -87,6 +91,7 @@ public class ApSaveManager
     private volatile bool _saveBound       = false;
     private long _newbucksEarnedVal = 0;
     private int  _shopCatalogsHeldVal = 0;
+    private bool _goalReachedVal = false;
 
     // Write batching. Mutators only change the in-memory state and set _dirty; Flush() writes
     // everything to disk in one Save, once per frame (ApUpdateBehaviour), before the session
@@ -280,6 +285,10 @@ public class ApSaveManager
             _associatedSaveName      = null;
             _plortsSold              = null;
             _plortsSoldMap.Clear();
+            _goalReached             = null;
+            _labyrinthGatesOpened    = null;
+            _goalReachedVal          = false;
+            _labyrinthGateSet.Clear();
             _lastItemIdx             = -1;
             _dirty                   = false;
             // Keep _checkedSet, _regionSet, _visitedZoneSet, _scoutData in memory —
@@ -316,6 +325,8 @@ public class ApSaveManager
                 _appliedEphemeralIndices!.Value = string.Join(",", _ephemeralSet);
                 _deferredItemIndices!.Value     = string.Join(",", _deferredSet);
                 _plortsSold!.Value              = string.Join(",", _plortsSoldMap.Select(kv => $"{kv.Key}:{kv.Value}"));
+                _goalReached!.Value             = _goalReachedVal;
+                _labyrinthGatesOpened!.Value    = string.Join(",", _labyrinthGateSet);
                 _saveFile.Save();
                 _warnedFlushFailure = false;
             }
@@ -437,6 +448,12 @@ public class ApSaveManager
         _plortsSold              = _saveFile.Bind("Progress", "PlortsSold", "",
             "Per-type plorts sold at the market, as 'PinkPlort:12,RockPlort:3,...' " +
             "(tracked via PlortEconomyDirector.RegisterSold for the plort_seller goal)");
+        _goalReached             = _saveFile.Bind("Progress", "GoalReached", false,
+            "True once this slot's goal has been met in game. Recorded even while offline, and " +
+            "reported to the server on every connect until then.");
+        _labyrinthGatesOpened    = _saveFile.Bind("Progress", "LabyrinthGatesOpened", "",
+            "Comma-separated Grey Labyrinth beam gates seen opening ('scene:switch'), so the " +
+            "labyrinth_open goal can be completed across sessions");
 
         // Deserialize checked locations
         _checkedSet.Clear();
@@ -472,6 +489,12 @@ public class ApSaveManager
                 _plortsSoldMap[pair[..sep]] = sold;
         }
 
+        // Deserialize labyrinth gate keys
+        _labyrinthGateSet.Clear();
+        foreach (var g in (_labyrinthGatesOpened.Value ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries))
+            if (!string.IsNullOrWhiteSpace(g)) _labyrinthGateSet.Add(g);
+
+        _goalReachedVal     = _goalReached.Value;
         _lastItemIdx        = _lastItemIndex.Value;
         _newbucksEarnedVal  = _newbucksEarned.Value;
         _shopCatalogsHeldVal = _shopCatalogsHeld?.Value ?? 0;
@@ -650,6 +673,35 @@ public class ApSaveManager
 
     /// <summary>Plorts of <paramref name="plortName"/> sold so far this AP run.</summary>
     public long PlortsSold(string plortName) => _plortsSoldMap.GetValueOrDefault(plortName);
+
+    // -------------------------------------------------------------------------
+    // Goal
+    // -------------------------------------------------------------------------
+
+    /// <summary>True once this slot's goal has been met in game (persisted).</summary>
+    public bool GoalReached => _goalReachedVal;
+
+    /// <summary>Records that the goal has been met. Persisted on the next Flush.</summary>
+    public void MarkGoalReached()
+    {
+        if (_saveFile == null || _goalReachedVal) return;
+        _goalReachedVal = true;
+        MarkDirty();
+    }
+
+    /// <summary>True if the labyrinth beam gate <paramref name="key"/> has been seen opening.</summary>
+    public bool IsLabyrinthGateOpened(string key) => _labyrinthGateSet.Contains(key);
+
+    /// <summary>
+    /// Records a labyrinth beam gate as opened. Returns true when newly recorded, false when it
+    /// was already known or no save is bound.
+    /// </summary>
+    public bool MarkLabyrinthGateOpened(string key)
+    {
+        if (_saveFile == null || !_labyrinthGateSet.Add(key)) return false;
+        MarkDirty();
+        return true;
+    }
 
     // -------------------------------------------------------------------------
     // Scout data

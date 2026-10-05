@@ -395,6 +395,7 @@ public class ArchipelagoClient
         ShopCatalogHandler.Reset();
         Patches.UiPatches.ShopCatalogNotice.Reset();
         PrismacoreFulfiller.Reset();
+        GoalHandler.Reset();   // persisted goal state lives in the save manager, reset below
         ItemHandler.ClearHeldDroneModules();
         // Unregister and close the socket before nulling Session.
         // Without DisconnectAsync the underlying WebSocket stays open and the AP

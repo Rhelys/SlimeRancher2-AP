@@ -394,11 +394,17 @@ The apworld sends a goal option via slot data. The mod reads this on connect and
 appropriate win condition detector. When the condition is met, the mod calls
 `session.SetGoalAchieved()`. All detectors live in `Archipelago/GoalHandler.cs`.
 
+Detection runs whenever an AP save is bound and trusted (`SaveGuard`), **not only while
+connected**. Reaching the goal is persisted (`ApSaveManager.GoalReached`) and reported
+immediately if connected, otherwise by `GoalHandler.Initialize()` on the next connect — so a
+one-shot event like the Prismacore `POST_FIGHT` is not lost offline. `IsGoalComplete` reads the
+persisted flag too, so goal-gated trap/popup suppression survives reloads.
+
 The goal keys (from `options.py` `Goal.current_key`, sent verbatim in slot data):
 
 | Goal | Slot Data Value | Mod Detection Method |
 |---|---|---|
-| Open Grey Labyrinth | `"labyrinth_open"` | ✅ **Verified in-game.** `InvisibleSwitchPatch` on `energyBeamReceiver` fires for `zoneStrandLabyrinthGate` and `zoneGorgeGateTransfer`; both must go DOWN. Note: progress is in-memory only — both switches must report DOWN within one connected session. |
+| Open Grey Labyrinth | `"labyrinth_open"` | ✅ **Verified in-game.** `InvisibleSwitchPatch` on `energyBeamReceiver` fires for `zoneStrandLabyrinthGate` and `zoneGorgeGateTransfer`; both must go DOWN. Opened gates are persisted (`ApSaveManager.LabyrinthGatesOpened`), so the two can open in different sessions, online or offline. |
 | Newbucks Milestone | `"newbucks"` | ✅ **Verified in-game.** `PlayerStateAddCurrencyPatch` accumulates every positive Newbucks `AddCurrency` into the persisted `ApSaveManager.NewbucksEarned` counter (the game's own `AmountEverCollected` is vestigial and never updated); `GoalHandler.Tick()` polls it against `newbucks_goal_amount`. |
 | Stabilize Prismacore | `"prismacore"` | ✅ **Verified in-game.** `CoreRoomControllerPatch` Postfix on `CoreRoomController.UpdateState` fires the goal on `POST_FIGHT` (boss complete, core stabilized). `PRE_FIGHT` fires on scene load and is ignored. |
 | Complete the Slimepedia | `"slimepedia"` | ✅ **Verified in-game.** `GoalHandler.Tick()` polls the Slimes / Resources / Radiant Slimes `PediaRuntimeCategory` groups — only categories enabled by the `randomize_slimepedia*` options count, and entries excluded by `disable_tarr` / `exclude_rng_slimes` / `exclude_weather_checks` are skipped (matching the apworld's location-pool exclusions). **Scope is the AP location table, never `PediaRuntimeCategory.AllUnlocked()`** — the game's categories can also grow at runtime via `OnPediaEntriesRegistered`/`AddDynamicItem`, and the old `AllUnlocked()` fast path made the goal unachievable by requiring entries with no AP location. `RadiantSlime` (819379) and `Sprinkles` (819684) are now real locations gated by `exclude_rng_slimes` and `randomize_sanctuary` respectively. Use F9 → "Log Slimepedia Goal Progress" to see exactly which tracked entries remain locked. |
@@ -501,7 +507,6 @@ Items still genuinely incomplete (history of completed work lives in git, not he
 |---|---|
 | Minor item notifications | `item_notifications: all` routes filler/traps to the mod's existing IMGUI corner text, NOT the vanilla side-notification list (`ItemAcquisitionNotificationList`). That list is fed by `INotificationProvider` implementations, which need an IL2CPP type registration to implement from managed code. `NotificationEntry`'s public ctor takes an arbitrary `Sprite`, so a real provider is feasible if the corner text proves unsatisfying. |
 | Plort Market / Market Recovery | Implemented mod-side: first-sale checks in `PlortMarketPatch`; saturation, sale-override, immediate price refresh, and declarative Market Recovery in `PlortMarketModePatch`. In-development warnings removed from the apworld `options.py` (2026-07-06) to allow full testing — **in-game verification still in progress**. |
-| `labyrinth_open` cross-session progress | Switch-open state is in-memory only; both beam gates must report DOWN within one connected session unless scene restore re-fires `SetStateForAll` (unverified). |
 | `Patches/UiPatches/MainMenuPatch.cs` | Stub — `MainMenuUI` class/method TBD; the "Archipelago" connect entry lives in Options → Archipelago instead. Cosmetic — does not affect functionality. |
 
 ---
