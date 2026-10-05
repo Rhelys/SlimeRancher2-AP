@@ -1,135 +1,237 @@
 using HarmonyLib;
+using Il2CppMonomiPark.SlimeRancher.DataModel;
 using Il2CppMonomiPark.SlimeRancher.Economy;
 using SlimeRancher2AP.Archipelago;
 
 namespace SlimeRancher2AP.Patches.PlayerPatches;
 
 /// <summary>
-/// Tracks cumulative newbucks earnings for the "newbucks" AP goal.
-///
-/// <para>
-/// <c>PlayerModel.AmountEverCollected</c> is never updated by any code path in SR2
-/// (not by plort selling, not by AddCurrency — it appears to be vestigial).
-/// We therefore maintain our own counter in <see cref="SaveData.ApSaveManager.NewbucksEarned"/>
-/// that persists across sessions in the per-seed BepInEx config file.
-/// </para>
-///
-/// <para>
-/// Only accumulates when:
-/// <list type="bullet">
-///   <item>The AP goal is "newbucks"</item>
-///   <item>The player is connected to the AP server</item>
-///   <item>The currency is Newbucks (matched by <c>PersistenceId</c>)</item>
-///   <item><c>adjust</c> is positive (spending goes through <c>SpendCurrency</c>, not here)</item>
-/// </list>
-/// </para>
-/// </summary>
-[HarmonyPatch(typeof(PlayerState), nameof(PlayerState.AddCurrency))]
-internal static class PlayerStateAddCurrencyPatch
-{
-    private static void Postfix(ICurrency currencyDefinition, int adjust)
-    {
-        if (adjust <= 0) return;
-        // Newbucks granted BY the AP item pipeline (Newbucks filler) are not "earned" —
-        // counting them would give free goal progress for receiving your own filler items.
-        if (ItemHandler.IsGrantingCurrency) return;
-        if (!Plugin.Instance.ApClient.IsConnected) return;
-        if (Plugin.Instance.ApClient.SlotData?.Goal != "newbucks") return;
-
-        // Filter to Newbucks only — the game also uses AddCurrency for energy (rad) and keys.
-        var persistenceId = GoalHandler.NewbucksPersistenceId;
-        if (persistenceId < 0) return;
-
-        var def = currencyDefinition?.TryCast<CurrencyDefinition>();
-        if (def == null || def.PersistenceId != persistenceId) return;
-
-        Plugin.Instance.SaveManager.AccumulateNewbucks(adjust);
-    }
-}
-
-/// <summary>
-/// Scales Newbucks the game pays the player by the <c>newbucks_multiplier</c> slot data option.
+/// Shared rules for Newbucks the game pays the player: what is scaled by
+/// <c>newbucks_multiplier</c>, and what counts toward the <c>newbucks</c> goal.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Runs as a Prefix so the scaled value is what reaches the model, the wallet, and the on-screen
-/// "+N" notification — all three then agree. <see cref="PlayerStateAddCurrencyPatch"/> is a
-/// Postfix on the same method, so the <c>newbucks</c> goal counts the scaled amount too, which is
-/// the intended behaviour: the goal counter never disagrees with the player's money.
+/// <b>Two levels.</b> Every payout goes through <c>PlayerState.AddCurrency</c>, which writes the
+/// model via <c>PlayerModel.AddCurrency</c>. The Quantum Cloud's "Send to Market" passes a
+/// <b>null</b> currency, which the original resolves to the default (Newbucks) — so at the
+/// PlayerState level a cloud sale cannot be recognised, and was neither scaled nor counted
+/// (confirmed by trace: PlayerState saw <c>type=null</c>, the model then received Newbucks 12).
+/// Each payout is handled exactly once: the PlayerState patches own every payout whose currency
+/// they can see, and announce the model write that follows
+/// (<see cref="ConsumeExpectedModelWrite"/>); <see cref="PlayerModelAddCurrencyPatch"/> handles
+/// the rest, where the currency has been resolved. Scaling at the PlayerState level where
+/// possible keeps the on-screen "+N" in agreement with the wallet.
 /// </para>
 ///
 /// <para>
-/// <b>What is deliberately NOT scaled.</b> Both exclusions go through
-/// <c>ItemHandler.IsGrantingCurrency</c>:
+/// <b>What is deliberately excluded</b>, via <c>ItemHandler.IsGrantingCurrency</c>, which stays
+/// set across the inner model call:
 /// <list type="bullet">
-///   <item>
-///     Archipelago Newbucks filler (250/500/1000). Those are balanced as item-pool rewards, so
-///     scaling them would make a check's value depend on an economy setting.
-///   </item>
-///   <item>
-///     <c>RanchPlotHandler.RefundNewbucks</c>. A scaled refund would return more than the plot
-///     cost, making buy-then-refund an unlimited money loop.
-///   </item>
+///   <item>Archipelago Newbucks filler (250/500/1000) — balanced as item-pool rewards, so
+///   neither scaled nor counted as earned.</item>
+///   <item><c>RanchPlotHandler.RefundNewbucks</c> — a scaled refund would return more than the
+///   plot cost, an unlimited money loop.</item>
 /// </list>
-/// </para>
-///
-/// <para>
-/// Negative adjustments are left alone. Spending goes through <c>SpendCurrency</c> rather than
-/// here, but if anything ever routes a debit through this method, scaling it would make a high
-/// multiplier charge the player more rather than pay them more.
-/// </para>
-///
-/// <para>
-/// <c>AddCurrency</c> is CallerCount(6) and already carries a Postfix in shipping builds.
+/// Negative adjustments are never touched: scaling a debit would charge more, not pay more.
 /// </para>
 /// </remarks>
-[HarmonyPatch(typeof(PlayerState), nameof(PlayerState.AddCurrency))]
-internal static class PlayerStateAddCurrencyScalePatch
+internal static class NewbucksEarnings
 {
-    /// <summary>True when this currency is Newbucks rather than energy or keys.</summary>
-    private static bool IsNewbucks(ICurrency? currency)
+    // The model write PlayerState.AddCurrency is about to make: the amount, already scaled, and
+    // the frame. The model-level hook skips exactly that write, once.
+    //
+    // An exact, announced handoff rather than "a PlayerState call is in progress". A scope guard
+    // also covers the null-currency cloud call, which PlayerState cannot handle, and so swallowed
+    // every cloud payout. Only calls with a visible currency are announced (see the Prefix).
+    private static int _expectedAdjust = int.MinValue;
+    private static int _expectedFrame  = -1;
+
+    internal static void ExpectModelWrite(int adjust)
     {
+        _expectedAdjust = adjust;
+        _expectedFrame  = UnityEngine.Time.frameCount;
+    }
+
+    internal static void ClearExpectedModelWrite() => _expectedFrame = -1;
+
+    /// <summary>
+    /// True — and clears the expectation — when this model write is the one PlayerState announced.
+    /// </summary>
+    internal static bool ConsumeExpectedModelWrite(int adjust)
+    {
+        if (_expectedFrame != UnityEngine.Time.frameCount || _expectedAdjust != adjust) return false;
+        _expectedFrame = -1;
+        return true;
+    }
+
+    /// <summary>True when this currency is Newbucks rather than energy (rad) or keys.</summary>
+    /// <remarks>
+    /// <para>
+    /// Compared by <c>ICurrency.PersistenceId</c> — an interface member, so it reads correctly
+    /// from any implementation — against the Newbucks definition, which is found by name.
+    /// </para>
+    /// <para>
+    /// The Newbucks id is resolved here on demand. Matching on a PersistenceId cached by the
+    /// newbucks goal was tried once, and failed on every other goal because only that goal ever
+    /// filled the cache. A null currency (the Quantum Cloud's) returns false — see the class
+    /// remarks for how that payout is still handled.
+    /// </para>
+    /// </remarks>
+    internal static bool IsNewbucks(ICurrency? currency)
+    {
+        if (currency == null) return false;
         try
         {
-            var def = currency?.TryCast<CurrencyDefinition>();
-            return def != null
-                && def.name.IndexOf("Newbucks", System.StringComparison.OrdinalIgnoreCase) >= 0;
+            int id = NewbucksId();
+            return id != int.MinValue && currency.PersistenceId == id;
         }
         catch { return false; }
     }
 
-    private static void Prefix(ICurrency currencyDefinition, ref int adjust)
+    private static int _newbucksId = int.MinValue;
+    private static int _newbucksLookups;
+
+    /// <summary>PersistenceId of the Newbucks definition, or int.MinValue if not loaded yet.</summary>
+    /// <remarks>
+    /// Bounded retries: the definition may not be loaded during early startup, so one miss must
+    /// not be final, but an unbounded retry would scan every asset on every currency change.
+    /// </remarks>
+    private static int NewbucksId()
+    {
+        if (_newbucksId != int.MinValue || _newbucksLookups >= 20) return _newbucksId;
+        _newbucksLookups++;
+        foreach (var def in UnityEngine.Resources.FindObjectsOfTypeAll<CurrencyDefinition>())
+        {
+            if (def != null && def.name.IndexOf("Newbucks", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                _newbucksId = def.PersistenceId;
+                break;
+            }
+        }
+        return _newbucksId;
+    }
+
+    /// <summary>
+    /// <paramref name="adjust"/> scaled by <c>newbucks_multiplier</c>, or unchanged when the
+    /// payout is excluded or the multiplier is 100%.
+    /// </summary>
+    internal static int Scale(ICurrency? currency, int adjust)
     {
         try
         {
-            if (adjust <= 0) return;                      // debits and no-ops are untouched
-            if (!Plugin.Instance.ModEnabled) return;
-            if (ItemHandler.IsGrantingCurrency) return;   // AP filler and plot refunds
+            if (adjust <= 0) return adjust;
+            if (!Plugin.Instance.ModEnabled) return adjust;
+            if (ItemHandler.IsGrantingCurrency) return adjust;
 
             var pct = Plugin.Instance.ApClient.SlotData?.NewbucksMultiplier ?? 100;
-            if (pct == 100) return;
+            if (pct == 100) return adjust;
+            if (!IsNewbucks(currency)) return adjust;
 
-            // Newbucks only — the game also routes energy (rad) and keys through AddCurrency.
-            //
-            // Identified from the definition in hand rather than by PersistenceId. The id comes
-            // from a cache that only the newbucks goal used to populate, so on any other goal it
-            // read -1 and this guard rejected every genuine payment — which is exactly how this
-            // shipped broken the first time. Name matching needs no shared state and no lookup,
-            // and it is the same test TryCacheNewbucksDef uses to find the definition anyway.
-            if (!IsNewbucks(currencyDefinition)) return;
-
-            // Floor of 1: a payment that was worth something before scaling must stay worth
-            // something, or a low multiplier silently turns small sales into nothing.
-            int scaled = System.Math.Max(1, (int)System.Math.Round(adjust * pct / 100.0,
-                                                                   System.MidpointRounding.AwayFromZero));
-            if (scaled == adjust) return;
-
-            adjust = scaled;
+            // Floor of 1: a payment worth something before scaling must stay worth something,
+            // or a low multiplier silently turns small sales into nothing.
+            return System.Math.Max(1, (int)System.Math.Round(adjust * pct / 100.0,
+                                                             System.MidpointRounding.AwayFromZero));
         }
         catch (System.Exception ex)
         {
-            // Never let a scaling failure cost the player a payment — leave adjust untouched.
-            Logger.Warning($"[AP] PlayerStateAddCurrencyScalePatch threw: {ex.Message}");
+            // Never let a scaling failure cost the player a payment.
+            Logger.Warning($"[AP] Newbucks scaling threw: {ex.Message}");
+            return adjust;
         }
+    }
+
+    /// <summary>Adds a payout to the persisted <c>newbucks</c> goal counter if it qualifies.</summary>
+    /// <remarks>
+    /// Counts whenever the save is AP-bound and trusted, connected or not — the rule every goal
+    /// uses (see GoalHandler). It used to require a live connection, so sales made offline never
+    /// counted toward the goal at all.
+    /// </remarks>
+    internal static void Count(ICurrency? currency, int adjust)
+    {
+        try
+        {
+            if (adjust <= 0) return;
+            if (ItemHandler.IsGrantingCurrency) return;   // AP filler and plot refunds are not earned
+            if (!Plugin.Instance.ModEnabled || !Plugin.Instance.SaveManager.IsSaveBound) return;
+            if (Plugin.Instance.ApClient.SlotData?.Goal != "newbucks") return;
+            if (!IsNewbucks(currency)) return;
+            if (!SaveGuard.IsSaveTrusted()) return;
+
+            Plugin.Instance.SaveManager.AccumulateNewbucks(adjust);
+        }
+        catch (System.Exception ex)
+        {
+            Logger.Warning($"[AP] Newbucks goal counting threw: {ex.Message}");
+        }
+    }
+}
+
+/// <summary>Scales Newbucks paid through <c>PlayerState.AddCurrency</c>.</summary>
+/// <remarks>
+/// A Prefix, so the scaled value is what reaches the model, the wallet and the "+N"
+/// notification. <see cref="PlayerStateAddCurrencyPatch"/> then counts the scaled amount, so the
+/// goal counter never disagrees with the player's money. It also announces the model write that
+/// follows, so <see cref="PlayerModelAddCurrencyPatch"/> does not handle it a second time.
+/// <c>AddCurrency</c> is CallerCount(6).
+/// </remarks>
+[HarmonyPatch(typeof(PlayerState), nameof(PlayerState.AddCurrency))]
+internal static class PlayerStateAddCurrencyScalePatch
+{
+    private static void Prefix(ICurrency currencyDefinition, ref int adjust)
+    {
+        adjust = NewbucksEarnings.Scale(currencyDefinition, adjust);
+
+        // A null currency is resolved to the default (Newbucks) inside the original, so this
+        // level cannot tell what it is. Leave that write to PlayerModelAddCurrencyPatch, which
+        // sees the resolved definition, rather than announcing it as handled here.
+        if (currencyDefinition != null) NewbucksEarnings.ExpectModelWrite(adjust);
+    }
+
+    private static void Postfix() => NewbucksEarnings.ClearExpectedModelWrite();
+}
+
+/// <summary>
+/// Counts Newbucks paid through <c>PlayerState.AddCurrency</c> toward the <c>newbucks</c> goal.
+/// </summary>
+/// <remarks>
+/// <c>PlayerModel.AmountEverCollected</c> is never updated by any code path in SR2 (vestigial),
+/// so the mod keeps its own counter in <see cref="SaveData.ApSaveManager.NewbucksEarned"/>.
+/// </remarks>
+[HarmonyPatch(typeof(PlayerState), nameof(PlayerState.AddCurrency))]
+internal static class PlayerStateAddCurrencyPatch
+{
+    private static void Postfix(ICurrency currencyDefinition, int adjust)
+        => NewbucksEarnings.Count(currencyDefinition, adjust);
+}
+
+/// <summary>
+/// Scales and counts Newbucks payouts that PlayerState could not identify — the Quantum
+/// Cloud's "Send to Market", which passes a null currency that is only resolved to Newbucks
+/// inside <c>PlayerState.AddCurrency</c>.
+/// </summary>
+/// <remarks>
+/// Payouts PlayerState announced (<see cref="NewbucksEarnings.ConsumeExpectedModelWrite"/>) were
+/// already handled there, so they pass untouched. Patched method:
+/// <c>PlayerModel.AddCurrency(ICurrency, int)</c> — CallerCount(1).
+/// </remarks>
+[HarmonyPatch(typeof(PlayerModel), nameof(PlayerModel.AddCurrency))]
+internal static class PlayerModelAddCurrencyPatch
+{
+    private static void Prefix(ICurrency currencyDefinition, ref int adjust, out int __state)
+    {
+        __state = 0;
+        if (NewbucksEarnings.ConsumeExpectedModelWrite(adjust)) return;   // handled at PlayerState
+        if (adjust <= 0 || !NewbucksEarnings.IsNewbucks(currencyDefinition)) return;
+
+        int scaled = NewbucksEarnings.Scale(currencyDefinition, adjust);
+        if (scaled != adjust)
+            Logger.Info($"[AP] Newbucks paid with no currency named (Quantum Cloud sale): {adjust} → {scaled}");
+        adjust = scaled;
+        __state = scaled;
+    }
+
+    private static void Postfix(ICurrency currencyDefinition, int __state)
+    {
+        if (__state > 0) NewbucksEarnings.Count(currencyDefinition, __state);
     }
 }

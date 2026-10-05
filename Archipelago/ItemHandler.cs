@@ -43,8 +43,8 @@ public static class ItemHandler
 
     /// <summary>
     /// True while <c>ApplyNewbucks</c> is calling <c>PlayerState.AddCurrency</c> to grant a
-    /// Newbucks filler item. Read by <c>PlayerStateAddCurrencyPatch</c> so AP-granted Newbucks
-    /// do NOT count toward the "newbucks" goal — only money earned in-game does.
+    /// Newbucks filler item. Read by <c>NewbucksEarnings</c> so AP-granted Newbucks are neither
+    /// scaled by the multiplier nor counted toward the "newbucks" goal — only money earned in-game is.
     /// </summary>
     // Setter used by ApplyNewbucks and RanchPlotHandler.RefundNewbucks.
     internal static bool IsGrantingCurrency { get; set; }
