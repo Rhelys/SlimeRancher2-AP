@@ -978,8 +978,10 @@ public static class ItemHandler
     /// Handles the case where the SR2 save was behind the AP watermark — e.g. because the game
     /// crashed before the autosave after items were applied.
     ///
-    /// Safe to call repeatedly — skips each upgrade when the SR2 level already matches or
-    /// exceeds the expected level.  Must be called on the main thread after
+    /// Corrects in both directions: raises a level the save is missing, and lowers one the
+    /// server never delivered (only when the server history covers the watermark — see
+    /// <c>historyCoversWatermark</c>). Safe to call repeatedly — an upgrade already at the
+    /// expected level is left alone. Must be called on the main thread after
     /// <see cref="UpgradeHandler"/> is non-null (i.e. after the scene has loaded enough for the
     /// upgrade handler to be constructed).
     /// </summary>
@@ -1016,6 +1018,11 @@ public static class ItemHandler
 
         if (expectedLevels.Count == 0) return;
 
+        // Lowering a level is only safe when the counts above are complete. If the server's
+        // history is shorter than the watermark says we applied, every expected level comes out
+        // too low, and correcting downward would strip upgrades the player really received.
+        bool historyCoversWatermark = snapshot.Count > watermark;
+
         foreach (var kvp in expectedLevels)
         {
             var upgradeName = kvp.Key;
@@ -1037,23 +1044,44 @@ public static class ItemHandler
                 $"[AP] Upgrade validation: '{upgradeName}' items received={kvp.Value} " +
                 $"(expected level {targetLevel}), SR2 model level={currentLevel}");
 
-            if (currentLevel >= targetLevel)
+            if (currentLevel > targetLevel)
             {
-                if (currentLevel > targetLevel)
+                // Game state is AHEAD of the watermark: the player holds a tier the AP server
+                // never delivered. On an AP-bound save there is no legitimate source for that
+                // any more — the Fabricator suppresses its vanilla grant whenever the save is
+                // bound, connected or not (FabricatorPatch.IsEnabled) — so it is a debug-panel
+                // grant or a mod bug, and the server's count is the truth. Lower it to match.
+                if (!historyCoversWatermark)
                 {
-                    // Game state is AHEAD of the watermark: the player holds a tier the AP
-                    // server never delivered. Deliberately NOT corrected downward — the level
-                    // may be legitimately theirs (a save that predates the mod, or an upgrade
-                    // crafted while disconnected, when FabricatorPatch.IsEnabled is false and
-                    // the vanilla grant is not suppressed). Removing it could strip progress a
-                    // player earned. Logged loudly instead, because it is otherwise invisible
-                    // and is the shape of "I got an upgrade that was meant to be just a check".
                     Logger.Warning(
                         $"[AP] Upgrade drift: '{upgradeName}' SR2 level={currentLevel} exceeds " +
-                        $"AP-expected {targetLevel} (items received={kvp.Value}) — game state is " +
-                        $"ahead of the watermark; not corrected.");
+                        $"AP-expected {targetLevel} (items received={kvp.Value}), but the server " +
+                        $"history ({snapshot.Count} item(s)) does not cover the watermark ({watermark}) " +
+                        $"— not lowered, the expected level may be undercounted.");
+                    _upgradeLevels[upgradeName] = currentLevel;
+                    continue;
                 }
 
+                Logger.Warning(
+                    $"[AP] Upgrade drift: '{upgradeName}' SR2 level={currentLevel} exceeds " +
+                    $"AP-expected {targetLevel} (items received={kvp.Value}) — lowering to match the server");
+
+                bool lowered  = WriteModelLevel(upgradeDef, targetLevel);
+                int afterDrop = GetRealModelLevel(upgradeDef);
+                _upgradeLevels[upgradeName] = afterDrop;
+                if (afterDrop == targetLevel)
+                    Logger.Info(
+                        $"[AP] Upgrade drift read-back: '{upgradeName}' now reports {afterDrop} — " +
+                        $"lowered{(lowered ? "" : " (SetUpgradeLevel threw, likely UI)")}");
+                else
+                    Logger.Warning(
+                        $"[AP] Upgrade drift read-back: '{upgradeName}' now reports {afterDrop} " +
+                        $"(wanted {targetLevel}) — LOWER DID NOT LAND");
+                continue;
+            }
+
+            if (currentLevel == targetLevel)
+            {
                 // SR2 save is correct — still record the level so the tracked cache is
                 // repopulated after ResetUpgradeTracking() (disconnect) even when no
                 // repair is needed. UpgradeObtainedQueryPatch reads this cache.
