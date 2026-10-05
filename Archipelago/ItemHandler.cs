@@ -1064,35 +1064,25 @@ public static class ItemHandler
             Logger.Info(
                 $"[AP] Upgrade repair: '{upgradeName}' SR2 level={currentLevel} < expected={targetLevel} — correcting");
 
-            IsApplyingItem = true;
-            try
+            // Read back immediately. If this reports targetLevel the write landed and the
+            // problem is persistence (the level is lost before the next load); if it still
+            // reports the old value the write is not reaching the model we read from.
+            // The read-back is the verdict — WriteModelLevel returns false when SetUpgradeLevel
+            // throws, which can happen from a UI listener after the model already advanced.
+            bool wrote   = WriteModelLevel(upgradeDef, targetLevel);
+            int readBack = GetRealModelLevel(upgradeDef);
+            if (readBack >= targetLevel)
             {
-                WriteModelLevel(upgradeDef, targetLevel);
-                _upgradeLevels[upgradeName] = targetLevel;
-
-                // Read back immediately. If this reports targetLevel the write landed and the
-                // problem is persistence (the level is lost before the next load); if it still
-                // reports the old value the write is not reaching the model we read from.
-                IsApplyingItem = false;
-                int readBack = GetRealModelLevel(upgradeDef);
-                IsApplyingItem = true;
+                _upgradeLevels[upgradeName] = readBack;
                 Logger.Info(
                     $"[AP] Upgrade repair read-back: '{upgradeName}' now reports {readBack} " +
-                    $"(wanted {targetLevel}) — {(readBack >= targetLevel ? "write landed" : "WRITE DID NOT LAND")}");
+                    $"(wanted {targetLevel}) — write landed{(wrote ? "" : " (SetUpgradeLevel threw, likely UI)")}");
             }
-            catch (Exception ex)
+            else
             {
-                int levelAfter = UpgradeHandler._model?.GetUpgradeLevel(upgradeDef) ?? -1;
-                if (levelAfter >= targetLevel)
-                    Logger.Warning(
-                        $"[AP] Upgrade repair threw (UI?) but model is at {levelAfter} — OK: {ex.Message}");
-                else
-                    Logger.Warning(
-                        $"[AP] Upgrade repair failed for '{upgradeName}' (wanted {targetLevel}, got {levelAfter}): {ex.Message}");
-            }
-            finally
-            {
-                IsApplyingItem = false;
+                Logger.Warning(
+                    $"[AP] Upgrade repair read-back: '{upgradeName}' now reports {readBack} " +
+                    $"(wanted {targetLevel}) — WRITE DID NOT LAND");
             }
         }
     }
@@ -1144,35 +1134,29 @@ public static class ItemHandler
             return true;
         }
 
-        IsApplyingItem = true;
-        try
+        // Judge the write by reading the model back, not by whether it threw. SetUpgradeLevel can
+        // throw from a UI listener (the vacpack AdapterView is not initialized until the player
+        // opens the upgrade screen) AFTER the model has already advanced — that is a success.
+        // WriteModelLevel swallows the exception and returns false, so its result alone cannot
+        // tell the two cases apart.
+        bool wrote     = WriteModelLevel(upgradeDef, targetLevel);
+        int levelAfter = GetRealModelLevel(upgradeDef);
+        if (levelAfter < targetLevel)
         {
-            WriteModelLevel(upgradeDef, targetLevel);
-        }
-        catch (Exception ex)
-        {
-            // ApplyUpgrade can throw when the vacpack UI's AdapterView hasn't been
-            // initialized yet (viewHolderPrefab is null — happens when the player hasn't
-            // opened the upgrade screen this session). Check whether the model was updated
-            // before the UI notification threw; if so, the upgrade applied correctly and
-            // we only need to suppress the cosmetic crash.
-            int levelAfter = UpgradeHandler._model?.GetUpgradeLevel(upgradeDef) ?? -1;
-            if (levelAfter < targetLevel)
-            {
-                Logger.Warning(
-                    $"[AP] ApplyUpgrade threw and model level did not advance " +
-                    $"(wanted {targetLevel}, got {levelAfter}): {ex.Message} — requeuing");
-                if (apItem != null) Plugin.Instance.ApClient.RequeueItem(apItem, itemIndex);
-                return false;
-            }
+            // Not requeued: a write that fails once will most likely fail again, and requeuing
+            // would retry (and warn) every frame. The watermark advances with this item, so
+            // scheduling validation retries the write exactly once — ValidateAndRepairUpgrades
+            // counts this item as received and repairs the shortfall on the next frame.
             Logger.Warning(
-                $"[AP] ApplyUpgrade threw (UI prefab not ready?) but model DID advance to {levelAfter} — " +
-                $"upgrade applied successfully. UI will refresh when the upgrade screen is opened. {ex.Message}");
+                $"[AP] Upgrade write did not land for '{upgradeName}' " +
+                $"(wanted {targetLevel}, model reports {levelAfter}) — scheduling upgrade validation to retry");
+            Plugin.Instance.ApClient.ScheduleUpgradeValidation();
+            return true;
         }
-        finally
-        {
-            IsApplyingItem = false;
-        }
+        if (!wrote)
+            Logger.Warning(
+                $"[AP] SetUpgradeLevel threw (UI prefab not ready?) but model DID advance to {levelAfter} — " +
+                "upgrade applied successfully. UI will refresh when the upgrade screen is opened.");
 
         _upgradeLevels[upgradeName] = targetLevel; // update immediately; patch callback may fire late or not at all
         Logger.Info($"[AP] Applied upgrade: {upgradeName} → level {targetLevel}/{maxLevel}");
