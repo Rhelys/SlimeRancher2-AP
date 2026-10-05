@@ -2788,12 +2788,14 @@ public static class TrapHandler
 
     private readonly struct TrapTeleportDest
     {
-        public readonly string   NodeId;         // arrival node ID, or "" = use Teleport_ResetPlayer
-        public readonly string   SceneGroupRef;  // SceneGroup.ReferenceId of target zone
-        public readonly string[] RegionGates;    // all gates that must be unlocked; empty = always accessible
+        public readonly string NodeId;         // arrival node ID, or "" = use Teleport_ResetPlayer
+        public readonly string SceneGroupRef;  // SceneGroup.ReferenceId of target zone
 
-        public TrapTeleportDest(string nodeId, string sceneGroupRef, params string[] regionGates)
-        { NodeId = nodeId; SceneGroupRef = sceneGroupRef; RegionGates = regionGates; }
+        // Eligibility is "the player has visited this zone", not "its region gate is unlocked":
+        // a visit is only recorded when the entry was authorized (GateReturnEnforcer suppresses
+        // it otherwise), and in vanilla region mode no region is ever recorded as unlocked.
+        public TrapTeleportDest(string nodeId, string sceneGroupRef)
+        { NodeId = nodeId; SceneGroupRef = sceneGroupRef; }
     }
 
     private static readonly TrapTeleportDest[] _trapDestinations =
@@ -2801,15 +2803,15 @@ public static class TrapHandler
         // Home ranch — always accessible
         new("",                                 "SceneGroup.ConservatoryFields"),
         // Starlight Strand — direct portal from Fields
-        new("TeleporterStrandToFieldsMain",     "SceneGroup.LuminousStrand",   "Starlight Strand Access"),                              // confirmed
-        // Grey Labyrinth via Strand entrance — requires Strand access
-        new("TeleporterLabyrinthToStrandMain",  "SceneGroup.Labyrinth",        "Starlight Strand Access"),                              // confirmed
+        new("TeleporterStrandToFieldsMain",     "SceneGroup.LuminousStrand"),    // confirmed
+        // Grey Labyrinth via Strand entrance
+        new("TeleporterLabyrinthToStrandMain",  "SceneGroup.Labyrinth"),         // confirmed
         // Ember Valley (Rumbling Gorge) — direct portal from Fields
-        new("TeleporterGorgeToFieldsMain",      "SceneGroup.RumblingGorge",    "Ember Valley Access"),                                  // confirmed
-        // Grey Labyrinth via Gorge entrance — requires EV access
-        new("TeleporterLabyrinthToGorgeMain",   "SceneGroup.Labyrinth",        "Ember Valley Access"),                                  // confirmed
-        // Powderfall Bluffs — accessed via Gorge; requires both EV and PB unlocked
-        new("TeleporterBluffsToGorgeMain",      "SceneGroup.PowderfallBluffs", "Ember Valley Access", "Powderfall Bluffs Access"),      // confirmed
+        new("TeleporterGorgeToFieldsMain",      "SceneGroup.RumblingGorge"),     // confirmed
+        // Grey Labyrinth via Gorge entrance
+        new("TeleporterLabyrinthToGorgeMain",   "SceneGroup.Labyrinth"),         // confirmed
+        // Powderfall Bluffs — accessed via Gorge
+        new("TeleporterBluffsToGorgeMain",      "SceneGroup.PowderfallBluffs"),  // confirmed
     };
 
     // Region access item name → SceneGroup.ReferenceId of the zone it opens.
@@ -2836,7 +2838,7 @@ public static class TrapHandler
 
     /// <summary>
     /// Teleports the player to a random accessible zone entrance.
-    /// Home ranch is always eligible; other zones require their region gate to be unlocked.
+    /// Eligible destinations are zones the player has visited (this or any earlier session).
     /// Uses <c>TeleportToDestinationImpl</c> for zone entrances and
     /// <c>Teleport_ResetPlayer</c> for the home ranch.
     /// </summary>
