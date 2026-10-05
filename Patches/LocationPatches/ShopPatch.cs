@@ -137,9 +137,12 @@ internal static class ShopTryPurchasePatch
         Logger.Info($"[AP] Shop: first purchase of '{info.EntryName}' → check {info.Id} ({info.Name})");
         Plugin.Instance.ApClient.SendCheck(info.Id);
 
-        // Mark the runtime slot sold out so the vanilla UI refresh (ItemPurchased event)
-        // immediately picks up the state; ShopUiPatch re-asserts it on every rebind.
+        // Mark the runtime slot sold out; ShopUiPatch re-asserts it on every rebind.
         try { __instance._isSoldOut = true; } catch { /* cosmetic only */ }
+
+        // The vanilla button refresh already ran inside TryPurchase, before the check above
+        // existed, so redraw now or the overlay waits for the next rebind.
+        UiPatches.ShopUiHelper.RefreshAfterPurchase(__instance);
     }
 
     // If the original throws, the Postfix never runs — clear the flag here or every

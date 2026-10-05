@@ -135,11 +135,25 @@ internal static class ShopUiHelper
     internal static ShopItemDescriptionBlurb? ActiveBlurb;
     internal static LocationInfo?             ActiveBlurbInfo;
 
+    // The purchase confirmation popup currently open on an AP check, if any.
+    //
+    // Its name label is a LocalizeStringEvent that the game re-binds to the shop item's own
+    // title in Repopulate. That localized string can resolve asynchronously, after the
+    // Repopulate Postfix has written the AP name, and land on the frozen label anyway — the
+    // popup then showed a vanilla decoration's name ("Curly Seaweed") over the AP item's
+    // description. So while the popup is open the text is re-asserted every frame against
+    // whatever item the popup holds right now, which also covers a re-open that does not run
+    // Repopulate at all.
+    internal static ShopPurchasePopup? ActivePopup;
+
     private static int _tickCounter;
 
-    /// <summary>Called every frame from <c>Plugin.Update</c>; does work every ~15 frames.</summary>
+    /// <summary>Called every frame from <c>Plugin.Update</c>; the blurb work runs every ~15 frames.</summary>
     internal static void Tick()
     {
+        if (ActivePopup != null) TickPurchasePopup();
+        if (_soldOutLocation >= 0) TickSoldOut();
+
         if (ActiveBlurb == null || ActiveBlurbInfo == null) return;
         if (++_tickCounter < 15) return;
         _tickCounter = 0;
@@ -163,6 +177,135 @@ internal static class ShopUiHelper
             ActiveBlurb = null;
             ActiveBlurbInfo = null;
         }
+    }
+
+    private static void TickPurchasePopup()
+    {
+        try
+        {
+            var popup = ActivePopup;
+            if (popup == null || !popup.isActiveAndEnabled) { ActivePopup = null; return; }
+
+            var info = ShopPatchState.GetActiveLocation(popup._itemToBuy);
+            if (info == null)
+            {
+                // Re-bound to a vanilla item without our Postfix seeing it — hand back.
+                OverrideText(popup._itemNameLabel,  null, freeze: false);
+                OverrideText(popup._infoBlurbLabel, null, freeze: false);
+                ActivePopup = null;
+                return;
+            }
+
+            EnsureText(popup._itemNameLabel,  HeaderText(info));
+            EnsureText(popup._infoBlurbLabel, BuildScoutDescription(info));
+        }
+        catch { ActivePopup = null; }   // popup torn down mid-frame
+    }
+
+    /// <summary>
+    /// <see cref="OverrideText"/>, but only when the label differs — re-asserting every frame
+    /// must not dirty the TMP mesh every frame.
+    /// </summary>
+    private static void EnsureText(UnityEngine.MonoBehaviour? localizeEvent, string text)
+    {
+        if (localizeEvent == null) return;
+        var tmp = localizeEvent.GetComponent<TMP_Text>()
+                  ?? localizeEvent.gameObject.GetComponentInChildren<TMP_Text>();
+        if (tmp != null && tmp.text == text && !localizeEvent.enabled) return;
+        OverrideText(localizeEvent, text, freeze: true);
+    }
+
+    /// <summary>
+    /// Redraws every shop button showing <paramref name="item"/>, so a just-sent check shows
+    /// as sold out straight away.
+    /// </summary>
+    /// <remarks>
+    /// The game refreshes the button from inside <c>TryPurchase</c>, before
+    /// <c>ShopTryPurchasePatch</c>'s Postfix has sent the check, so that refresh still saw the
+    /// slot as unbought and the overlay only appeared on the next rebind (scrolling, reopening).
+    /// Calling <c>RepopulateDisplay</c> again runs <see cref="ShopItemButtonPatch"/>, which now
+    /// sees the check. The details panel is refreshed too, for its "(Check sent)" line.
+    /// </remarks>
+    internal static void RefreshAfterPurchase(Il2CppMonomiPark.SlimeRancher.Shop.Runtime.ShopRuntimeItem item)
+    {
+        try
+        {
+            var info = ShopPatchState.GetActiveLocation(item);
+            if (info == null) return;
+
+            // Matched by AP location rather than object identity, and across inactive objects:
+            // while the purchase popup is up the grid behind it is inactive, and an
+            // active-only search found nothing at all (confirmed: "0 button(s)").
+            int matched = 0, active = 0;
+            foreach (var b in ButtonsFor(info.Id))
+            {
+                matched++;
+                if (b.isActiveAndEnabled) { b.RepopulateDisplay(); active++; }
+                else ShopItemButtonPatch.ApplySoldOut(b);
+            }
+
+            var blurb = ActiveBlurb;
+            if (blurb != null && ShopPatchState.GetActiveLocation(blurb._item)?.Id == info.Id)
+                blurb.UpdateDisplay();
+
+            // The grid comes back when the popup closes, and the game redraws the button from its
+            // own purchase and wallet handlers; keep re-asserting until the overlay shows on a
+            // visible button, for up to ~10 s.
+            _soldOutLocation = info.Id;
+            _soldOutFrames   = SoldOutWatchFrames;
+
+            Logger.Info($"[AP] Shop: sold-out refresh for '{info.EntryName}' — " +
+                        $"{matched} button(s), {active} active");
+        }
+        catch (System.Exception ex)
+        {
+            Logger.Warning($"[AP] Shop: sold-out refresh failed: {ex.Message}");   // cosmetic only
+        }
+    }
+
+    private const int  SoldOutWatchFrames = 600;
+    private static long _soldOutLocation = -1;
+    private static int  _soldOutFrames;
+
+    /// <summary>Every loaded shop button showing this AP location, active or not.</summary>
+    private static System.Collections.Generic.IEnumerable<ShopItemButton> ButtonsFor(long locationId)
+    {
+        var buttons = UnityEngine.Resources.FindObjectsOfTypeAll<ShopItemButton>();
+        for (int i = 0; i < buttons.Length; i++)
+        {
+            var b = buttons[i];
+            if (b == null || !b.gameObject.scene.IsValid()) continue;   // skip prefabs
+            if (ShopPatchState.GetActiveLocation(b._currentItem)?.Id == locationId)
+                yield return b;
+        }
+    }
+
+    /// <summary>
+    /// Re-asserts the overlay after a purchase until a visible button shows it, or ~10 s pass.
+    /// Runs from <see cref="Tick"/>; the search only happens every 10 frames.
+    /// </summary>
+    private static void TickSoldOut()
+    {
+        if (--_soldOutFrames <= 0) { _soldOutLocation = -1; return; }
+        if (_soldOutFrames % 10 != 0) return;
+        try
+        {
+            foreach (var b in ButtonsFor(_soldOutLocation))
+            {
+                if (!b.isActiveAndEnabled) continue;   // grid still hidden behind the popup
+                var overlay = b._soldOutDisplay;
+                if (overlay == null) continue;
+                if (!overlay.activeSelf)
+                {
+                    overlay.SetActive(true);
+                    Logger.Info($"[AP] Shop: sold-out overlay re-shown " +
+                                $"{SoldOutWatchFrames - _soldOutFrames} frame(s) after purchase");
+                }
+                _soldOutLocation = -1;   // visible and showing — done
+                return;
+            }
+        }
+        catch { _soldOutLocation = -1; }
     }
 }
 
@@ -197,10 +340,49 @@ internal static class ShopItemButtonPatch
         ShopUiHelper.OverrideText(nameEvent, $"[AP] {title}", freeze: true);
         ShopUiHelper.ShowLogo(__instance._icon);
 
-        if (ShopPatchState.IsChecked(info))
+        ApplySoldOut(__instance);
+    }
+
+    /// <summary>Shows the sold-out overlay on a button whose AP check has been sent.</summary>
+    internal static void ApplySoldOut(ShopItemButton button)
+    {
+        try
         {
-            try { __instance._soldOutDisplay?.SetActive(true); } catch { /* cosmetic */ }
+            var info = ShopPatchState.GetActiveLocation(button._currentItem);
+            if (info != null && ShopPatchState.IsChecked(info))
+                button._soldOutDisplay?.SetActive(true);
         }
+        catch { /* cosmetic */ }
+    }
+}
+
+/// <summary>
+/// Re-applies the AP sold-out overlay after the button's other refreshes.
+/// </summary>
+/// <remarks>
+/// After a purchase the button is redrawn by its own event handlers — <c>HandleItemPurchased</c>,
+/// and <c>HandlePlayerNewbucksChanged</c> when the cost is debited — which go through
+/// <c>UpdateForItemSoldOut</c> and <c>UpdatePriceDisplay</c>, not <c>RepopulateDisplay</c>.
+/// Those set the overlay from the shop item's own sold-out state, which is false for an AP slot
+/// (its vanilla purchase limit is usually unlimited), so they hid the overlay again right after
+/// the purchase. The handlers themselves are CallerCount(0) and unsafe to patch; these two are
+/// CallerCount(2) and (5).
+/// </remarks>
+[HarmonyPatch(typeof(ShopItemButton), nameof(ShopItemButton.UpdateForItemSoldOut))]
+internal static class ShopItemButtonSoldOutPatch
+{
+    private static void Postfix(ShopItemButton __instance)
+    {
+        if (ShopPatchState.IsEnabled) ShopItemButtonPatch.ApplySoldOut(__instance);
+    }
+}
+
+[HarmonyPatch(typeof(ShopItemButton), nameof(ShopItemButton.UpdatePriceDisplay))]
+internal static class ShopItemButtonPricePatch
+{
+    private static void Postfix(ShopItemButton __instance)
+    {
+        if (ShopPatchState.IsEnabled) ShopItemButtonPatch.ApplySoldOut(__instance);
     }
 }
 
@@ -324,11 +506,15 @@ internal static class ShopPurchasePopupPatch
         {
             ShopUiHelper.OverrideText(nameEvent,  null, freeze: false);
             ShopUiHelper.OverrideText(blurbEvent, null, freeze: false);
+            if (ShopUiHelper.ActivePopup == __instance) ShopUiHelper.ActivePopup = null;
             return;
         }
 
         ShopUiHelper.OverrideText(nameEvent, ShopUiHelper.HeaderText(info), freeze: true);
         ShopUiHelper.OverrideText(blurbEvent, ShopUiHelper.BuildScoutDescription(info), freeze: true);
         try { __instance._infoBlurbContainer?.SetActive(true); } catch { /* cosmetic */ }
+
+        // The name can still be overwritten after this returns — see ShopUiHelper.ActivePopup.
+        ShopUiHelper.ActivePopup = __instance;
     }
 }
