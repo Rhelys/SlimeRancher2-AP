@@ -2686,6 +2686,7 @@ public static class TrapHandler
         var chosenName  = chosen.StateName ?? chosen.name ?? "";
         var chosenState = chosen.Cast<IWeatherState>();
 
+        StopActiveWeatherTrap();
         _activeWeatherState = chosen;
 
         // Cache directors and one IWeatherPattern instance per director for later StopPatternState.
@@ -2944,6 +2945,15 @@ public static class TrapHandler
             return ApplySlimeRingTrap(apItem, itemIndex);
         }
 
+        // Find the directors before touching anything, so a requeue leaves no state to undo.
+        var found = Resources.FindObjectsOfTypeAll<WeatherDirector>();
+        if (found == null || found.Count == 0)
+            return Requeue(apItem, itemIndex, "no WeatherDirector in scene");
+
+        // Must run before the override below: a Tarr Rain still active would otherwise have its
+        // Tarr override recorded as the "original" spawn type and never be restored.
+        StopActiveWeatherTrap();
+
         // Find Tarr IdentifiableType to use as the override.
         var allIdents = Resources.FindObjectsOfTypeAll<IdentifiableType>();
         IdentifiableType? tarrType = null;
@@ -2983,13 +2993,6 @@ public static class TrapHandler
         }
 
         // Apply the weather to all directors (same logic as ApplyWeatherChange).
-        var found = Resources.FindObjectsOfTypeAll<WeatherDirector>();
-        if (found == null || found.Count == 0)
-        {
-            RestoreSlimeRainActorTypes();
-            return Requeue(apItem, itemIndex, "no WeatherDirector in scene");
-        }
-
         _activeWeatherState = slimeRainDef;
         _cachedDirectors    = new WeatherDirector[found.Count];
         _cachedPatterns     = null; // Tarr Rain uses RunState directly; no registry stop needed
@@ -3074,6 +3077,25 @@ public static class TrapHandler
             }
         }
         return false;
+    }
+
+    /// <summary>
+    /// Ends a weather trap that is still running before another one starts.
+    /// </summary>
+    /// <remarks>
+    /// The Weather group cooldown (30 s) is shorter than either effect (Tarr Rain 60 s, Weather
+    /// Change 180 s), so a second weather trap routinely fires while the first is live. Starting
+    /// over the top of it used to overwrite the tracked state without stopping it: the first
+    /// trap's registry pattern was never stopped, and a second Tarr Rain recorded the
+    /// already-overridden Tarr as the "original" spawn type — so after reset, natural Slime Rain
+    /// spawned Tarr for the rest of the session (the asset is shared and never reloaded).
+    /// </remarks>
+    private static void StopActiveWeatherTrap()
+    {
+        if (_activeWeatherState == null && _savedSlimeRainActorTypes == null) return;
+        Logger.Info("[AP] Weather trap already active — stopping it before starting the next one");
+        ResetWeather();
+        _weatherResetAt = -1f;
     }
 
     private static void RestoreSlimeRainActorTypes()
@@ -3171,6 +3193,7 @@ public static class TrapHandler
             _cachedDirectors    = null;
             _activeWeatherState = null;
             _cachedPatterns     = null;
+            RestoreSlimeRainActorTypes();
             return;
         }
 
