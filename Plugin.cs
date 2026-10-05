@@ -143,6 +143,7 @@ public class ApUpdateBehaviour : MonoBehaviour
     private static readonly Action _tNotifier     = SlimeRancher2AP.UI.ItemNotifier.Tick;
     private static readonly Action _tPopup        = SlimeRancher2AP.UI.ApPopup.Tick;
     private static readonly Action _tPrismacore   = SlimeRancher2AP.Archipelago.PrismacoreFulfiller.Tick;
+    private static readonly Action _tSaveFlush    = () => Plugin.Instance?.SaveManager?.Flush();
 
     private void Update()
     {
@@ -251,5 +252,11 @@ public class ApUpdateBehaviour : MonoBehaviour
             SlimeRancher2AP.Patches.LocationPatches.ComponentAcqDroneSpawnerFix.ForceSpawnAll();
             _droneSpawnNextTry = UnityEngine.Time.time + 3f;
         }
+
+        // Last: write everything this frame changed (checks, watermark, counters) in one save.
+        Prof.Time("SaveFlush", _tSaveFlush);
     }
+
+    // Per-frame flushing leaves at most one frame unwritten; this closes that gap on exit.
+    private void OnApplicationQuit() => Plugin.Instance?.SaveManager?.Flush();
 }

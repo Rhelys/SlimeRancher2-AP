@@ -8,7 +8,7 @@ namespace SlimeRancher2AP.SaveData;
 /// <summary>
 /// Persists Archipelago randomizer progress to a per-seed BepInEx ConfigFile.
 /// One file per {seed}_{slotName} combination so different seeds/slots don't conflict.
-/// The file is written immediately on any change to survive crashes.
+/// Changes are batched and written by Flush() at most once per frame (see the _dirty field).
 ///
 /// Scout data (what item lives at each location) is stored alongside as a separate JSON
 /// file so it persists across offline sessions and enables location-check notifications
@@ -88,6 +88,19 @@ public class ApSaveManager
     private long _newbucksEarnedVal = 0;
     private int  _shopCatalogsHeldVal = 0;
 
+    // Write batching. Mutators only change the in-memory state and set _dirty; Flush() writes
+    // everything to disk in one Save, once per frame (ApUpdateBehaviour), before the session
+    // pointer is torn down (ResetSession), and on quit. Previously every change rewrote the
+    // whole file — twice, since SaveOnConfigSet was left on — so a burst of received items or a
+    // plort-market sale cost dozens of full-file writes on the main thread.
+    //
+    // _dirty is volatile because ForceLastItemIndex / PersistSlotData run on the connection
+    // thread. _ioLock keeps Flush from serializing the sets while LoadSaveState (also on the
+    // connection thread) is rebuilding them or binding a new file.
+    private volatile bool _dirty;
+    private bool _warnedFlushFailure;
+    private readonly object _ioLock = new();
+
     // Scout data — loaded from JSON on connect, updated after fresh server scout.
     private Dictionary<long, PersistedScout> _scoutData = new();
     private string? _scoutFilePath;
@@ -139,9 +152,13 @@ public class ApSaveManager
     /// <summary>Persists the raw slot data so an offline session can reload the options.</summary>
     public void PersistSlotData(string json)
     {
-        if (_slotDataJson == null || string.IsNullOrEmpty(json)) return;
-        if (_slotDataJson.Value == json) return;   // unchanged — avoid rewriting the file
-        _slotDataJson.Value = json;
+        lock (_ioLock)
+        {
+            if (_slotDataJson == null || string.IsNullOrEmpty(json)) return;
+            if (_slotDataJson.Value == json) return;   // unchanged — avoid rewriting the file
+            _slotDataJson.Value = json;
+            MarkDirty();
+        }
     }
 
     /// <summary>All locally-tracked checked location IDs (for flush-on-reconnect).</summary>
@@ -235,31 +252,83 @@ public class ApSaveManager
     /// before a reconnect attempt) so that <c>ProcessItemQueue</c> does not process
     /// items against a stale save file from the previous connection.
     ///
-    /// Does NOT delete or flush any on-disk data — it only resets in-memory pointers.
+    /// Flushes pending changes to disk first, then resets the in-memory pointers.
     /// Also resets <see cref="LastItemIndex"/> to -1 so that
     /// <see cref="PreloadLastItemIndex"/> can set it cleanly for the new session.
     /// </summary>
     public void ResetSession()
     {
-        // Clear the session flag FIRST so HasActiveSession returns false immediately,
-        // preventing any concurrent LoadGamePatch from seeing a half-torn-down session.
-        _sessionActive           = false;
-        _saveBound               = false;
-        _saveFile                = null;
-        _checkedLocations        = null;
-        _lastItemIndex           = null;
-        _unlockedRegions         = null;
-        _visitedZones            = null;
-        _newbucksEarned          = null;
-        _shopCatalogsHeld        = null;
-        _appliedEphemeralIndices = null;
-        _deferredItemIndices     = null;
-        _associatedSaveName      = null;
-        _plortsSold              = null;
-        _plortsSoldMap.Clear();
-        _lastItemIdx             = -1;
-        // Keep _checkedSet, _regionSet, _visitedZoneSet, _scoutData in memory —
-        // they'll be re-loaded from the correct file by the next OnConnected call.
+        // Write out anything changed since the last frame BEFORE dropping the file pointer —
+        // otherwise this frame's checks / watermark advance would be lost on disconnect.
+        Flush();
+
+        lock (_ioLock)
+        {
+            // Clear the session flag FIRST so HasActiveSession returns false immediately,
+            // preventing any concurrent LoadGamePatch from seeing a half-torn-down session.
+            _sessionActive           = false;
+            _saveBound               = false;
+            _saveFile                = null;
+            _checkedLocations        = null;
+            _lastItemIndex           = null;
+            _unlockedRegions         = null;
+            _visitedZones            = null;
+            _newbucksEarned          = null;
+            _shopCatalogsHeld        = null;
+            _appliedEphemeralIndices = null;
+            _deferredItemIndices     = null;
+            _associatedSaveName      = null;
+            _plortsSold              = null;
+            _plortsSoldMap.Clear();
+            _lastItemIdx             = -1;
+            _dirty                   = false;
+            // Keep _checkedSet, _regionSet, _visitedZoneSet, _scoutData in memory —
+            // they'll be re-loaded from the correct file by the next OnConnected call.
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Persistence
+    // -------------------------------------------------------------------------
+
+    private void MarkDirty() => _dirty = true;
+
+    /// <summary>
+    /// Writes all pending changes to the save file in a single save. No-op when nothing
+    /// changed. Called every frame from <c>ApUpdateBehaviour.Update</c>, from
+    /// <see cref="ResetSession"/>, and on application quit. Main thread.
+    /// </summary>
+    public void Flush()
+    {
+        if (!_dirty) return;
+        lock (_ioLock)
+        {
+            if (_saveFile == null) { _dirty = false; return; }
+            _dirty = false;
+            try
+            {
+                _checkedLocations!.Value        = string.Join(",", _checkedSet);
+                _lastItemIndex!.Value           = _lastItemIdx;
+                _unlockedRegions!.Value         = string.Join(",", _regionSet);
+                _visitedZones!.Value            = string.Join(",", _visitedZoneSet);
+                _newbucksEarned!.Value          = _newbucksEarnedVal;
+                _shopCatalogsHeld!.Value        = _shopCatalogsHeldVal;
+                _appliedEphemeralIndices!.Value = string.Join(",", _ephemeralSet);
+                _deferredItemIndices!.Value     = string.Join(",", _deferredSet);
+                _plortsSold!.Value              = string.Join(",", _plortsSoldMap.Select(kv => $"{kv.Key}:{kv.Value}"));
+                _saveFile.Save();
+                _warnedFlushFailure = false;
+            }
+            catch (Exception ex)
+            {
+                _dirty = true;   // retry next frame
+                if (!_warnedFlushFailure)
+                {
+                    _warnedFlushFailure = true;
+                    Logger.Warning($"[AP] Could not write AP save file (will keep retrying): {ex.Message}");
+                }
+            }
+        }
     }
 
     /// <summary>
@@ -271,8 +340,12 @@ public class ApSaveManager
     /// <summary>Binds this AP slot to <paramref name="saveName"/> (persisted).</summary>
     public void AssociateSave(string saveName)
     {
-        if (_associatedSaveName == null) return;
-        _associatedSaveName.Value = saveName;
+        lock (_ioLock)
+        {
+            if (_associatedSaveName == null) return;
+            _associatedSaveName.Value = saveName;
+            MarkDirty();
+        }
     }
 
     /// <summary>
@@ -314,6 +387,11 @@ public class ApSaveManager
     /// </summary>
     private void LoadSaveState(string seed, string slotName)
     {
+        lock (_ioLock) { LoadSaveStateLocked(seed, slotName); }
+    }
+
+    private void LoadSaveStateLocked(string seed, string slotName)
+    {
         _saveBound = true;
 
         var safeSlot = string.Concat(slotName.Split(Path.GetInvalidFileNameChars()));
@@ -321,7 +399,12 @@ public class ApSaveManager
         Directory.CreateDirectory(dir);
 
         var baseName = $"AP_{seed}_{safeSlot}";
-        _saveFile     = new ConfigFile(Path.Combine(dir, baseName + ".cfg"), true);
+        _saveFile     = new ConfigFile(Path.Combine(dir, baseName + ".cfg"), true)
+        {
+            // Writes are batched through Flush(); without this every .Value assignment
+            // would rewrite the whole file on its own.
+            SaveOnConfigSet = false,
+        };
         _scoutFilePath = Path.Combine(dir, baseName + "_scouts.json");
 
         _checkedLocations        = _saveFile.Bind("Progress", "CheckedLocations", "",
@@ -420,8 +503,7 @@ public class ApSaveManager
     public void MarkChecked(long id)
     {
         if (_saveFile == null || !_checkedSet.Add(id)) return;
-        _checkedLocations!.Value = string.Join(",", _checkedSet);
-        _saveFile.Save();
+        MarkDirty();
     }
 
     public void UnlockRegion(string name)
@@ -430,21 +512,19 @@ public class ApSaveManager
         bool added = _regionSet.Add(name);
         Logger.Info($"[AP] UnlockRegion: '{name}' — {(added ? "newly unlocked" : "already unlocked")}");
         if (!added) return;
-        _unlockedRegions!.Value = string.Join(",", _regionSet);
-        _saveFile.Save();
+        MarkDirty();
     }
 
     /// <summary>
     /// Records that the player has physically visited the given SceneGroup for the first time.
-    /// Persists immediately so the teleport trap can use this data across sessions.
+    /// Persisted (on the next Flush) so the teleport trap can use this data across sessions.
     /// No-op if <paramref name="sgRef"/> has already been recorded or if no save file is open.
     /// </summary>
     public void MarkZoneVisited(string sgRef)
     {
         if (!_visitedZoneSet.Add(sgRef)) return;   // already recorded
         if (_saveFile == null) return;              // no open save file — in-memory only
-        _visitedZones!.Value = string.Join(",", _visitedZoneSet);
-        _saveFile.Save();
+        MarkDirty();
         Logger.Info($"[AP] Zone visited (first time): '{sgRef}'");
     }
 
@@ -466,9 +546,8 @@ public class ApSaveManager
             return;
         }
         Logger.Info($"[AP] UpdateLastItemIndex: {_lastItemIdx} → {idx}");
-        _lastItemIdx           = idx;
-        _lastItemIndex!.Value  = idx;
-        _saveFile.Save();
+        _lastItemIdx = idx;
+        MarkDirty();
     }
 
     /// <summary>
@@ -480,13 +559,12 @@ public class ApSaveManager
 
     /// <summary>
     /// Records that the filler or trap at the given server item index was successfully
-    /// applied. Persists immediately so it survives crashes and reconnects.
+    /// applied. Persisted on the next Flush so it survives crashes and reconnects.
     /// </summary>
     public void MarkEphemeralApplied(int idx)
     {
         if (_saveFile == null || !_ephemeralSet.Add(idx)) return;
-        _appliedEphemeralIndices!.Value = string.Join(",", _ephemeralSet);
-        _saveFile.Save();
+        MarkDirty();
     }
 
     // -------------------------------------------------------------------------
@@ -506,13 +584,12 @@ public class ApSaveManager
     /// <summary>
     /// Records that the item at <paramref name="idx"/> was received but its application is
     /// deferred (trap rate-limit, expansion held for the terminal check or sub-scene load).
-    /// Persists immediately so a disconnect doesn't lose it.
+    /// Persisted on the next Flush (and always before a disconnect) so it is not lost.
     /// </summary>
     public void AddDeferredItem(int idx)
     {
         if (_saveFile == null || !_deferredSet.Add(idx)) return;
-        _deferredItemIndices!.Value = string.Join(",", _deferredSet);
-        _saveFile.Save();
+        MarkDirty();
     }
 
     /// <summary>
@@ -522,8 +599,7 @@ public class ApSaveManager
     public void RemoveDeferredItem(int idx)
     {
         if (_saveFile == null || !_deferredSet.Remove(idx)) return;
-        _deferredItemIndices!.Value = string.Join(",", _deferredSet);
-        _saveFile.Save();
+        MarkDirty();
     }
 
     /// <summary>
@@ -536,8 +612,7 @@ public class ApSaveManager
         Logger.Info($"[AP] ForceLastItemIndex: {_lastItemIdx} → {idx}");
         _lastItemIdx = idx;
         if (_saveFile == null) return;
-        _lastItemIndex!.Value = idx;
-        _saveFile.Save();
+        MarkDirty();
     }
 
     /// <summary>
@@ -547,9 +622,8 @@ public class ApSaveManager
     public void AccumulateNewbucks(int amount)
     {
         if (_saveFile == null || amount <= 0) return;
-        _newbucksEarnedVal    += amount;
-        _newbucksEarned!.Value = _newbucksEarnedVal;
-        _saveFile.Save();
+        _newbucksEarnedVal += amount;
+        MarkDirty();
     }
 
     /// <summary>
@@ -558,9 +632,8 @@ public class ApSaveManager
     public void AccumulateShopCatalog()
     {
         if (_saveFile == null) return;
-        _shopCatalogsHeldVal   += 1;
-        _shopCatalogsHeld!.Value = _shopCatalogsHeldVal;
-        _saveFile.Save();
+        _shopCatalogsHeldVal += 1;
+        MarkDirty();
     }
 
     /// <summary>
@@ -572,8 +645,7 @@ public class ApSaveManager
         if (_saveFile == null || _plortsSold == null || count <= 0 || string.IsNullOrEmpty(plortName))
             return;
         _plortsSoldMap[plortName] = _plortsSoldMap.GetValueOrDefault(plortName) + count;
-        _plortsSold.Value = string.Join(",", _plortsSoldMap.Select(kv => $"{kv.Key}:{kv.Value}"));
-        _saveFile.Save();
+        MarkDirty();
     }
 
     /// <summary>Plorts of <paramref name="plortName"/> sold so far this AP run.</summary>
