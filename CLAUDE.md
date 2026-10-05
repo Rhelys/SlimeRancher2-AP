@@ -146,6 +146,7 @@ Quick reference only — verify against the apworld before relying on a range.
 | 819540–819557 | Gadgets (zone/home teleporters, warp depots, functional) |
 | 819558–819560 | Gadgets — Dash Pad, Spring Pad, Portable Water Tap (always in pool) |
 | 819561 | Disruption Detector (×3, prismacore/slimepedia goals) |
+| 819563–819564 | Gadgets — Refinery Link, Portable Fabricator (always in pool, one each; Mochi's vanilla Refinery Link gift is always suppressed) |
 | 819580–819605 | Filler (Newbucks / Plort / Craft Caches) |
 | 819610–819611 | Slime Ring (filler), Weather Change (useful) |
 | 819612–819616 | Traps (Tarr Spawn, Teleport, Tarr Rain, Vac Spew, Vac Fill) |

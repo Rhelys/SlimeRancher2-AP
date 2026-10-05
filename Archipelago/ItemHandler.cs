@@ -1228,6 +1228,12 @@ public static class ItemHandler
         [ItemTable.SpringPad]          = "SpringPad",
         [ItemTable.PortableWaterTap]   = "PortableWaterTap",
 
+        // Utility gadgets, always in the pool (docs/dumps/1.3/gadgets.txt). Refinery Link's
+        // vanilla source, Mochi's intro call, is suppressed in every seed — see
+        // ConversationActiveTrackerPatch.AlwaysApGiftAssets.
+        [ItemTable.RefineryLink]       = "RefineryLink",
+        [ItemTable.PortableFabricator] = "PortableFabricator",
+
         // Labyrinth goal gadget (confirmed via DumpGadgets).
         // Received ×3 for prismacore/slimepedia goals; duplicates skip via the
         // HasBlueprint guard in GrantSingleGadget.

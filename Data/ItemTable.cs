@@ -99,6 +99,11 @@ public static class ItemTable
     // Labyrinth goal gadget — in pool ×3 for prismacore/slimepedia goals (items.py)
     public const long DisruptionDetector = 819561; // PrismaDisruptionDetector (confirmed via DumpGadgets)
 
+    // Utility gadgets — always in the apworld pool, one each (items.py GADGET_ITEMS).
+    // 819562 is the Progressive Shop Catalog, below.
+    public const long RefineryLink       = 819563; // RefineryLink       (docs/dumps/1.3/gadgets.txt)
+    public const long PortableFabricator = 819564; // PortableFabricator (docs/dumps/1.3/gadgets.txt; new in 1.3)
+
     // Filler — Newbucks: 819580–819582
     public const long Newbucks250  = 819580;
     public const long Newbucks500  = 819581;
@@ -326,6 +331,10 @@ public static class ItemTable
         // Gadgets — Labyrinth goal (×3 in pool for prismacore/slimepedia goals; duplicate
         // receipts are skipped by GrantSingleGadget's blueprint-already-unlocked guard)
         new(DisruptionDetector, "Disruption Detector",  ItemType.Gadget),
+
+        // Gadgets — Utility (always in the apworld pool, one each)
+        new(RefineryLink,       "Refinery Link",        ItemType.Gadget),
+        new(PortableFabricator, "Portable Fabricator",  ItemType.Gadget),
 
         // Conservatory Expansions
         new(ExpansionGully,     "The Gully Access",     ItemType.ConservatoryExpansion),

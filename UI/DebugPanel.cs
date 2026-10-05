@@ -212,6 +212,8 @@ public class DebugPanel : MonoBehaviour
         y = ItemBtn(x, y, "Gordo Snare Advanced", ItemTable.GordoSnareAdvanced);
         y = ItemBtn(x, y, "Med Station",          ItemTable.MedStation);
         y = ItemBtn(x, y, "Dream Lantern T2",     ItemTable.DreamLanternT2);
+        y = ItemBtn(x, y, "Refinery Link",        ItemTable.RefineryLink);
+        y = ItemBtn(x, y, "Portable Fabricator",  ItemTable.PortableFabricator);
 
         y = SectionLabel(x, y, "Special Access");
         GUI.color = new Color(1f, 1f, 0.6f);

@@ -299,12 +299,14 @@ internal static class ConversationActiveTrackerPatch
     /// <c>conversation_checks</c> is set, keyed by the game asset name a gift page carries.
     /// </summary>
     /// <remarks>
-    /// These must be suppressed even when conversations are not randomized. Both are added
+    /// These must be suppressed even when conversations are not randomized. All are added
     /// unconditionally by <c>create_items</c> — Radiant Projector Blueprint in
-    /// SPECIAL_ACCESS_ITEMS, Archive Key Component in CRAFTING_COMPONENT_ITEMS — so a player
-    /// who receives one from a conversation holds it without the AP item, and the logic that
-    /// assumed they needed it no longer holds. For the Radiant Projector that means reaching the
-    /// Grey Labyrinth without its access item, which breaks every seed with GL in scope.
+    /// SPECIAL_ACCESS_ITEMS, Archive Key Component in CRAFTING_COMPONENT_ITEMS, Refinery Link in
+    /// GADGET_ITEMS — so a player who receives one from a conversation holds it without the AP
+    /// item, and the logic that assumed they needed it no longer holds. For the Radiant Projector
+    /// that means reaching the Grey Labyrinth without its access item, which breaks every seed
+    /// with GL in scope. Refinery Link is useful rather than progression, so for it the cost is
+    /// only a duplicate.
     ///
     /// The conversation-gifted gadgets are NOT here on purpose: the apworld already keeps them
     /// out of the pool unless the matching conversation tier is enabled
@@ -315,6 +317,7 @@ internal static class ConversationActiveTrackerPatch
     {
         "EnergyBeamNode",       // Radiant Projector Blueprint  (ViktorStoryCipher4)
         "ArchiveKeyComponent",  // Archive Key Component
+        "RefineryLink",         // Refinery Link                (MochiIntroCall)
     };
 
     /// <summary>
