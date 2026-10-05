@@ -130,6 +130,7 @@ public static class ItemHandler
             case ItemType.ConservatoryExpansion: ApplyConservatoryExpansion(item, -1);          break;
             case ItemType.Upgrade:               ApplyUpgrade(item, null, itemIndex);          break;
             case ItemType.Gadget:                ApplyGadget(item, null, itemIndex);           break;
+            case ItemType.Palette:               ApplyPalette(item, null, itemIndex);          break;
             case ItemType.Filler:                ApplyFiller(item, null, itemIndex);           break;
             case ItemType.Useful:                ApplyUseful(item, null, itemIndex);           break;
             case ItemType.UpgradeComponent:      ApplyUpgradeComponent(item, null, itemIndex); break;
@@ -245,6 +246,10 @@ public static class ItemHandler
                 break;
             case ItemType.Gadget:
                 if (!ApplyGadget(item, apItem, itemIndex))
+                    advanceWatermark = false;
+                break;
+            case ItemType.Palette:
+                if (!ApplyPalette(item, apItem, itemIndex))
                     advanceWatermark = false;
                 break;
             case ItemType.Filler:
@@ -1219,6 +1224,189 @@ public static class ItemHandler
         // Radiant Projector Blueprint (Special Access — grants via AddBlueprint, not AddItem)
         [ItemTable.RadiantProjectorBlueprint] = "EnergyBeamNode",
     };
+
+    /// <summary>Vac palette item ID -> <c>Palette</c> asset name (docs/dumps/1.3/palettes.txt).</summary>
+    internal static readonly System.Collections.Generic.Dictionary<long, string> PaletteAssets = new()
+    {
+        [Data.ItemTable.Palette_Blue] = "VacPalette_Blue",
+        [Data.ItemTable.Palette_Purple] = "VacPalette_Purple",
+        [Data.ItemTable.Palette_Green] = "VacPalette_Green",
+        [Data.ItemTable.Palette_Red] = "VacPalette_Red",
+        [Data.ItemTable.Palette_Pink] = "VacPalette_Pink",
+        [Data.ItemTable.Palette_Angelic] = "VacPalette_Angelic",
+        [Data.ItemTable.Palette_Tidepools] = "VacPalette_Tidepools",
+        [Data.ItemTable.Palette_Magma] = "VacPalette_Magma",
+        [Data.ItemTable.Palette_StarlightStrand] = "VacPalette_StarlightStrand",
+        [Data.ItemTable.Palette_Gray] = "VacPalette_Gray",
+        [Data.ItemTable.Palette_PowderfallBluffs] = "VacPalette_PowderfallBluffs",
+        [Data.ItemTable.Palette_Peach] = "VacPalette_Peach",
+        [Data.ItemTable.Palette_HotRod] = "VacPalette_HotRod",
+        [Data.ItemTable.Palette_Punk] = "VacPalette_Punk",
+        [Data.ItemTable.Palette_LilacDaze] = "VacPalette_LilacDaze",
+        [Data.ItemTable.Palette_Dreamland] = "VacPalette_Dreamland",
+        [Data.ItemTable.Palette_DreamPop] = "VacPalette_DreamPop",
+        [Data.ItemTable.Palette_Prismatic] = "VacPalette_Prismatic",
+        [Data.ItemTable.Palette_Candied] = "VacPalette_Candied",
+        [Data.ItemTable.Palette_Gold] = "VacPalette_Gold",
+        [Data.ItemTable.Palette_Mossy] = "VacPalette_Mossy",
+        [Data.ItemTable.Palette_Burgundy] = "VacPalette_Burgundy",
+    };
+
+    /// <summary>
+    /// Unlocks a vac palette through <c>PaletteDirector.SetOwned</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>SetOwned</c> is CallerCount(0). That is a caution flag even for a plain call — CLAUDE.md
+    /// records a CallerCount(0) property getter that hard-crashed the process when called. This
+    /// one carries CachedScanResults with a real xref range, which that getter did not, and the
+    /// result is verified through <c>IsOwned</c> (CallerCount(1)) rather than trusted.
+    /// </para>
+    /// <para>
+    /// Idempotent: owning and unlocking are each skipped when already done, so replaying the item
+    /// on reconnect or into a fresh save is harmless. That is why palettes are not ephemeral-guarded
+    /// like Filler.
+    /// </para>
+    /// <para>
+    /// The apworld never places a palette that is also a shop check in the same seed, so granting
+    /// one here cannot make a Polestar check unbuyable.
+    /// </para>
+    /// </remarks>
+#if DEBUG
+    /// <summary>Debug: grants the first vac palette the player does not yet own.</summary>
+    internal static void DebugGrantNextPalette()
+    {
+        var director = SceneContext.Instance?.PaletteDirector;
+        if (director == null) { Logger.Warning("[AP-Debug] No PaletteDirector — load a save first"); return; }
+
+        var all = Resources.FindObjectsOfTypeAll<Il2CppMonomiPark.SlimeRancher.Ranch.Palette>();
+        foreach (var kv in PaletteAssets)
+        {
+            var pal = all.FirstOrDefault(p => p != null && p.name == kv.Value);
+            if (pal == null || director.IsOwned(pal)) continue;
+            ApplyById(kv.Key, -1);
+            return;
+        }
+        Logger.Info("[AP-Debug] Every vac palette is already owned");
+    }
+
+    /// <summary>
+    /// Debug: re-runs the grant on every palette already owned, unlocking any pedia entry that is
+    /// still locked. Repairs palettes granted by the first version of ApplyPalette, which set
+    /// ownership but never unlocked the entry — those sit owned-and-invisible, and "grant next
+    /// unowned" skips them because they are owned.
+    /// </summary>
+    internal static void DebugRepairOwnedPalettes()
+    {
+        var director = SceneContext.Instance?.PaletteDirector;
+        if (director == null) { Logger.Warning("[AP-Debug] No PaletteDirector — load a save first"); return; }
+
+        var all = Resources.FindObjectsOfTypeAll<Il2CppMonomiPark.SlimeRancher.Ranch.Palette>();
+        int touched = 0;
+        foreach (var kv in PaletteAssets)
+        {
+            var pal = all.FirstOrDefault(p => p != null && p.name == kv.Value);
+            if (pal == null || !director.IsOwned(pal)) continue;
+            ApplyById(kv.Key, -1);
+            touched++;
+        }
+        Logger.Info($"[AP-Debug] Re-applied {touched} owned palette(s)");
+    }
+
+    /// <summary>Debug: logs ownership of all 22 vac palettes.</summary>
+    internal static void DebugLogPaletteOwnership()
+    {
+        var director = SceneContext.Instance?.PaletteDirector;
+        if (director == null) { Logger.Warning("[AP-Debug] No PaletteDirector — load a save first"); return; }
+
+        var all = Resources.FindObjectsOfTypeAll<Il2CppMonomiPark.SlimeRancher.Ranch.Palette>();
+        int owned = 0;
+        foreach (var kv in PaletteAssets)
+        {
+            var pal = all.FirstOrDefault(p => p != null && p.name == kv.Value);
+            bool isOwned = pal != null && director.IsOwned(pal);
+            if (isOwned) owned++;
+            Logger.Info($"[AP-Debug]   {(isOwned ? "OWNED " : "      ")} {kv.Value}{(pal == null ? "  (asset not found)" : "")}");
+        }
+        Logger.Info($"[AP-Debug] Vac palettes owned: {owned}/{PaletteAssets.Count}");
+    }
+#endif
+
+    private static bool ApplyPalette(Data.ItemInfo item, ApItemInfo? apItem, int itemIndex)
+    {
+        var director = SceneContext.Instance?.PaletteDirector;
+        if (director == null)
+        {
+            // Scene still loading — requeue, exactly as ApplyGadget does.
+            if (apItem != null) Plugin.Instance.ApClient.RequeueItem(apItem, itemIndex);
+            return false;
+        }
+
+        if (!PaletteAssets.TryGetValue(item.Id, out var assetName))
+        {
+            Logger.Warning($"[AP] Unhandled palette item ID: {item.Id}");
+            return true;   // unknown — do not retry forever
+        }
+
+        var palette = Resources.FindObjectsOfTypeAll<Il2CppMonomiPark.SlimeRancher.Ranch.Palette>()
+                               .FirstOrDefault(p => p != null && p.name == assetName);
+        if (palette == null)
+        {
+            Logger.Warning($"[AP] Palette asset '{assetName}' not found in loaded assets");
+            return true;
+        }
+
+        var pedia = SceneContext.Instance?.PediaDirector;
+        if (pedia == null)
+        {
+            if (apItem != null) Plugin.Instance.ApClient.RequeueItem(apItem, itemIndex);
+            return false;
+        }
+
+        // Ownership alone does nothing visible. Vac styles are chosen from the Slimepedia's
+        // palette screen (PediaPaletteCategoryScreen), which lists unlocked PEDIA ENTRIES — a
+        // palette that is owned but whose entry is still locked never appears, so it can be
+        // neither seen nor equipped. The first version of this called SetOwned only; IsOwned
+        // flipped to true and the palette stayed invisible. A shop purchase does both, which is
+        // why palettes bought at Polestar always showed up.
+        //
+        // Both steps run every time rather than returning early once owned, so a palette left
+        // owned-but-locked by that first version is repaired on its next replay instead of being
+        // skipped forever. Unlock returns false for an entry already unlocked, so this stays
+        // idempotent.
+        bool changed = false;
+        try
+        {
+            if (!director.IsOwned(palette))
+            {
+                director.SetOwned(palette);
+                changed = true;
+                if (!director.IsOwned(palette))
+                    Logger.Warning($"[AP] SetOwned('{assetName}') returned but the palette is still not owned");
+            }
+
+            var entry = palette._pediaEntry;
+            if (entry == null)
+                Logger.Warning($"[AP] Palette '{assetName}' has no pedia entry — it will not appear in the palette screen");
+            else if (pedia.Unlock(entry, false))
+                changed = true;   // showPopup false: the received-item notification already announces it
+        }
+        catch (System.Exception ex)
+        {
+            Logger.Warning($"[AP] Palette grant '{assetName}' failed: {ex.Message}");
+            return true;
+        }
+
+        if (!changed)
+        {
+            Logger.Info($"[AP] Palette '{assetName}' already owned and unlocked — nothing to do");
+            return true;
+        }
+
+        Logger.Info($"[AP] Palette unlocked: {item.Name} ('{assetName}')");
+        Notify($"Received: {item.Name}");
+        return true;
+    }
 
     private static bool ApplyGadget(Data.ItemInfo item, ApItemInfo? apItem, int itemIndex)
     {

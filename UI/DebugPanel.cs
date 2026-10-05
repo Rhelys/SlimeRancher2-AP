@@ -419,6 +419,17 @@ public class DebugPanel : MonoBehaviour
             ItemHandler.ApplyById(ItemTable.ProgressiveShopCatalog, -1);
         y += BtnH + Gap;
 
+        y = SectionLabel(x, y, "Vac Palettes");
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Grant next unowned palette"))
+            ItemHandler.DebugGrantNextPalette();
+        y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Log palette ownership"))
+            ItemHandler.DebugLogPaletteOwnership();
+        y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Repair owned palettes (unlock pedia)"))
+            ItemHandler.DebugRepairOwnedPalettes();
+        y += BtnH + Gap;
+
         y = SectionLabel(x, y, "Item Notifications");
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Test: Major popup"))
             ItemNotifier.DebugShowMajor("Progressive Vacpack Upgrade");

@@ -222,6 +222,23 @@ Grant via: `SceneContext.Instance.GadgetDirector.AddBlueprint(gadgetDef, false)`
 - Common: `JellystoneCraft`, `SlimeFossilCraft`, `TinPetalCraft`, `BuzzWaxCraft`, `WildHoneyCraft`, `SilkySandCraft`, `AquaGlassCraft`, `DreamBubbleCraft`, `SunSapCraft`, `RadiantOreCraft`
 - Rare: `StrangeDiamondCraft`, `BlackIndigoniumCraft`, `MagmaCombCraft`, `PrimordyOilCraft`, `DeepBrineCraft`, `LavaDustCraft`, `PerfectSnowflakeCraft`, `RoyalJellyCraft`, `DriftCrystalCraft`, `LightningMoteCraft`, `StormGlassCraft`
 
+### Vac Palettes (game update 1.3)
+
+- Asset type: `Il2CppMonomiPark.SlimeRancher.Ranch.Palette` (a `ScriptableObjectWithGuid`). Its
+  `Guid` equals the shop's `AssetGuid`. All 23 are listed in `docs/dumps/1.3/palettes.txt`.
+- **Granting needs two calls; ownership alone shows nothing.** Vac styles are picked from the
+  Slimepedia palette screen (`PediaPaletteCategoryScreen`), which lists *unlocked pedia entries*.
+  Confirmed in game: `SetOwned` alone made `IsOwned` true and the palette stayed invisible and
+  unequippable.
+  ```csharp
+  SceneContext.Instance.PaletteDirector.SetOwned(palette);            // CallerCount(0) — verified safe in game
+  SceneContext.Instance.PediaDirector.Unlock(palette._pediaEntry, false);
+  ```
+- A shop purchase does both, and its reward routes through `AcquisitionUtility.Acquire_SpawnOrStore`
+  like every other shop reward — so `AcquisitionSuppressPatch` covers palette shop checks.
+- Sold from three shops: Polestar (16 of them, the AP shop locations), the Night Market, and the
+  Caretaker's Shop. See `ItemHandler.ApplyPalette`.
+
 ### Death / DeathLink
 
 - Kill the player: `player.GetComponent<PlayerDeathHandler>().OnDeath(null, null, "DeathLink")`

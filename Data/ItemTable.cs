@@ -1,6 +1,6 @@
 ﻿namespace SlimeRancher2AP.Data;
 
-public enum ItemType { RegionAccess, Upgrade, Gadget, Filler, Useful, UpgradeComponent, Trap, ConservatoryExpansion, RanchPlot, PrismaShard, ShopCatalog }
+public enum ItemType { RegionAccess, Upgrade, Gadget, Filler, Useful, UpgradeComponent, Trap, ConservatoryExpansion, RanchPlot, PrismaShard, ShopCatalog, Palette }
 
 /// <summary>Describes a single Archipelago item this game can send or receive.</summary>
 public record ItemInfo(long Id, string Name, ItemType Type);
@@ -213,6 +213,37 @@ public static class ItemTable
     public const long ProgressiveShopCatalog = 819562;
 
     // -------------------------------------------------------------------------
+    // Vac palettes: 819674–819695 (apworld palette_items option, game update 1.3)
+    //
+    // Each unlocks one vac style. A permanent unlock, like a gadget blueprint — so its own type
+    // rather than Filler. Filler is ephemeral-guarded and skipped on replay, which is right for
+    // one-shot currency and caches but would leave a fresh save without palettes the player had
+    // already received. Re-applying is safe: ApplyPalette checks IsOwned first.
+    // -------------------------------------------------------------------------
+    public const long Palette_Blue = 819674;
+    public const long Palette_Purple = 819675;
+    public const long Palette_Green = 819676;
+    public const long Palette_Red = 819677;
+    public const long Palette_Pink = 819678;
+    public const long Palette_Angelic = 819679;
+    public const long Palette_Tidepools = 819680;
+    public const long Palette_Magma = 819681;
+    public const long Palette_StarlightStrand = 819682;
+    public const long Palette_Gray = 819683;
+    public const long Palette_PowderfallBluffs = 819684;
+    public const long Palette_Peach = 819685;
+    public const long Palette_HotRod = 819686;
+    public const long Palette_Punk = 819687;
+    public const long Palette_LilacDaze = 819688;
+    public const long Palette_Dreamland = 819689;
+    public const long Palette_DreamPop = 819690;
+    public const long Palette_Prismatic = 819691;
+    public const long Palette_Candied = 819692;
+    public const long Palette_Gold = 819693;
+    public const long Palette_Mossy = 819694;
+    public const long Palette_Burgundy = 819695;
+
+    // -------------------------------------------------------------------------
     // Item rows
     // -------------------------------------------------------------------------
 
@@ -377,6 +408,30 @@ public static class ItemTable
 
         // Progressive Shop Catalog
         new(ProgressiveShopCatalog, "Progressive Shop Catalog", ItemType.ShopCatalog),
+
+        // Vac palettes
+        new(Palette_Blue, "Blue Vac Style", ItemType.Palette),
+        new(Palette_Purple, "Purple Vac Style", ItemType.Palette),
+        new(Palette_Green, "Green Vac Style", ItemType.Palette),
+        new(Palette_Red, "Red Vac Style", ItemType.Palette),
+        new(Palette_Pink, "Pink Vac Style", ItemType.Palette),
+        new(Palette_Angelic, "Angelic Vac Style", ItemType.Palette),
+        new(Palette_Tidepools, "Tidepools Vac Style", ItemType.Palette),
+        new(Palette_Magma, "Magma Vac Style", ItemType.Palette),
+        new(Palette_StarlightStrand, "Starlight Strand Vac Style", ItemType.Palette),
+        new(Palette_Gray, "Gray Vac Style", ItemType.Palette),
+        new(Palette_PowderfallBluffs, "Powderfall Bluffs Vac Style", ItemType.Palette),
+        new(Palette_Peach, "Peach Vac Style", ItemType.Palette),
+        new(Palette_HotRod, "Hotrod Vac Style", ItemType.Palette),
+        new(Palette_Punk, "Punk Vac Style", ItemType.Palette),
+        new(Palette_LilacDaze, "Lilac Daze Vac Style", ItemType.Palette),
+        new(Palette_Dreamland, "Dreamland Vac Style", ItemType.Palette),
+        new(Palette_DreamPop, "Dreampop Vac Style", ItemType.Palette),
+        new(Palette_Prismatic, "Prismatic Vac Style", ItemType.Palette),
+        new(Palette_Candied, "Candied Vac Style", ItemType.Palette),
+        new(Palette_Gold, "Gold Vac Style", ItemType.Palette),
+        new(Palette_Mossy, "Mossy Vac Style", ItemType.Palette),
+        new(Palette_Burgundy, "Burgundy Vac Style", ItemType.Palette),
     };
 
     private static readonly Dictionary<long, ItemInfo> _byId = All.ToDictionary(i => i.Id);
