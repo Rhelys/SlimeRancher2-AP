@@ -148,7 +148,7 @@ public static class ItemTable
     // never from replay state, so these items are safe to re-apply.
     //
     // Per-area plot unlocks (randomize_plots) — progressive; count per area from the
-    // in-game plot dump (docs/dumps/plot.txt): region cell name in comment.
+    // in-game plot dump (docs/dumps/1.2/plot.txt): region cell name in comment.
     public const long RanchPlotConservatory = 819640; // cellConservatory      ×8
     public const long RanchPlotGully        = 819641; // cellExpansionGully    ×5
     public const long RanchPlotTidepools    = 819642; // cellExpansionPools    ×5

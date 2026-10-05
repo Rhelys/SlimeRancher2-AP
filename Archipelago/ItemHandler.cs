@@ -1198,7 +1198,7 @@ public static class ItemHandler
         [ItemTable.WarpDepotViolet] = "WarpDepotViolet",
         [ItemTable.WarpDepotSnowy]  = "WarpDepotSnowy",
 
-        // Functional gadgets — all names confirmed against docs/dumps/Gadget.txt
+        // Functional gadgets — all names confirmed against docs/dumps/1.2/Gadget.txt
         [ItemTable.MarketLink]         = "MarketLink",
         [ItemTable.SuperHydroTurret]   = "SuperHydroTurret",
         [ItemTable.PortableScareSlime] = "PortableScareSlime",

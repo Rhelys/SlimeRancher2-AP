@@ -390,7 +390,7 @@ public static class GoalHandler
     ///   enabled the mod iterated entries itself, without one it deferred to the game, and
     ///   the two do not necessarily agree.</item>
     /// <item>Either way the goal required every entry the GAME puts in the category, which
-    ///   is a superset of what AP has locations for. Confirmed from docs/dumps/Pedia.txt:
+    ///   is a superset of what AP has locations for. Confirmed from docs/dumps/1.2/Pedia.txt:
     ///   'Resources' contains <c>Sprinkles</c> (post-game Sanctuary content) and 'Slimes'
     ///   contains the <c>RadiantSlime</c> concept entry — neither is an AP location, so a
     ///   player could complete every check in their seed and still not trigger the goal

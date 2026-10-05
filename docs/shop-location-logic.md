@@ -1,6 +1,6 @@
 # Polestar Provisions — Shop Location Logic
 
-Sources of truth (both in `docs/dumps/`):
+Sources of truth (both in `docs/dumps/1.2/`):
 - `shop_condition.txt` — static rule-set/table dump (`ShopCategorySourceRuleSet` group
   conditions + per-item `AvailableCondition`), 2026-07-11.
 - `shop.txt` — runtime item dump from an all-zones-visited save (resolves names), 2026-07-11.

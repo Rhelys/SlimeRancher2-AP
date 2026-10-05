@@ -945,7 +945,7 @@ public static class LocationTable
         // EntryName = GadgetDefinition asset name (debugging only).
         // Checked via TryGetShopByAssetGuid() in ShopPatch. Only the per-seed
         // random subset chosen by the apworld is active (IsLocationInSeed).
-        // Source: docs/dumps/shop.txt (2026-07-09), in-game category order.
+        // Source: docs/dumps/1.2/shop.txt (2026-07-09), in-game category order.
         // =================================================================
         new(LocationConstants.PolestarShop_PinkAnemoneCluster, "Polestar Provisions: Pink Anemone Cluster", LocationType.PolestarShop, "", "007be6eaa1e0cdf46824dd2344cfee3a", "PinkAnemoneCluster"),  // 20nb
         new(LocationConstants.PolestarShop_Seashells, "Polestar Provisions: Seashells", LocationType.PolestarShop, "", "2f6abf164c092244999fd36fc11001de", "Seashells"),  // 20nb
@@ -1216,7 +1216,7 @@ public static class LocationTable
     /// <para>
     /// The slimepedia goal is defined against THIS list, not the game's runtime category
     /// contents. The game's categories include entries AP has no location for — confirmed
-    /// via docs/dumps/Pedia.txt: 'Resources' has 55 entries vs AP's 54 (the extra is
+    /// via docs/dumps/1.2/Pedia.txt: 'Resources' has 55 entries vs AP's 54 (the extra is
     /// <c>Sprinkles</c>, post-game Sanctuary content) and 'Slimes' has 30 vs AP's 29 (the
     /// extra is the <c>RadiantSlime</c> concept entry). Requiring those would gate the
     /// goal behind content the seed never hands out a check or hint for.

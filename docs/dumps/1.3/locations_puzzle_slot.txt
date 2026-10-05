@@ -1,0 +1,442 @@
+[Info   :SlimeRancher2-AP] [AP-Dump] ========== LOCATION DUMP START ==========
+[Info   :SlimeRancher2-AP] [AP-Dump] --- TreasurePods (21 regular, 4 node/drone) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneConservatory_Arboretum'  name='treasurePod Rank1 Flag Meat'  pos=(511, 61, 502)  posKey='zoneConservatory_Arboretum_511_61_502'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneConservatory_Den'  name='treasurePod Rank1 Flag Veggie'  pos=(686, 2, 50)  posKey='zoneConservatory_Den_686_2_50'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneConservatory_Garden'  name='treasurePod Rank1 Flag Fruit'  pos=(836, 23, 289)  posKey='zoneConservatory_Garden_836_23_289'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneFields'  name='treasurePod Rank1 TankGuardComponent'  pos=(315, -1, 345)  posKey='zoneFields_315_-1_345'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneFields'  name='treasurePod Rank1 Coastal Rock'  pos=(343, -3, 323)  posKey='zoneFields_343_-3_323'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneFields_Area1'  name='treasurePod Rank3 slimestage'  pos=(213, 48, 279)  posKey='zoneFields_Area1_213_48_279'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneFields_Area1'  name='treasurePod Rank2 largepinkbonsai'  pos=(210, 19, 287)  posKey='zoneFields_Area1_210_19_287'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneFields_Area1'  name='treasurePod Rank1 HeartModuleComponent'  pos=(268, 2, 398)  posKey='zoneFields_Area1_268_2_398'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneFields_Area2'  name='treasurePod Rank2 simplebench'  pos=(250, 9, 541)  posKey='zoneFields_Area2_250_9_541'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneFields_Area2'  name='treasurePod Rank1 pinkwarpdepot'  pos=(350, -2, 152)  posKey='zoneFields_Area2_350_-2_152'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneFields_Area2'  name='treasurePod Rank2 umbrella (beach)'  pos=(348, 12, 106)  posKey='zoneFields_Area2_348_12_106'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneFields_Area2'  name='treasurePod Rank2 Strange Diamond'  pos=(333, 10, 164)  posKey='zoneFields_Area2_333_10_164'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneFields_Area2'  name='treasurePod Rank2 Strange Diamond'  pos=(279, 0, 512)  posKey='zoneFields_Area2_279_0_512'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneFields_Area2'  name='treasurePod Rank2 smallboulder'  pos=(224, 27, 415)  posKey='zoneFields_Area2_224_27_415'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneFields_Area2'  name='treasurePod Rank1 hydroturret'  pos=(273, -4, 474)  posKey='zoneFields_Area2_273_-4_474'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneFields_Area3'  name='treasurePod Rank3 overjoyedstatue'  pos=(145, 18, 336)  posKey='zoneFields_Area3_145_18_336'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneFields_Area3'  name='treasurePod Rank2 emeraldcypress'  pos=(88, 1, 294)  posKey='zoneFields_Area3_88_1_294'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneFields_Area3'  name='treasurePod Rank1 swing'  pos=(42, -2, 158)  posKey='zoneFields_Area3_42_-2_158'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneFields_Area3'  name='treasurePod Rank2 PowerCoreComponent'  pos=(141, -3, 219)  posKey='zoneFields_Area3_141_-3_219'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneFields_Area3'  name='treasurePod Rank1 emeraldcypresscluster'  pos=(-9, -2, 409)  posKey='zoneFields_Area3_-9_-2_409'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneFields_Area4'  name='treasurePod Rank1 boombox'  pos=(275, 32, 627)  posKey='zoneFields_Area4_275_32_627'
+[Info   :SlimeRancher2-AP] [AP-Dump] --- GhostlyDrone nodes (TreasurePod subtype) (4) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] GhostlyNode  scene='zoneConservatory'  name='nodeComponentAcqDrone'  parent='ComponentAcquisitionDroneConservatory'  pos=(560, 42, 466)  posKey='zoneConservatory_560_42_466'
+[Info   :SlimeRancher2-AP] [AP-Dump] GhostlyNode  scene='zoneConservatory'  name='nodeComponentAcqDrone'  parent='ComponentAcquisitionDroneConservatory3'  pos=(589, 27, 27)  posKey='zoneConservatory_589_27_27'
+[Info   :SlimeRancher2-AP] [AP-Dump] GhostlyNode  scene='zoneConservatory'  name='nodeComponentAcqDrone'  parent='ComponentAcquisitionDroneConservatory2'  pos=(740, 17, 506)  posKey='zoneConservatory_740_17_506'
+[Info   :SlimeRancher2-AP] [AP-Dump] GhostlyNode  scene='zoneFields_Area1'  name='nodeComponentAcqDrone'  parent='ComponentAcquisitionDroneFields'  pos=(219, 62, 277)  posKey='zoneFields_Area1_219_62_277'
+[Info   :SlimeRancher2-AP] [AP-Dump] --- GordoEat (3 static world, 20 snare/global) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] GordoEat    scene='zoneFields'  name='gordoPhosphor'  stringEventKey='gordo0383133132'
+[Info   :SlimeRancher2-AP] [AP-Dump] GordoEat    scene='zoneFields_Area1'  name='gordoCotton'  stringEventKey='gordo1022215119'
+[Info   :SlimeRancher2-AP] [AP-Dump] GordoEat    scene='zoneFields_Area3'  name='gordoPink'  stringEventKey='gordo0722604697'
+[Info   :SlimeRancher2-AP] [AP-Dump] GordoSnare names (NOT checks): gordoBatty, gordoAngler, gordoHoney, gordoTwin, gordoHyper, gordoTangle, gordoRingtail, gordoDervish, gordoGold, gordoPink, gordoPhosphor, gordoHunter, gordoRock, gordoCrystal, gordoSaber, gordoFlutter, gordoBoom, gordoCotton, gordoSloomber, gordoTabby
+[Info   :SlimeRancher2-AP] [AP-Dump] --- MapNodeActivator (2) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] MapNode     scene='zoneFields_Area1'  name='nodeMapEntry'  pos=(188, 4, 216)  posKey='zoneFields_Area1_188_4_216'
+[Info   :SlimeRancher2-AP] [AP-Dump] MapNode     scene='zoneFields_Area3'  name='nodeMapEntry (1)'  pos=(103, 16, 290)  posKey='zoneFields_Area3_103_16_290'
+[Info   :SlimeRancher2-AP] [AP-Dump] --- Shadow Plort Doors (0 of 0 PlortDepositors) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] --- ResearchDroneActivator (7) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] ResearchDrone  scene='zoneConservatory_Arboretum'  entryName='ResearchDroneGully'  archive='ResearchDroneGullyArchive'
+[Info   :SlimeRancher2-AP] [AP-Dump] ResearchDrone  scene='zoneConservatory_Arboretum'  entryName='ResearchDroneConservatory'  archive='ResearchDroneConservatoryArchive'
+[Info   :SlimeRancher2-AP] [AP-Dump] ResearchDrone  scene='zoneConservatory_Den'  entryName='ResearchDroneTheDen'  archive='ResearchDroneTheDenArchive'
+[Info   :SlimeRancher2-AP] [AP-Dump] ResearchDrone  scene='zoneConservatory_Garden'  entryName='ResearchDroneArchway'  archive='ResearchDroneArchwayArchive'
+[Info   :SlimeRancher2-AP] [AP-Dump] ResearchDrone  scene='zoneConservatory_Pools'  entryName='ResearchDroneTidepools'  archive='ResearchDroneTidepoolsArchive'
+[Info   :SlimeRancher2-AP] [AP-Dump] ResearchDrone  scene='zoneFields_Area1'  entryName='ResearchDroneFieldsExpanse'  archive='ResearchDroneFieldsExpanseArchive'
+[Info   :SlimeRancher2-AP] [AP-Dump] ResearchDrone  scene='zoneFields_Area3'  entryName='ResearchDroneFieldsBluff'  archive='ResearchDroneFieldsBluffArchive'
+[Info   :SlimeRancher2-AP] [AP-Dump] --- WorldStatePrimarySwitch (2) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] Switch  scene='zoneFields'  name='ruinSwitch'  pos=(110, 14, 404)
+[Info   :SlimeRancher2-AP] [AP-Dump] Switch  scene='zoneFields'  name='ruinSwitch (2)'  pos=(132, 0, 161)
+[Info   :SlimeRancher2-AP] [AP-Dump] --- SlimeGateActivator (0) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] =========== LOCATION DUMP END ===========
+[Info   :SlimeRancher2-AP] [AP-Dump] ========== PUZZLE SLOT LOCKABLE DUMP (1) ==========
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneFields'  name='objLabyrinthPlortDoor01Small'  posKey='zoneFields_338_-2_348'  lockTag='plort_door'  unlocked=False  plorts=[]
+[Info   :SlimeRancher2-AP] [AP-Dump] =========== PUZZLE SLOT LOCKABLE DUMP END ===========
+[Info   :SlimeRancher2-AP] [00:05:20.153] [AP] GateReturnEnforcer: zone transition 'SceneGroup.ConservatoryFields' → 'SceneGroup.PowderfallBluffs' (mode=bundled)
+[Info   :SlimeRancher2-AP] [00:05:20.154] [AP] GateReturnEnforcer: 'SceneGroup.ConservatoryFields' is not a gated zone — nothing to enforce on exit
+[Info   :SlimeRancher2-AP] [00:05:20.154] [AP] Zone visited (first time): 'SceneGroup.PowderfallBluffs'
+[Info   :SlimeRancher2-AP] [00:05:20.154] [AP] TrapHandler: zone visit recorded — 'SceneGroup.PowderfallBluffs'
+[Info   :SlimeRancher2-AP] [00:05:20.177] [AP-GoldLucky] Applied 15× weight multiplier to 438 Gold/Lucky member(s) across 311 spawner(s)
+[Info   :SlimeRancher2-AP] [00:05:23.146] [AP] GhostDroneSpawn: called SpawnDrone() on 1 new uncollected ghost drone spawner(s) (total this scene: 1).
+[Info   :SlimeRancher2-AP] [AP-Dump] ========== LOCATION DUMP START ==========
+[Info   :SlimeRancher2-AP] [AP-Dump] --- TreasurePods (25 regular, 1 node/drone) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneBluffs_Area1'  name='treasurePod Rank3 - GlacialCrystal'  pos=(-711, -5, 1278)  posKey='zoneBluffs_Area1_-711_-5_1278'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneBluffs_Area1'  name='treasurePod Rank3 - IceLamp'  pos=(-881, 20, 1449)  posKey='zoneBluffs_Area1_-881_20_1449'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneBluffs_Area1'  name='treasurePod Rank3 - PowerCore'  pos=(-837, 69, 1492)  posKey='zoneBluffs_Area1_-837_69_1492'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneBluffs_Area1'  name='treasurePod Rank3 - CrystalSpires'  pos=(-647, -1, 1483)  posKey='zoneBluffs_Area1_-647_-1_1483'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneBluffs_Area1'  name='treasurePod Rank3 - WarpDepotWhite'  pos=(-838, 20, 1527)  posKey='zoneBluffs_Area1_-838_20_1527'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneBluffs_Area1'  name='treasurePod Rank3 - FrostedShell'  pos=(-808, -3, 1543)  posKey='zoneBluffs_Area1_-808_-3_1543'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneBluffs_Area1'  name='treasurePod Rank3 - IceCubed'  pos=(-728, 50, 1526)  posKey='zoneBluffs_Area1_-728_50_1526'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneBluffs_Area1'  name='treasurePod Rank3 - ChillySlimeStack'  pos=(-740, 10, 1496)  posKey='zoneBluffs_Area1_-740_10_1496'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneBluffs_Area2'  name='treasurePod Rank3 - SnowMachine'  pos=(-656, 0, 1656)  posKey='zoneBluffs_Area2_-656_0_1656'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneBluffs_Area2'  name='treasurePod Rank3 - IceTreeo'  pos=(-901, 44, 1820)  posKey='zoneBluffs_Area2_-901_44_1820'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneBluffs_Area2'  name='treasurePod Rank3 - MajesticSnowflake'  pos=(-745, 22, 1765)  posKey='zoneBluffs_Area2_-745_22_1765'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneBluffs_Area2'  name='treasurePod Rank3 - Frozen Flame'  pos=(-730, 34, 1654)  posKey='zoneBluffs_Area2_-730_34_1654'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneBluffs_Area2'  name='treasurePod Rank3 - SnowGlobe'  pos=(-1012, 21, 1575)  posKey='zoneBluffs_Area2_-1012_21_1575'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneBluffs_Area2'  name='treasurePod Rank3 - HydroShower'  pos=(-669, 42, 1683)  posKey='zoneBluffs_Area2_-669_42_1683'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneBluffs_Area2'  name='treasurePod Rank3 - Sun Sap'  pos=(-862, 29, 1705)  posKey='zoneBluffs_Area2_-862_29_1705'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneBluffs_Area2'  name='treasurePod Rank3 - TankBooster'  pos=(-624, 38, 1719)  posKey='zoneBluffs_Area2_-624_38_1719'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneBluffs_Area2'  name='treasurePod Rank3 - SnowZBench'  pos=(-689, 42, 1578)  posKey='zoneBluffs_Area2_-689_42_1578'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneBluffs_Area2'  name='treasurePod Rank3 - SnowyBush'  pos=(-820, -5, 1629)  posKey='zoneBluffs_Area2_-820_-5_1629'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneBluffs_Area3'  name='treasurePod Rank3 - AuroraPine'  pos=(-563, 52, 1622)  posKey='zoneBluffs_Area3_-563_52_1622'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneBluffs_Area3'  name='treasurePod Rank3 - Sureshot'  pos=(-638, 123, 1569)  posKey='zoneBluffs_Area3_-638_123_1569'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneBluffs_Area3'  name='treasurePod Rank3 - Fireflower'  pos=(-591, -3, 1586)  posKey='zoneBluffs_Area3_-591_-3_1586'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneBluffs_Area3'  name='treasurePod Rank3 - TeleporterPowderfall'  pos=(-645, 51, 1565)  posKey='zoneBluffs_Area3_-645_51_1565'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneBluffs_Area3'  name='treasurePod Rank3 - TeleporterWhite'  pos=(-652, 92, 1584)  posKey='zoneBluffs_Area3_-652_92_1584'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneBluffs_Area3'  name='treasurePod Drones'  pos=(-682, 122, 1616)  posKey='zoneBluffs_Area3_-682_122_1616'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneBluffs_Area4'  name='treasurePod Rank3 - AuroraFlowers'  pos=(-1077, 8, 1761)  posKey='zoneBluffs_Area4_-1077_8_1761'
+[Info   :SlimeRancher2-AP] [AP-Dump] --- GhostlyDrone nodes (TreasurePod subtype) (1) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] GhostlyNode  scene='zoneBluffs_Area4'  name='nodeComponentAcqDrone'  parent='ComponentAcquisitionDronePowderfall'  pos=(-1050, 71, 1823)  posKey='zoneBluffs_Area4_-1050_71_1823'
+[Info   :SlimeRancher2-AP] [AP-Dump] --- GordoEat (1 static world, 20 snare/global) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] GordoEat    scene='zoneBluffs_Area2'  name='gordoSaber'  stringEventKey='gordo1269206194'
+[Info   :SlimeRancher2-AP] [AP-Dump] GordoSnare names (NOT checks): gordoBatty, gordoAngler, gordoHoney, gordoTwin, gordoHyper, gordoTangle, gordoRingtail, gordoDervish, gordoGold, gordoPink, gordoPhosphor, gordoHunter, gordoRock, gordoCrystal, gordoSaber, gordoFlutter, gordoBoom, gordoCotton, gordoSloomber, gordoTabby
+[Info   :SlimeRancher2-AP] [AP-Dump] --- MapNodeActivator (2) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] MapNode     scene='zoneBluffs_Area2'  name='nodeMapEntry'  pos=(-821, 8, 1709)  posKey='zoneBluffs_Area2_-821_8_1709'
+[Info   :SlimeRancher2-AP] [AP-Dump] MapNode     scene='zoneBluffs_Area3'  name='nodeMapEntry'  pos=(-575, 86, 1579)  posKey='zoneBluffs_Area3_-575_86_1579'
+[Info   :SlimeRancher2-AP] [AP-Dump] --- Shadow Plort Doors (0 of 0 PlortDepositors) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] --- ResearchDroneActivator (4) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] ResearchDrone  scene='zoneBluffs_Area1'  entryName='ResearchDroneBluffsAurora'  archive='<none>'
+[Info   :SlimeRancher2-AP] [AP-Dump] ResearchDrone  scene='zoneBluffs_Area1'  entryName='ResearchDroneBluffsIntro'  archive='<none>'
+[Info   :SlimeRancher2-AP] [AP-Dump] ResearchDrone  scene='zoneBluffs_Area3'  entryName='ResearchDroneBluffsSaber'  archive='<none>'
+[Info   :SlimeRancher2-AP] [AP-Dump] ResearchDrone  scene='zoneBluffs_Area3'  entryName='ResearchDroneBluffsFinal'  archive='<none>'
+[Info   :SlimeRancher2-AP] [AP-Dump] --- WorldStatePrimarySwitch (0) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] --- SlimeGateActivator (0) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] =========== LOCATION DUMP END ===========
+[Info   :SlimeRancher2-AP] [AP-Dump] ========== PUZZLE SLOT LOCKABLE DUMP (0) ==========
+[Info   :SlimeRancher2-AP] [AP-Dump] =========== PUZZLE SLOT LOCKABLE DUMP END ===========
+[Info   :SlimeRancher2-AP] [00:05:33.759] [TRACE] ShadowPlortRequirementPatch.Postfix — first entry
+[Info   :SlimeRancher2-AP] [00:05:33.760] [AP] Shadow plort door 'TriggerActivate': required 15 → 2 (10%)
+[Info   :SlimeRancher2-AP] [00:05:33.760] [AP] Shadow plort door 'TriggerActivate': required 60 → 6 (10%)
+[Info   :SlimeRancher2-AP] [00:05:33.977] [AP] Shadow plort door 'TriggerActivate': required 25 → 3 (10%)
+[Info   :SlimeRancher2-AP] [00:05:33.977] [AP] Shadow plort door 'TriggerActivate': required 25 → 3 (10%)
+[Info   :SlimeRancher2-AP] [00:05:34.120] [AP] Shadow plort door 'TriggerActivate': required 25 → 3 (10%)
+[Info   :SlimeRancher2-AP] [00:05:34.121] [AP] Shadow plort door 'TriggerActivate': required 15 → 2 (10%)
+[Info   :SlimeRancher2-AP] [00:05:34.121] [AP] Shadow plort door 'TriggerActivate': required 25 → 3 (10%)
+[Info   :SlimeRancher2-AP] [00:05:34.262] [AP] Shadow plort door 'TriggerActivate': required 60 → 6 (10%)
+[Info   :SlimeRancher2-AP] [00:05:34.262] [AP] Shadow plort door 'TriggerActivate': required 15 → 2 (10%)
+[Info   :SlimeRancher2-AP] [00:05:34.478] [AP] Shadow plort door 'TriggerActivate': required 60 → 6 (10%)
+[Info   :SlimeRancher2-AP] [00:05:34.573] [AP] Shadow plort door 'TriggerActivate': required 60 → 6 (10%)
+[Info   :SlimeRancher2-AP] [00:05:34.812] [AP] Shadow plort door 'TriggerActivate': required 25 → 3 (10%)
+[Info   :SlimeRancher2-AP] [00:05:34.813] [AP] Shadow plort door 'TriggerActivate': required 25 → 3 (10%)
+[Info   :SlimeRancher2-AP] [00:05:34.813] [AP] Shadow plort door 'TriggerActivate': required 15 → 2 (10%)
+[Info   :SlimeRancher2-AP] [00:05:35.081] [AP] Shadow plort door 'TriggerActivate': required 15 → 2 (10%)
+[Info   :SlimeRancher2-AP] [00:05:35.262] [AP] Shadow plort door 'TriggerActivate': required 15 → 2 (10%)
+[Info   :SlimeRancher2-AP] [00:05:35.264] [AP] Shadow plort door 'TriggerActivate': required 15 → 2 (10%)
+[Info   :SlimeRancher2-AP] [00:05:35.264] [AP] Shadow plort door 'TriggerActivate': required 25 → 3 (10%)
+[Info   :SlimeRancher2-AP] [00:05:35.264] [AP] Shadow plort door 'TriggerActivate': required 60 → 6 (10%)
+[Info   :SlimeRancher2-AP] [00:05:35.485] [AP] Shadow plort door 'TriggerActivate': required 60 → 6 (10%)
+[Info   :SlimeRancher2-AP] [00:05:35.926] [AP] Shadow plort door 'TriggerActivate': required 60 → 6 (10%)
+[Info   :SlimeRancher2-AP] [00:05:35.927] [AP] Shadow plort door 'TriggerActivate': required 25 → 3 (10%)
+[Info   :SlimeRancher2-AP] [00:05:36.232] [AP] Shadow plort door 'TriggerActivate': required 15 → 2 (10%)
+[Info   :SlimeRancher2-AP] [00:05:36.236] [AP] Shadow plort door 'TriggerActivate': required 25 → 3 (10%)
+[Info   :SlimeRancher2-AP] [00:05:36.236] [AP] Shadow plort door 'TriggerActivate': required 25 → 3 (10%)
+[Info   :SlimeRancher2-AP] [00:05:36.954] [TRACE] CoreRoomControllerPatch.Postfix — first entry
+[Info   :SlimeRancher2-AP] [00:05:37.436] [AP] GateReturnEnforcer: zone transition 'SceneGroup.PowderfallBluffs' → 'SceneGroup.Labyrinth' (mode=bundled)
+[Info   :SlimeRancher2-AP] [00:05:37.437] [AP] GateReturnEnforcer: 'SceneGroup.PowderfallBluffs' → 'SceneGroup.Labyrinth' is not a return to Rainbow Fields — the sealed-teleporter rescue does not apply
+[Info   :SlimeRancher2-AP] [00:05:37.437] [AP] Zone visited (first time): 'SceneGroup.Labyrinth'
+[Info   :SlimeRancher2-AP] [00:05:37.437] [AP] TrapHandler: zone visit recorded — 'SceneGroup.Labyrinth'
+[Info   :SlimeRancher2-AP] [00:05:37.483] [AP-GoldLucky] Applied 15× weight multiplier to 2003 Gold/Lucky member(s) across 1458 spawner(s)
+[Info   :SlimeRancher2-AP] [00:05:39.984] [AP-PlortDoorPoller] Tracking posKey='zoneLabStrandEntrance_1159_53_-1404' ids=[819864]
+[Info   :SlimeRancher2-AP] [00:05:39.985] [AP-PlortDoorPoller] Tracking posKey='zoneLabStrandEntranceMain_B_1266_50_-1435' ids=[819866]
+[Info   :SlimeRancher2-AP] [00:05:39.985] [AP-PlortDoorPoller] Tracking posKey='zoneLabStrandEntranceMain_B_1222_29_-1307' ids=[819865]
+[Info   :SlimeRancher2-AP] [00:05:39.985] [AP-PlortDoorPoller] Tracking posKey='zoneLabValleyEntrance_1919_63_-1112' ids=[819870]
+[Info   :SlimeRancher2-AP] [00:05:39.986] [AP-PlortDoorPoller] Tracking posKey='zoneLabValleyEntrance_1786_66_-1155' ids=[819867]
+[Info   :SlimeRancher2-AP] [00:05:39.986] [AP-PlortDoorPoller] Tracking posKey='zoneLabValleyEntrance_1767_66_-1155' ids=[819869]
+[Info   :SlimeRancher2-AP] [00:05:39.986] [AP-PlortDoorPoller] Tracking posKey='zoneLabValleyEntrance_1811_66_-1155' ids=[819868]
+[Info   :SlimeRancher2-AP] [00:05:39.986] [AP-PlortDoorPoller] Tracking posKey='zoneLabValleyEntrance_B_1833_49_-1094' ids=[819871]
+[Info   :SlimeRancher2-AP] [00:05:39.987] [AP-PlortDoorPoller] Tracking posKey='zoneLabyrinthHub_C_1469_88_-1057' ids=[819872]
+[Info   :SlimeRancher2-AP] [00:05:39.987] [AP-PlortDoorPoller] Tracking posKey='zoneLabyrinthTerrarium_JungleGlacier_2145_155_-856' ids=[819874]
+[Info   :SlimeRancher2-AP] [00:05:39.987] [AP-PlortDoorPoller] Tracking posKey='zoneLabyrinthTerrarium_JungleGlacier_1951_140_-854' ids=[819873]
+[Info   :SlimeRancher2-AP] [00:05:40.407] [AP] GhostDroneSpawn: called SpawnDrone() on 3 new uncollected ghost drone spawner(s) (total this scene: 3).
+[Info   :SlimeRancher2-AP] [AP-Dump] ========== LOCATION DUMP START ==========
+[Info   :SlimeRancher2-AP] [AP-Dump] --- TreasurePods (0 regular, 3 node/drone) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] --- GhostlyDrone nodes (TreasurePod subtype) (3) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] GhostlyNode  scene='zoneLabyrinthDreamland'  name='nodeComponentAcqDrone'  parent='Drone_Component'  pos=(1208, 142, -834)  posKey='zoneLabyrinthDreamland_1208_142_-834'
+[Info   :SlimeRancher2-AP] [AP-Dump] GhostlyNode  scene='zoneLabyrinthTerrarium_FoyerGazebo'  name='nodeComponentAcqDrone'  parent='Drone_Component'  pos=(1941, 170, -792)  posKey='zoneLabyrinthTerrarium_FoyerGazebo_1941_170_-792'
+[Info   :SlimeRancher2-AP] [AP-Dump] GhostlyNode  scene='zoneLabyrinthCorePath'  name='nodeComponentAcqDrone'  parent='DroneComponent'  pos=(1415, 57, -1008)  posKey='zoneLabyrinthCorePath_1415_57_-1008'
+[Info   :SlimeRancher2-AP] [AP-Dump] --- GordoEat (3 static world, 20 snare/global) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] GordoEat    scene='zoneLabyrinthHub_C'  name='gordoTwin'  stringEventKey='gordo1547006325'
+[Info   :SlimeRancher2-AP] [AP-Dump] GordoEat    scene='zoneLabyrinthDreamland_C'  name='SloomberGordo'  stringEventKey='gordo1980306476'
+[Info   :SlimeRancher2-AP] [AP-Dump] GordoEat    scene='zoneLabyrinthTerrarium_FoyerGazebo'  name='gordoKinetic'  stringEventKey='gordo1932334613'
+[Info   :SlimeRancher2-AP] [AP-Dump] GordoSnare names (NOT checks): gordoBatty, gordoAngler, gordoHoney, gordoTwin, gordoHyper, gordoTangle, gordoRingtail, gordoDervish, gordoGold, gordoPink, gordoPhosphor, gordoHunter, gordoRock, gordoCrystal, gordoSaber, gordoFlutter, gordoBoom, gordoCotton, gordoSloomber, gordoTabby
+[Info   :SlimeRancher2-AP] [AP-Dump] --- MapNodeActivator (7) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] MapNode     scene='zoneLabStrandEntranceMain_B'  name='nodeMapEntry_Waterworks'  pos=(1275, 64, -1426)  posKey='zoneLabStrandEntranceMain_B_1275_64_-1426'
+[Info   :SlimeRancher2-AP] [AP-Dump] MapNode     scene='zoneLabValleyEntrance'  name='nodeMapEntry_LavaDepths'  pos=(1782, 66, -1165)  posKey='zoneLabValleyEntrance_1782_66_-1165'
+[Info   :SlimeRancher2-AP] [AP-Dump] MapNode     scene='zoneLabyrinthHub'  name='nodeMapEntry_Hub'  pos=(1472, 92, -1149)  posKey='zoneLabyrinthHub_1472_92_-1149'
+[Info   :SlimeRancher2-AP] [AP-Dump] MapNode     scene='zoneLabyrinthDreamland_B'  name='nodeMapEntry_Dreamland_TheMaze'  pos=(771, 151, -998)  posKey='zoneLabyrinthDreamland_B_771_151_-998'
+[Info   :SlimeRancher2-AP] [AP-Dump] MapNode     scene='zoneLabyrinthDreamland_C'  name='nodeMapEntry_Dreamland_Windfarm'  pos=(926, 164, -434)  posKey='zoneLabyrinthDreamland_C_926_164_-434'
+[Info   :SlimeRancher2-AP] [AP-Dump] MapNode     scene='zoneLabyrinthTerrarium_FoyerGazebo'  name='nodeMapEntry_Terrarium_GazeboRuins'  pos=(2171, 162, -772)  posKey='zoneLabyrinthTerrarium_FoyerGazebo_2171_162_-772'
+[Info   :SlimeRancher2-AP] [AP-Dump] MapNode     scene='zoneLabyrinthTerrarium_JungleGlacier'  name='nodeMapEntry_Terrarium_JungleRoom'  pos=(2020, 167, -969)  posKey='zoneLabyrinthTerrarium_JungleGlacier_2020_167_-969'
+[Info   :SlimeRancher2-AP] [AP-Dump] --- Shadow Plort Doors (25 of 25 PlortDepositors) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] ShadowDoor  scene='zoneLabStrandEntrance'  name='TriggerActivate'  pos=(918, 56, -1238)  posKey='zoneLabStrandEntrance_918_56_-1238'
+[Info   :SlimeRancher2-AP] [AP-Dump] ShadowDoor  scene='zoneLabStrandEntrance'  name='TriggerActivate'  pos=(1160, 48, -1357)  posKey='zoneLabStrandEntrance_1160_48_-1357'
+[Info   :SlimeRancher2-AP] [AP-Dump] ShadowDoor  scene='zoneLabStrandEntranceMain_B'  name='TriggerActivate'  pos=(1195, 38, -1410)  posKey='zoneLabStrandEntranceMain_B_1195_38_-1410'
+[Info   :SlimeRancher2-AP] [AP-Dump] ShadowDoor  scene='zoneLabStrandEntranceMain_B'  name='TriggerActivate'  pos=(1309, 81, -1444)  posKey='zoneLabStrandEntranceMain_B_1309_81_-1444'
+[Info   :SlimeRancher2-AP] [AP-Dump] ShadowDoor  scene='zoneLabValleyEntrance'  name='TriggerActivate'  pos=(1755, 89, -1154)  posKey='zoneLabValleyEntrance_1755_89_-1154'
+[Info   :SlimeRancher2-AP] [AP-Dump] ShadowDoor  scene='zoneLabValleyEntrance'  name='TriggerActivate'  pos=(1947, 71, -1103)  posKey='zoneLabValleyEntrance_1947_71_-1103'
+[Info   :SlimeRancher2-AP] [AP-Dump] ShadowDoor  scene='zoneLabValleyEntrance'  name='TriggerActivate'  pos=(1812, 50, -1150)  posKey='zoneLabValleyEntrance_1812_50_-1150'
+[Info   :SlimeRancher2-AP] [AP-Dump] ShadowDoor  scene='zoneLabValleyEntrance_B'  name='TriggerActivate'  pos=(1692, 69, -953)  posKey='zoneLabValleyEntrance_B_1692_69_-953'
+[Info   :SlimeRancher2-AP] [AP-Dump] ShadowDoor  scene='zoneLabValleyEntrance_B'  name='TriggerActivate'  pos=(1829, 71, -999)  posKey='zoneLabValleyEntrance_B_1829_71_-999'
+[Info   :SlimeRancher2-AP] [AP-Dump] ShadowDoor  scene='zoneLabyrinthHub'  name='TriggerActivate'  pos=(1386, 67, -1123)  posKey='zoneLabyrinthHub_1386_67_-1123'
+[Info   :SlimeRancher2-AP] [AP-Dump] ShadowDoor  scene='zoneLabyrinthHub_B'  name='TriggerActivate'  pos=(1099, 106, -1002)  posKey='zoneLabyrinthHub_B_1099_106_-1002'
+[Info   :SlimeRancher2-AP] [AP-Dump] ShadowDoor  scene='zoneLabyrinthHub_C'  name='TriggerActivate'  pos=(1571, 122, -1095)  posKey='zoneLabyrinthHub_C_1571_122_-1095'
+[Info   :SlimeRancher2-AP] [AP-Dump] ShadowDoor  scene='zoneLabyrinthHub_C'  name='TriggerActivate'  pos=(1496, 148, -924)  posKey='zoneLabyrinthHub_C_1496_148_-924'
+[Info   :SlimeRancher2-AP] [AP-Dump] ShadowDoor  scene='zoneLabyrinthHub_C'  name='TriggerActivate'  pos=(1372, 101, -1054)  posKey='zoneLabyrinthHub_C_1372_101_-1054'
+[Info   :SlimeRancher2-AP] [AP-Dump] ShadowDoor  scene='zoneLabyrinthDreamland'  name='TriggerActivate'  pos=(1141, 156, -870)  posKey='zoneLabyrinthDreamland_1141_156_-870'
+[Info   :SlimeRancher2-AP] [AP-Dump] ShadowDoor  scene='zoneLabyrinthDreamland_B'  name='TriggerActivate'  pos=(839, 154, -1059)  posKey='zoneLabyrinthDreamland_B_839_154_-1059'
+[Info   :SlimeRancher2-AP] [AP-Dump] ShadowDoor  scene='zoneLabyrinthDreamland_B'  name='TriggerActivate'  pos=(962, 157, -951)  posKey='zoneLabyrinthDreamland_B_962_157_-951'
+[Info   :SlimeRancher2-AP] [AP-Dump] ShadowDoor  scene='zoneLabyrinthDreamland_B'  name='TriggerActivate'  pos=(763, 187, -796)  posKey='zoneLabyrinthDreamland_B_763_187_-796'
+[Info   :SlimeRancher2-AP] [AP-Dump] ShadowDoor  scene='zoneLabyrinthDreamland_B'  name='TriggerActivate'  pos=(778, 151, -987)  posKey='zoneLabyrinthDreamland_B_778_151_-987'
+[Info   :SlimeRancher2-AP] [AP-Dump] ShadowDoor  scene='zoneLabyrinthDreamland_C'  name='TriggerActivate'  pos=(719, 203, -424)  posKey='zoneLabyrinthDreamland_C_719_203_-424'
+[Info   :SlimeRancher2-AP] [AP-Dump] ShadowDoor  scene='zoneLabyrinthTerrarium_FoyerGazebo'  name='TriggerActivate'  pos=(2115, 171, -792)  posKey='zoneLabyrinthTerrarium_FoyerGazebo_2115_171_-792'
+[Info   :SlimeRancher2-AP] [AP-Dump] ShadowDoor  scene='zoneLabyrinthTerrarium_FoyerGazebo'  name='TriggerActivate'  pos=(2113, 151, -693)  posKey='zoneLabyrinthTerrarium_FoyerGazebo_2113_151_-693'
+[Info   :SlimeRancher2-AP] [AP-Dump] ShadowDoor  scene='zoneLabyrinthTerrarium_JungleGlacier'  name='TriggerActivate'  pos=(1926, 139, -993)  posKey='zoneLabyrinthTerrarium_JungleGlacier_1926_139_-993'
+[Info   :SlimeRancher2-AP] [AP-Dump] ShadowDoor  scene='zoneLabyrinthTerrarium_JungleGlacier'  name='TriggerActivate'  pos=(1972, 160, -973)  posKey='zoneLabyrinthTerrarium_JungleGlacier_1972_160_-973'
+[Info   :SlimeRancher2-AP] [AP-Dump] ShadowDoor  scene='zoneLabyrinthTerrarium_JungleGlacier'  name='TriggerActivate'  pos=(2079, 185, -975)  posKey='zoneLabyrinthTerrarium_JungleGlacier_2079_185_-975'
+[Info   :SlimeRancher2-AP] [AP-Dump] --- ResearchDroneActivator (0) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] --- WorldStatePrimarySwitch (25) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] Switch  scene='zoneLabStrandEntrance'  name='labySwitchSimple_0'  pos=(1143, 75, -1397)
+[Info   :SlimeRancher2-AP] [AP-Dump] Switch  scene='zoneLabStrandEntranceMain_B'  name='labySwitchRunes'  pos=(1212, 44, -1379)
+[Info   :SlimeRancher2-AP] [AP-Dump] Switch  scene='zoneLabStrandEntranceMain_B'  name='labySwitchSimple'  pos=(1352, 54, -1434)
+[Info   :SlimeRancher2-AP] [AP-Dump] Switch  scene='zoneLabStrandEntranceMain_B'  name='labySwitchSimple (1)'  pos=(1316, 47, -1435)
+[Info   :SlimeRancher2-AP] [AP-Dump] Switch  scene='zoneLabStrandEntranceMain_B'  name='labySwitchSimple_0'  pos=(1265, 44, -1247)
+[Info   :SlimeRancher2-AP] [AP-Dump] Switch  scene='zoneLabStrandEntranceMain_B'  name='ruinSwitch_Tower_C'  pos=(1316, 82, -1435)
+[Info   :SlimeRancher2-AP] [AP-Dump] Switch  scene='zoneLabValleyEntrance'  name='ruinSwitch_valleyExitDoor'  pos=(1627, 72, -1155)
+[Info   :SlimeRancher2-AP] [AP-Dump] Switch  scene='zoneLabValleyEntrance_B'  name='labySwitchRunes'  pos=(1806, 75, -1108)
+[Info   :SlimeRancher2-AP] [AP-Dump] Switch  scene='zoneLabValleyEntrance_B'  name='labySwitchSimple'  pos=(1760, 58, -1052)
+[Info   :SlimeRancher2-AP] [AP-Dump] Switch  scene='zoneLabyrinthCorePath'  name='labySwitchSimple_GoldenBell'  pos=(1469, 41, -961)
+[Info   :SlimeRancher2-AP] [AP-Dump] Switch  scene='zoneLabyrinthDreamland'  name='labySwitchSimple_0'  pos=(1202, 161, -831)
+[Info   :SlimeRancher2-AP] [AP-Dump] Switch  scene='zoneLabyrinthDreamland_B'  name='labySwitchSimple'  pos=(879, 151, -858)
+[Info   :SlimeRancher2-AP] [AP-Dump] Switch  scene='zoneLabyrinthDreamland_B'  name='ruinSwitch_platform'  pos=(1092, 144, -839)
+[Info   :SlimeRancher2-AP] [AP-Dump] Switch  scene='zoneLabyrinthHub'  name='labySwitchSimple'  pos=(1469, 89, -1157)
+[Info   :SlimeRancher2-AP] [AP-Dump] Switch  scene='zoneLabyrinthHub'  name='ruinSwitch'  pos=(1433, 85, -1209)
+[Info   :SlimeRancher2-AP] [AP-Dump] Switch  scene='zoneLabyrinthHub_C'  name='labySwitchSimple'  pos=(1468, 142, -936)
+[Info   :SlimeRancher2-AP] [AP-Dump] Switch  scene='zoneLabyrinthHub_Vista'  name='ruinSwitch_Clouds active'  pos=(1468, 95, -868)
+[Info   :SlimeRancher2-AP] [AP-Dump] Switch  scene='zoneLabyrinthTerrarium_FoyerGazebo'  name='labySwitchRunes'  pos=(1936, 172, -792)
+[Info   :SlimeRancher2-AP] [AP-Dump] Switch  scene='zoneLabyrinthTerrarium_FoyerGazebo'  name='labySwitchSimple (1)'  pos=(2173, 177, -792)
+[Info   :SlimeRancher2-AP] [AP-Dump] Switch  scene='zoneLabyrinthTerrarium_JungleGlacier'  name='labySwitchSimple'  pos=(1926, 136, -1005)
+[Info   :SlimeRancher2-AP] [AP-Dump] Switch  scene='zoneLabyrinthTerrarium_JungleGlacier'  name='labySwitchSimple_A'  pos=(2005, 149, -915)
+[Info   :SlimeRancher2-AP] [AP-Dump] Switch  scene='zoneLabyrinthTerrarium_JungleGlacier'  name='labySwitchSimple_B'  pos=(2017, 161, -989)
+[Info   :SlimeRancher2-AP] [AP-Dump] Switch  scene='zoneLabyrinthTerrarium_JungleGlacier'  name='labySwitchSimple_C'  pos=(2040, 148, -983)
+[Info   :SlimeRancher2-AP] [AP-Dump] Switch  scene='zoneLabyrinthTerrarium_JungleGlacier'  name='labySwitchSimple_D'  pos=(2023, 148, -956)
+[Info   :SlimeRancher2-AP] [AP-Dump] Switch  scene='zoneLabyrinthTerrarium_JungleGlacier'  name='labySwitchSimple_E'  pos=(1994, 137, -946)
+[Info   :SlimeRancher2-AP] [AP-Dump] --- SlimeGateActivator (0) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] =========== LOCATION DUMP END ===========
+[Info   :SlimeRancher2-AP] [AP-Dump] ========== PUZZLE SLOT LOCKABLE DUMP (36) ==========
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabStrandEntrance'  name='objLabyrinthPlortDoor02Small'  posKey='zoneLabStrandEntrance_1159_53_-1404'  lockTag='plort_door'  unlocked=False  plorts=[]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabStrandEntrance'  name='objLabyShadowPlortCollector'  posKey='zoneLabStrandEntrance_917_54_-1238'  lockTag='shadow_plort_collector'  unlocked=False  plorts=[ShadowPlort]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabStrandEntrance'  name='objLabyShadowPlortCollector'  posKey='zoneLabStrandEntrance_1160_46_-1357'  lockTag='shadow_plort_collector'  unlocked=False  plorts=[ShadowPlort]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabStrandEntranceMain_B'  name='objLabyrinthPlortDoor01_waterworks'  posKey='zoneLabStrandEntranceMain_B_1222_29_-1307'  lockTag='plort_door'  unlocked=False  plorts=[]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabStrandEntranceMain_B'  name='objLabyrinthPlortDoor02Small'  posKey='zoneLabStrandEntranceMain_B_1266_50_-1435'  lockTag='plort_door'  unlocked=False  plorts=[]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabStrandEntranceMain_B'  name='objLabyShadowPlortCollector'  posKey='zoneLabStrandEntranceMain_B_1195_37_-1410'  lockTag='shadow_plort_collector'  unlocked=False  plorts=[ShadowPlort]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabStrandEntranceMain_B'  name='objLabyShadowPlortCollector'  posKey='zoneLabStrandEntranceMain_B_1309_80_-1444'  lockTag='shadow_plort_collector'  unlocked=False  plorts=[ShadowPlort]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabValleyEntrance'  name='objLabyrinthPlortDoor01Small (1)'  posKey='zoneLabValleyEntrance_1786_66_-1155'  lockTag='plort_door'  unlocked=False  plorts=[]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabValleyEntrance'  name='objLabyrinthPlortDoor01Small (2)'  posKey='zoneLabValleyEntrance_1811_66_-1155'  lockTag='plort_door'  unlocked=False  plorts=[]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabValleyEntrance'  name='objLabyrinthPlortDoor01Small_FinalDoor'  posKey='zoneLabValleyEntrance_1767_66_-1155'  lockTag='plort_door'  unlocked=False  plorts=[]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabValleyEntrance'  name='objLabyrinthPlortDoor02Small_terrarium_tunnel'  posKey='zoneLabValleyEntrance_1919_63_-1112'  lockTag='plort_door'  unlocked=False  plorts=[]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabValleyEntrance'  name='objLabyShadowPlortCollector'  posKey='zoneLabValleyEntrance_1755_87_-1154'  lockTag='shadow_plort_collector'  unlocked=False  plorts=[ShadowPlort]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabValleyEntrance'  name='objLabyShadowPlortCollector'  posKey='zoneLabValleyEntrance_1947_70_-1104'  lockTag='shadow_plort_collector'  unlocked=False  plorts=[ShadowPlort]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabValleyEntrance'  name='objLabyShadowPlortCollector'  posKey='zoneLabValleyEntrance_1812_49_-1150'  lockTag='shadow_plort_collector'  unlocked=False  plorts=[ShadowPlort]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabValleyEntrance_B'  name='objLabyrinthPlortDoor_Undeground'  posKey='zoneLabValleyEntrance_B_1833_49_-1094'  lockTag='plort_door'  unlocked=False  plorts=[]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabValleyEntrance_B'  name='objLabyShadowPlortCollector'  posKey='zoneLabValleyEntrance_B_1692_67_-953'  lockTag='shadow_plort_collector'  unlocked=False  plorts=[ShadowPlort]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabValleyEntrance_B'  name='objLabyShadowPlortCollector'  posKey='zoneLabValleyEntrance_B_1829_70_-999'  lockTag='shadow_plort_collector'  unlocked=False  plorts=[ShadowPlort]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabyrinthDreamland'  name='objLabyShadowPlortCollector'  posKey='zoneLabyrinthDreamland_1141_155_-869'  lockTag='shadow_plort_collector'  unlocked=False  plorts=[ShadowPlort]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabyrinthDreamland_B'  name='DoorParent'  posKey='zoneLabyrinthDreamland_B_839_149_-1061'  lockTag='shadow_plort_door'  unlocked=False  plorts=[ShadowPlort]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabyrinthDreamland_B'  name='objLabyShadowPlortCollector'  posKey='zoneLabyrinthDreamland_B_961_155_-951'  lockTag='shadow_plort_collector'  unlocked=False  plorts=[ShadowPlort]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabyrinthDreamland_B'  name='objLabyShadowPlortCollector'  posKey='zoneLabyrinthDreamland_B_763_186_-796'  lockTag='shadow_plort_collector'  unlocked=False  plorts=[ShadowPlort]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabyrinthDreamland_B'  name='objLabyShadowPlortCollector'  posKey='zoneLabyrinthDreamland_B_778_150_-987'  lockTag='shadow_plort_collector'  unlocked=False  plorts=[ShadowPlort]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabyrinthDreamland_C'  name='objLabyShadowPlortCollector'  posKey='zoneLabyrinthDreamland_C_718_201_-424'  lockTag='shadow_plort_collector'  unlocked=False  plorts=[ShadowPlort]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabyrinthHub'  name='DoorParent'  posKey='zoneLabyrinthHub_1386_64_-1124'  lockTag='shadow_plort_door'  unlocked=False  plorts=[ShadowPlort]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabyrinthHub_B'  name='objLabyShadowPlortCollector'  posKey='zoneLabyrinthHub_B_1099_104_-1002'  lockTag='shadow_plort_collector'  unlocked=False  plorts=[ShadowPlort]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabyrinthHub_C'  name='objLabyrinthPlortDoor02Small (2)'  posKey='zoneLabyrinthHub_C_1469_88_-1057'  lockTag='plort_door'  unlocked=False  plorts=[]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabyrinthHub_C'  name='objLabyShadowPlortCollector'  posKey='zoneLabyrinthHub_C_1571_121_-1095'  lockTag='shadow_plort_collector'  unlocked=False  plorts=[ShadowPlort]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabyrinthHub_C'  name='objLabyShadowPlortCollector'  posKey='zoneLabyrinthHub_C_1496_147_-924'  lockTag='shadow_plort_collector'  unlocked=False  plorts=[ShadowPlort]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabyrinthHub_C'  name='objLabyShadowPlortCollector'  posKey='zoneLabyrinthHub_C_1372_99_-1053'  lockTag='shadow_plort_collector'  unlocked=False  plorts=[ShadowPlort]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabyrinthTerrarium_FoyerGazebo'  name='objLabyShadowPlortCollector'  posKey='zoneLabyrinthTerrarium_FoyerGazebo_2114_170_-792'  lockTag='shadow_plort_collector'  unlocked=False  plorts=[ShadowPlort]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabyrinthTerrarium_FoyerGazebo'  name='objLabyShadowPlortCollector'  posKey='zoneLabyrinthTerrarium_FoyerGazebo_2113_149_-693'  lockTag='shadow_plort_collector'  unlocked=False  plorts=[ShadowPlort]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabyrinthTerrarium_JungleGlacier'  name='DoorParent'  posKey='zoneLabyrinthTerrarium_JungleGlacier_1926_135_-994'  lockTag='shadow_plort_door'  unlocked=False  plorts=[ShadowPlort]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabyrinthTerrarium_JungleGlacier'  name='objLabyrinthPlortDoor01Small'  posKey='zoneLabyrinthTerrarium_JungleGlacier_1951_140_-854'  lockTag='plort_door'  unlocked=False  plorts=[]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabyrinthTerrarium_JungleGlacier'  name='objLabyrinthPlortDoor01Small (1)'  posKey='zoneLabyrinthTerrarium_JungleGlacier_2145_155_-856'  lockTag='plort_door'  unlocked=False  plorts=[]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabyrinthTerrarium_JungleGlacier'  name='objLabyShadowPlortCollector'  posKey='zoneLabyrinthTerrarium_JungleGlacier_1972_158_-973'  lockTag='shadow_plort_collector'  unlocked=False  plorts=[ShadowPlort]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneLabyrinthTerrarium_JungleGlacier'  name='objLabyShadowPlortCollector'  posKey='zoneLabyrinthTerrarium_JungleGlacier_2078_183_-975'  lockTag='shadow_plort_collector'  unlocked=False  plorts=[ShadowPlort]
+[Info   :SlimeRancher2-AP] [AP-Dump] =========== PUZZLE SLOT LOCKABLE DUMP END ===========
+[Info   :SlimeRancher2-AP] [00:05:50.965] [AP] GhostDroneSpawn: called SpawnDrone() on 2 new uncollected ghost drone spawner(s) (total this scene: 2).
+[Info   :SlimeRancher2-AP] [00:05:52.985] [AP] GateReturnEnforcer: zone transition 'SceneGroup.Labyrinth' → 'SceneGroup.LuminousStrand' (mode=bundled)
+[Info   :SlimeRancher2-AP] [00:05:52.986] [AP] GateReturnEnforcer: 'SceneGroup.Labyrinth' is not a gated zone — nothing to enforce on exit
+[Info   :SlimeRancher2-AP] [00:05:52.986] [AP] Zone visited (first time): 'SceneGroup.LuminousStrand'
+[Info   :SlimeRancher2-AP] [00:05:52.986] [AP] TrapHandler: zone visit recorded — 'SceneGroup.LuminousStrand'
+[Info   :SlimeRancher2-AP] [00:05:53.026] [AP-GoldLucky] Applied 15× weight multiplier to 1766 Gold/Lucky member(s) across 799 spawner(s)
+[Info   :SlimeRancher2-AP] [00:05:53.487] [AP-PlortDoorPoller] Tracking posKey='zoneStrand_-5_13_-100' ids=[819854]
+[Info   :SlimeRancher2-AP] [00:05:53.488] [AP-PlortDoorPoller] Tracking posKey='zoneStrand_101_1_-232' ids=[819853]
+[Info   :SlimeRancher2-AP] [00:05:53.488] [AP-PlortDoorPoller] Tracking posKey='zoneStrand_149_1_-257' ids=[819852]
+[Info   :SlimeRancher2-AP] [00:05:53.488] [AP-PlortDoorPoller] Tracking posKey='zoneStrand_Area1_59_14_-423' ids=[819855]
+[Info   :SlimeRancher2-AP] [00:05:53.488] [AP-PlortDoorPoller] Tracking posKey='zoneStrand_Area1_53_2_-487' ids=[819856]
+[Info   :SlimeRancher2-AP] [00:05:53.488] [AP-PlortDoorPoller] Tracking posKey='zoneStrand_Area1_49_-3_-534' ids=[819857]
+[Info   :SlimeRancher2-AP] [00:05:53.489] [AP-PlortDoorPoller] Tracking posKey='zoneStrand_Area2_198_6_-207' ids=[819860]
+[Info   :SlimeRancher2-AP] [00:05:53.489] [AP-PlortDoorPoller] Tracking posKey='zoneStrand_Area2_308_16_-278' ids=[819861]
+[Info   :SlimeRancher2-AP] [00:05:53.489] [AP-PlortDoorPoller] Tracking posKey='zoneStrand_Area2_251_2_-232' ids=[819862]
+[Info   :SlimeRancher2-AP] [00:05:53.489] [AP-PlortDoorPoller] Tracking posKey='zoneStrand_Area2_257_10_-308' ids=[819858]
+[Info   :SlimeRancher2-AP] [00:05:53.489] [AP-PlortDoorPoller] Tracking posKey='zoneStrand_Area2_162_16_-360' ids=[819859]
+[Info   :SlimeRancher2-AP] [00:05:53.490] [AP-PlortDoorPoller] Tracking posKey='zoneStrand_Area4_116_60_-651' ids=[819863]
+[Info   :SlimeRancher2-AP] [00:05:55.954] [AP] GhostDroneSpawn: called SpawnDrone() on 1 new uncollected ghost drone spawner(s) (total this scene: 1).
+[Info   :SlimeRancher2-AP] [AP-Dump] ========== LOCATION DUMP START ==========
+[Info   :SlimeRancher2-AP] [AP-Dump] --- TreasurePods (33 regular, 1 node/drone) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneStrand'  name='treasurePod Rank1 TankBoosterComponent'  pos=(115, 2, -256)  posKey='zoneStrand_115_2_-256'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneStrand'  name='treasurePod Rank1 coastalrockpillar'  pos=(92, 5, -63)  posKey='zoneStrand_92_5_-63'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneStrand'  name='treasurePod Rank2 LanternBeach'  pos=(-152, -3, -46)  posKey='zoneStrand_-152_-3_-46'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneStrand'  name='treasurePod Rank2 cheerfulstatue'  pos=(-17, 24, -112)  posKey='zoneStrand_-17_24_-112'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneStrand'  name='treasurePod Rank1 violetwarpdepot'  pos=(126, 27, -260)  posKey='zoneStrand_126_27_-260'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneStrand'  name='treasurePod Rank1 TrellisArch'  pos=(-16, 0, 41)  posKey='zoneStrand_-16_0_41'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneStrand_Area1'  name='treasurePod Rank1 tallvioletswirlshroom'  pos=(90, 16, -549)  posKey='zoneStrand_Area1_90_16_-549'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneStrand_Area1'  name='treasurePod Rank1 azuremangrove'  pos=(145, 64, -541)  posKey='zoneStrand_Area1_145_64_-541'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneStrand_Area1'  name='treasurePod Rank2 gordosnarenovice'  pos=(46, 14, -427)  posKey='zoneStrand_Area1_46_14_-427'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneStrand_Area1'  name='treasurePod Rank1 TeacupBase'  pos=(47, 1, -428)  posKey='zoneStrand_Area1_47_1_-428'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneStrand_Area1'  name='treasurePod Rank1 Gold Cotton Statue'  pos=(32, 37, -499)  posKey='zoneStrand_Area1_32_37_-499'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneStrand_Area1'  name='treasurePod Rank2 SwivelFan'  pos=(-19, 21, -321)  posKey='zoneStrand_Area1_-19_21_-321'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneStrand_Area1'  name='treasurePod Rank1 PowerCoreComponent'  pos=(-42, 12, -702)  posKey='zoneStrand_Area1_-42_12_-702'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneStrand_Area2'  name='treasurePod Rank3 tallpinkcoralcolumns'  pos=(274, 3, -225)  posKey='zoneStrand_Area2_274_3_-225'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneStrand_Area2'  name='treasurePod Rank3 WideTrellis'  pos=(288, 68, -287)  posKey='zoneStrand_Area2_288_68_-287'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneStrand_Area2'  name='treasurePod Rank1 cavepillar'  pos=(303, 19, -326)  posKey='zoneStrand_Area2_303_19_-326'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneStrand_Area2'  name='treasurePod Rank1 slimebaitveggie'  pos=(252, 23, -176)  posKey='zoneStrand_Area2_252_23_-176'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneStrand_Area2'  name='treasurePod Rank1 roottangle'  pos=(193, 12, -380)  posKey='zoneStrand_Area2_193_12_-380'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneStrand_Area2'  name='treasurePod Rank2 TankGuardComponent'  pos=(241, -5, -202)  posKey='zoneStrand_Area2_241_-5_-202'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneStrand_Area2'  name='treasurePod Rank1'  pos=(375, 16, -238)  posKey='zoneStrand_Area2_375_16_-238'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneStrand_Area2'  name='treasurePod Rank2 DashBootComponent'  pos=(175, 32, -405)  posKey='zoneStrand_Area2_175_32_-405'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneStrand_Area3'  name='treasurePod Rank1 Gold Flutter Statue'  pos=(315, 43, -455)  posKey='zoneStrand_Area3_315_43_-455'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneStrand_Area3'  name='treasurePod Rank1 ScienceResources'  pos=(394, 35, -572)  posKey='zoneStrand_Area3_394_35_-572'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneStrand_Area3'  name='treasurePod Rank1 MushroomPlanter'  pos=(389, 0, -549)  posKey='zoneStrand_Area3_389_0_-549'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneStrand_Area3'  name='treasurePod Rank1 TankGuardComponent'  pos=(463, 52, -574)  posKey='zoneStrand_Area3_463_52_-574'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneStrand_Area4'  name='treasurePod Rank3 end teleporterstrand'  pos=(192, 8, -669)  posKey='zoneStrand_Area4_192_8_-669'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneStrand_Area4'  name='treasurePod Rank3 Strange Diamond'  pos=(182, 10, -644)  posKey='zoneStrand_Area4_182_10_-644'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneStrand_Area4'  name='treasurePod Rank1 springpad'  pos=(260, 37, -667)  posKey='zoneStrand_Area4_260_37_-667'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneStrand_Area4'  name='treasurePod Rank1 Sureshot Component'  pos=(117, 58, -687)  posKey='zoneStrand_Area4_117_58_-687'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneStrand_Area4'  name='treasurePod Rank1 starbloom'  pos=(241, 43, -526)  posKey='zoneStrand_Area4_241_43_-526'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneStrand_Area5'  name='treasurePod Rank1 (1)'  pos=(-242, -3, -613)  posKey='zoneStrand_Area5_-242_-3_-613'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneStrand_Area5'  name='treasurePod Rank1'  pos=(348, 33, -337)  posKey='zoneStrand_Area5_348_33_-337'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneStrand_Area5'  name='treasurePod Rank1'  pos=(-138, 24, -236)  posKey='zoneStrand_Area5_-138_24_-236'
+[Info   :SlimeRancher2-AP] [AP-Dump] --- GhostlyDrone nodes (TreasurePod subtype) (1) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] GhostlyNode  scene='zoneStrand_Area2'  name='nodeComponentAcqDrone'  parent='ComponentAcquisitionDroneStrand'  pos=(176, 71, -395)  posKey='zoneStrand_Area2_176_71_-395'
+[Info   :SlimeRancher2-AP] [AP-Dump] --- GordoEat (5 static world, 20 snare/global) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] GordoEat    scene='zoneStrand_Area1'  name='gordoHunter'  stringEventKey='gordo1836740701'
+[Info   :SlimeRancher2-AP] [AP-Dump] GordoEat    scene='zoneStrand_Area2'  name='gordoHoney'  stringEventKey='gordo0445737835'
+[Info   :SlimeRancher2-AP] [AP-Dump] GordoEat    scene='zoneStrand_Area3'  name='gordoRingtail'  stringEventKey='gordo1114950624'
+[Info   :SlimeRancher2-AP] [AP-Dump] GordoEat    scene='zoneStrand_Area3'  name='gordoAngler (1)'  stringEventKey='gordo1762816372'
+[Info   :SlimeRancher2-AP] [AP-Dump] GordoEat    scene='zoneStrand_Area4'  name='gordoFlutter (1)'  stringEventKey='gordo0589091050'
+[Info   :SlimeRancher2-AP] [AP-Dump] GordoSnare names (NOT checks): gordoBatty, gordoAngler, gordoHoney, gordoTwin, gordoHyper, gordoTangle, gordoRingtail, gordoDervish, gordoGold, gordoPink, gordoPhosphor, gordoHunter, gordoRock, gordoCrystal, gordoSaber, gordoFlutter, gordoBoom, gordoCotton, gordoSloomber, gordoTabby
+[Info   :SlimeRancher2-AP] [AP-Dump] --- MapNodeActivator (3) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] MapNode     scene='zoneStrand'  name='nodeMapEntry'  pos=(-8, 21, -17)  posKey='zoneStrand_-8_21_-17'
+[Info   :SlimeRancher2-AP] [AP-Dump] MapNode     scene='zoneStrand_Area2'  name='nodeMapEntry'  pos=(166, 13, -284)  posKey='zoneStrand_Area2_166_13_-284'
+[Info   :SlimeRancher2-AP] [AP-Dump] MapNode     scene='zoneStrand_Area4'  name='nodeMapEntry'  pos=(261, 54, -655)  posKey='zoneStrand_Area4_261_54_-655'
+[Info   :SlimeRancher2-AP] [AP-Dump] --- Shadow Plort Doors (0 of 0 PlortDepositors) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] --- ResearchDroneActivator (6) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] ResearchDrone  scene='zoneStrand'  entryName='ResearchDroneStrandField'  archive='ResearchDroneStrandFieldArchive'
+[Info   :SlimeRancher2-AP] [AP-Dump] ResearchDrone  scene='zoneStrand_Area1'  entryName='ResearchDroneStrandMushroomAlley'  archive='ResearchDroneStrandMushroomAlleyArchive'
+[Info   :SlimeRancher2-AP] [AP-Dump] ResearchDrone  scene='zoneStrand_Area2'  entryName='ResearchDroneStrandWaterfall'  archive='ResearchDroneStrandWaterfallArchive'
+[Info   :SlimeRancher2-AP] [AP-Dump] ResearchDrone  scene='zoneStrand_Area2'  entryName='ResearchDroneStrandSplitTree'  archive='ResearchDroneStrandSplitTreeArchive'
+[Info   :SlimeRancher2-AP] [AP-Dump] ResearchDrone  scene='zoneStrand_Area3'  entryName='ResearchDroneStrandSlopedCliff'  archive='ResearchDroneStrandSlopedCliffArchive'
+[Info   :SlimeRancher2-AP] [AP-Dump] ResearchDrone  scene='zoneStrand_Area4'  entryName='ResearchDroneStrandLabyrinthGate'  archive='ResearchDroneStrandLabyrinthGateArchive'
+[Info   :SlimeRancher2-AP] [AP-Dump] --- WorldStatePrimarySwitch (1) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] Switch  scene='zoneStrand_Area4'  name='ruinSwitch'  pos=(177, 24, -613)
+[Info   :SlimeRancher2-AP] [AP-Dump] --- SlimeGateActivator (0) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] =========== LOCATION DUMP END ===========
+[Info   :SlimeRancher2-AP] [AP-Dump] ========== PUZZLE SLOT LOCKABLE DUMP (12) ==========
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneStrand'  name='objLabyrinthPlortDoor'  posKey='zoneStrand_149_1_-257'  lockTag='plort_door'  unlocked=False  plorts=[]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneStrand'  name='objLabyrinthPlortDoor (1)'  posKey='zoneStrand_101_1_-232'  lockTag='plort_door'  unlocked=False  plorts=[]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneStrand'  name='objLabyrinthPlortDoor (2)'  posKey='zoneStrand_-5_13_-100'  lockTag='plort_door'  unlocked=False  plorts=[]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneStrand_Area1'  name='objLabyrinthPlortDoor'  posKey='zoneStrand_Area1_59_14_-423'  lockTag='plort_door'  unlocked=False  plorts=[]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneStrand_Area1'  name='objLabyrinthPlortDoor (1)'  posKey='zoneStrand_Area1_53_2_-487'  lockTag='plort_door'  unlocked=False  plorts=[]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneStrand_Area1'  name='objLabyrinthPlortDoor01Small'  posKey='zoneStrand_Area1_49_-3_-534'  lockTag='plort_door'  unlocked=False  plorts=[]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneStrand_Area2'  name='objLabyrinthPlortDoor (1)'  posKey='zoneStrand_Area2_257_10_-308'  lockTag='plort_door'  unlocked=False  plorts=[]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneStrand_Area2'  name='objLabyrinthPlortDoor01Small'  posKey='zoneStrand_Area2_162_16_-360'  lockTag='plort_door'  unlocked=False  plorts=[]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneStrand_Area2'  name='objLabyrinthPlortDoor02Small'  posKey='zoneStrand_Area2_198_6_-207'  lockTag='plort_door'  unlocked=False  plorts=[]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneStrand_Area2'  name='objLabyrinthPlortDoor02Small'  posKey='zoneStrand_Area2_308_16_-278'  lockTag='plort_door'  unlocked=False  plorts=[]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneStrand_Area2'  name='objLabyrinthPlortDoor02Small'  posKey='zoneStrand_Area2_251_2_-232'  lockTag='plort_door'  unlocked=False  plorts=[]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneStrand_Area4'  name='objLabyrinthPlortDoor01'  posKey='zoneStrand_Area4_116_60_-651'  lockTag='plort_door'  unlocked=False  plorts=[]
+[Info   :SlimeRancher2-AP] [AP-Dump] =========== PUZZLE SLOT LOCKABLE DUMP END ===========
+[Info   :SlimeRancher2-AP] [00:06:03.926] [AP] GateReturnEnforcer: zone transition 'SceneGroup.LuminousStrand' → 'SceneGroup.RumblingGorge' (mode=bundled)
+[Info   :SlimeRancher2-AP] [00:06:03.926] [AP] GateReturnEnforcer: 'SceneGroup.LuminousStrand' → 'SceneGroup.RumblingGorge' is not a return to Rainbow Fields — the sealed-teleporter rescue does not apply
+[Info   :SlimeRancher2-AP] [00:06:03.927] [AP] Zone visited (first time): 'SceneGroup.RumblingGorge'
+[Info   :SlimeRancher2-AP] [00:06:03.927] [AP] TrapHandler: zone visit recorded — 'SceneGroup.RumblingGorge'
+[Info   :SlimeRancher2-AP] [00:06:03.932] [AP-Bag] POST Draw: slime='Pink' bag=null → radiant=False
+[Info   :SlimeRancher2-AP] [00:06:03.969] [AP-GoldLucky] Applied 15× weight multiplier to 696 Gold/Lucky member(s) across 425 spawner(s)
+[Info   :SlimeRancher2-AP] [00:06:04.141] [AP-Bag] POST Draw: slime='Pink' bag=null → radiant=False
+[Info   :SlimeRancher2-AP] [00:06:04.372] [AP-Bag] POST Draw: slime='Pink' bag=null → radiant=False
+[Info   :SlimeRancher2-AP] [00:06:04.932] [AP-Bag] POST Draw: slime='Pink' bag=null → radiant=False
+[Info   :SlimeRancher2-AP] [00:06:05.198] [AP-Bag] POST Draw: slime='Pink' bag=null → radiant=False
+[Info   :SlimeRancher2-AP] [00:06:05.448] [AP-Bag] POST Draw: slime='Pink' bag=null → radiant=False
+[Info   :SlimeRancher2-AP] [00:06:05.934] [AP-Bag] POST Draw: slime='Pink' bag=null → radiant=False
+[Info   :SlimeRancher2-AP] [00:06:06.278] [AP-PlortDoorPoller] Tracking posKey='zoneGorge_Area1_-193_-1_471' ids=[819847]
+[Info   :SlimeRancher2-AP] [00:06:06.279] [AP-PlortDoorPoller] Tracking posKey='zoneGorge_Area2_-332_10_285' ids=[819848]
+[Info   :SlimeRancher2-AP] [00:06:06.279] [AP-PlortDoorPoller] Tracking posKey='zoneGorge_Area3_-353_6_625' ids=[819849]
+[Info   :SlimeRancher2-AP] [00:06:06.279] [AP-PlortDoorPoller] Tracking posKey='zoneGorge_Area3_-645_34_681' ids=[819845,819850]
+[Info   :SlimeRancher2-AP] [00:06:06.910] [AP] GhostDroneSpawn: called SpawnDrone() on 1 new uncollected ghost drone spawner(s) (total this scene: 1).
+[Info   :SlimeRancher2-AP] [00:06:06.940] [AP-Bag] POST Draw: slime='Pink' bag=null → radiant=False
+[Info   :SlimeRancher2-AP] [00:06:07.200] [AP-Bag] POST Draw: slime='Pink' bag=null → radiant=False
+[Info   :SlimeRancher2-AP] [AP-Dump] ========== LOCATION DUMP START ==========
+[Info   :SlimeRancher2-AP] [AP-Dump] --- TreasurePods (36 regular, 1 node/drone) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area1'  name='treasurePod Rank3 DashPad'  pos=(-440, 37, 485)  posKey='zoneGorge_Area1_-440_37_485'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area1'  name='treasurePod Rank1 Stony Egg Lamp Statue'  pos=(-272, 22, 502)  posKey='zoneGorge_Area1_-272_22_502'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area1'  name='treasurePod Drones'  pos=(-519, 66, 530)  posKey='zoneGorge_Area1_-519_66_530'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area1'  name='treasurePod Rank1 BasicTallLamp'  pos=(-517, 6, 571)  posKey='zoneGorge_Area1_-517_6_571'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area1'  name='treasurePod Rank2 AmberCypressCluster'  pos=(-524, 33, 524)  posKey='zoneGorge_Area1_-524_33_524'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area1'  name='treasurePod Rank1 TankBoosterComponent'  pos=(-207, -1, 465)  posKey='zoneGorge_Area1_-207_-1_465'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area2'  name='treasurePod Rank3 PortableSlimeBaitMeat'  pos=(-352, 19, 461)  posKey='zoneGorge_Area2_-352_19_461'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area2'  name='treasurePod Rank1 Sureshot Component'  pos=(-323, 6, 304)  posKey='zoneGorge_Area2_-323_6_304'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area2'  name='treasurePod Rank2 TeacupLargo'  pos=(-451, 4, 404)  posKey='zoneGorge_Area2_-451_4_404'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area2'  name='treasurePod Rank2 ExtraTankComponent'  pos=(-524, 30, 418)  posKey='zoneGorge_Area2_-524_30_418'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area2'  name='treasurePod Rank1 Wheelbarrow'  pos=(-503, -4, 362)  posKey='zoneGorge_Area2_-503_-4_362'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area2'  name='treasurePod Rank2 ItemDisplay'  pos=(-630, 25, 217)  posKey='zoneGorge_Area2_-630_25_217'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area2'  name='treasurePod Rank1 Gold Chicken Statue'  pos=(-588, 82, 279)  posKey='zoneGorge_Area2_-588_82_279'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area3'  name='treasurePod Rank3 PinballBumper'  pos=(-500, 48, 769)  posKey='zoneGorge_Area3_-500_48_769'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area3'  name='treasurePod Rank3 WarpDepotBlue'  pos=(-572, 27, 868)  posKey='zoneGorge_Area3_-572_27_868'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area3'  name='treasurePod Rank3 HappyStatue'  pos=(-532, -2, 654)  posKey='zoneGorge_Area3_-532_-2_654'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area3'  name='treasurePod Rank3 WindChimes'  pos=(-361, 25, 620)  posKey='zoneGorge_Area3_-361_25_620'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area3'  name='treasurePod Rank3 PinkStripedLamp'  pos=(-364, 5, 776)  posKey='zoneGorge_Area3_-364_5_776'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area3'  name='treasurePod Rank1 CrystalGordoScienceResources'  pos=(-512, 50, 680)  posKey='zoneGorge_Area3_-512_50_680'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area3'  name='treasurePod Rank1 Gold Angler Slime Statue'  pos=(-609, 62, 697)  posKey='zoneGorge_Area3_-609_62_697'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area3'  name='treasurePod Rank2 JetpackComponent'  pos=(-291, 35, 568)  posKey='zoneGorge_Area3_-291_35_568'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area3'  name='treasurePod Rank2 TallAmberCypress'  pos=(-633, 38, 687)  posKey='zoneGorge_Area3_-633_38_687'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area3'  name='treasurePod Rank1 HeartModuleComponent'  pos=(-542, 19, 651)  posKey='zoneGorge_Area3_-542_19_651'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area4'  name='treasurePod Rank3 WarpDepotGrey'  pos=(-634, 32, 518)  posKey='zoneGorge_Area4_-634_32_518'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area4'  name='treasurePod Rank3 PortableSlimeBaitFruit'  pos=(-698, 31, 545)  posKey='zoneGorge_Area4_-698_31_545'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area4'  name='treasurePod Rank3 StrangeDiamond'  pos=(-903, 12, 500)  posKey='zoneGorge_Area4_-903_12_500'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area4'  name='treasurePod Rank3 TeleporterZoneGorge'  pos=(-905, 14, 500)  posKey='zoneGorge_Area4_-905_14_500'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area4'  name='treasurePod Rank2 Stalagmite'  pos=(-608, 48, 370)  posKey='zoneGorge_Area4_-608_48_370'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area4'  name='treasurePod Rank2 MagmaPool'  pos=(-705, 6, 339)  posKey='zoneGorge_Area4_-705_6_339'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area4'  name='treasurePod Rank1 BattyGordoScienceResources'  pos=(-685, 15, 418)  posKey='zoneGorge_Area4_-685_15_418'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area4'  name='treasurePod Rank2 PottedPlants'  pos=(-679, 26, 304)  posKey='zoneGorge_Area4_-679_26_304'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area4'  name='treasurePod Rank2 TallMagmaClump'  pos=(-758, 20, 407)  posKey='zoneGorge_Area4_-758_20_407'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area4'  name='treasurePod Rank2 MediumPalm'  pos=(-758, 18, 489)  posKey='zoneGorge_Area4_-758_18_489'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area5'  name='treasurePod Rank2 Accelerator'  pos=(-519, -2, 298)  posKey='zoneGorge_Area5_-519_-2_298'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area5'  name='treasurePod Rank2 GoldenDervishStatue'  pos=(-810, -3, 383)  posKey='zoneGorge_Area5_-810_-3_383'
+[Info   :SlimeRancher2-AP] [AP-Dump] TreasurePod  scene='zoneGorge_Area5'  name='treasurePod Rank2 Carousel'  pos=(-802, 7, 196)  posKey='zoneGorge_Area5_-802_7_196'
+[Info   :SlimeRancher2-AP] [AP-Dump] --- GhostlyDrone nodes (TreasurePod subtype) (1) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] GhostlyNode  scene='zoneGorge_Area3'  name='nodeComponentAcqDrone'  parent='ComponentAcquisitionDroneValley'  pos=(-615, 82, 692)  posKey='zoneGorge_Area3_-615_82_692'
+[Info   :SlimeRancher2-AP] [AP-Dump] --- GordoEat (5 static world, 20 snare/global) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] GordoEat    scene='zoneGorge_Area3'  name='gordoRock'  stringEventKey='gordo0647361766'
+[Info   :SlimeRancher2-AP] [AP-Dump] GordoEat    scene='zoneGorge_Area3'  name='gordoTabby'  stringEventKey='gordo0924604970'
+[Info   :SlimeRancher2-AP] [AP-Dump] GordoEat    scene='zoneGorge_Area3'  name='gordoCrystal'  stringEventKey='gordo1394565746'
+[Info   :SlimeRancher2-AP] [AP-Dump] GordoEat    scene='zoneGorge_Area4'  name='gordoBatty'  stringEventKey='gordo0204299382'
+[Info   :SlimeRancher2-AP] [AP-Dump] GordoEat    scene='zoneGorge_Area4'  name='gordoBoom'  stringEventKey='gordo0091013817'
+[Info   :SlimeRancher2-AP] [AP-Dump] GordoSnare names (NOT checks): gordoBatty, gordoAngler, gordoHoney, gordoTwin, gordoHyper, gordoTangle, gordoRingtail, gordoDervish, gordoGold, gordoPink, gordoPhosphor, gordoHunter, gordoRock, gordoCrystal, gordoSaber, gordoFlutter, gordoBoom, gordoCotton, gordoSloomber, gordoTabby
+[Info   :SlimeRancher2-AP] [AP-Dump] --- MapNodeActivator (3) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] MapNode     scene='zoneGorge_Area1'  name='nodeMapEntry'  pos=(-443, 17, 560)  posKey='zoneGorge_Area1_-443_17_560'
+[Info   :SlimeRancher2-AP] [AP-Dump] MapNode     scene='zoneGorge_Area3'  name='nodeMapEntry'  pos=(-561, 47, 747)  posKey='zoneGorge_Area3_-561_47_747'
+[Info   :SlimeRancher2-AP] [AP-Dump] MapNode     scene='zoneGorge_Area4'  name='nodeMapEntry'  pos=(-757, 29, 461)  posKey='zoneGorge_Area4_-757_29_461'
+[Info   :SlimeRancher2-AP] [AP-Dump] --- Shadow Plort Doors (0 of 0 PlortDepositors) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] --- ResearchDroneActivator (6) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] ResearchDrone  scene='zoneGorge_Area1'  entryName='ResearchDroneGorgeOverlook'  archive='ResearchDroneGorgeOverlookArchive'
+[Info   :SlimeRancher2-AP] [AP-Dump] ResearchDrone  scene='zoneGorge_Area2'  entryName='ResearchDroneGorgeRuinedOverlook'  archive='ResearchDroneGorgeRuinedOverlookArchive'
+[Info   :SlimeRancher2-AP] [AP-Dump] ResearchDrone  scene='zoneGorge_Area3'  entryName='ResearchDroneGorgeOceanPerch'  archive='ResearchDroneGorgeOceanPerchArchive'
+[Info   :SlimeRancher2-AP] [AP-Dump] ResearchDrone  scene='zoneGorge_Area4'  entryName='ResearchDroneGorgeCaveHub'  archive='ResearchDroneGorgeCaveHubArchive'
+[Info   :SlimeRancher2-AP] [AP-Dump] ResearchDrone  scene='zoneGorge_Area4'  entryName='ResearchDroneGorgeLabyrinthGate'  archive='ResearchDroneGorgeLabyrinthGateArchive'
+[Info   :SlimeRancher2-AP] [AP-Dump] ResearchDrone  scene='zoneGorge_Area4'  entryName='ResearchDroneGorgeMagmaFieldsPerch'  archive='ResearchDroneGorgeMagmaFieldsPerchArchive'
+[Info   :SlimeRancher2-AP] [AP-Dump] --- WorldStatePrimarySwitch (0) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] --- SlimeGateActivator (0) ---
+[Info   :SlimeRancher2-AP] [AP-Dump] =========== LOCATION DUMP END ===========
+[Info   :SlimeRancher2-AP] [AP-Dump] ========== PUZZLE SLOT LOCKABLE DUMP (5) ==========
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneGorge_Area1'  name='objLabyrinthPlortDoor01Small'  posKey='zoneGorge_Area1_-193_-1_471'  lockTag='plort_door'  unlocked=False  plorts=[]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneGorge_Area2'  name='objLabyrinthPlortDoor02Small'  posKey='zoneGorge_Area2_-332_10_285'  lockTag='plort_door'  unlocked=False  plorts=[]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneGorge_Area3'  name='objLabyrinthPlortDoor01Small'  posKey='zoneGorge_Area3_-353_6_625'  lockTag='plort_door'  unlocked=False  plorts=[]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneGorge_Area3'  name='objLabyrinthPlortDoor01Small'  posKey='zoneGorge_Area3_-645_34_681'  lockTag='plort_door'  unlocked=False  plorts=[]
+[Info   :SlimeRancher2-AP] [AP-Dump] PuzzleSlotLockable  scene='zoneGorge_Area4'  name='objLabyrinthPlortDoor02Small'  posKey='zoneGorge_Area4_-892_12_508'  lockTag='plort_door'  unlocked=True  plorts=[]
+[Info   :SlimeRancher2-AP] [AP-Dump] =========== PUZZLE SLOT LOCKABLE DUMP END ===========

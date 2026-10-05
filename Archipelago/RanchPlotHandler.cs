@@ -50,7 +50,7 @@ public static class RanchPlotHandler
     public static bool UpgradesEnabled  => SessionActive && Plugin.Instance.ApClient.SlotData?.RandomizePlotUpgrades  == true;
 
     // -------------------------------------------------------------------------
-    // Static mappings (from docs/dumps/plot.txt, 2026-07-11)
+    // Static mappings (from docs/dumps/1.2/plot.txt, 2026-07-11)
     // -------------------------------------------------------------------------
 
     /// <summary>Region cell name (LandPlot._region.name) → per-area plot unlock item.</summary>
@@ -143,7 +143,7 @@ public static class RanchPlotHandler
     };
 
     /// <summary>
-    /// Vanilla Newbucks price of building each plot type (docs/dumps/plot.txt). Used to
+    /// Vanilla Newbucks price of building each plot type (docs/dumps/1.2/plot.txt). Used to
     /// refund the player when the Replace backstop blocks a build — the game charges
     /// BEFORE LandPlotLocation.Replace runs, so a block would otherwise eat the money
     /// (player-reported).
