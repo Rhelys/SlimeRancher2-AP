@@ -36,7 +36,7 @@ public static class NoClipManager
     /// <see cref="CharacterControllerParameters"/> are temporarily raised by this factor,
     /// letting the KCC's own velocity cap enforce the limit each frame without compounding.
     /// </summary>
-    private const float SpeedBoostMultiplier = 3f;
+    private const float SpeedBoostMultiplier = 5f;
 
     // Original parameter values saved on Enable() and restored on Disable().
     private static float _origGroundSpeed;

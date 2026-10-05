@@ -762,6 +762,7 @@ public static class LocationDumper
     public static void DumpShopItemConditions()
     {
         var log = Plugin.Instance.Log;
+        BuildDescribeGuidNames();   // so event data keys resolve to conversation names
         var directors = Resources.FindObjectsOfTypeAll<ShopDirector>();
         log.LogInfo("[AP-Dump] ===== SHOP CONDITION DUMP =====");
 
@@ -856,6 +857,46 @@ public static class LocationDumper
     /// plus referenced Unity assets (zone/event asset names) and short primitive values,
     /// discovered via IL2CPP reflection so no per-query-type code is needed.
     /// </summary>
+    /// <summary>
+    /// GUID -> readable asset name, used by <see cref="DescribeQuery"/> to resolve event data
+    /// keys. Populated by <see cref="BuildDescribeGuidNames"/> before a dump that needs it.
+    /// </summary>
+    private static Dictionary<string, string> _describeGuidNames = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Builds the GUID lookup <see cref="DescribeQuery"/> uses to turn an event data key into a
+    /// name. Covers conversations and gadgets, the two asset kinds shop conditions reference.
+    /// </summary>
+    private static void BuildDescribeGuidNames()
+    {
+        var map = new Dictionary<string, string>(StringComparer.Ordinal);
+        try
+        {
+            foreach (var c in Resources.FindObjectsOfTypeAll<FixedConversation>())
+            {
+                if (c == null) continue;
+                var guid = c.Guid;
+                if (!string.IsNullOrEmpty(guid)) map[guid] = $"conv:{c.name ?? guid}";
+            }
+        }
+        catch { /* partial map still beats none */ }
+
+        // Ranchers too: `convoRancherPlayed` keys on the RANCHER's GUID, not a conversation's —
+        // the five cheap Vac palettes each name one, and none of those GUIDs appears anywhere in
+        // the conversation dump, which lists ranchers by name only.
+        try
+        {
+            foreach (var r in Resources.FindObjectsOfTypeAll<Il2CppMonomiPark.SlimeRancher.Dialogue.CommStation.RancherDefinition>())
+            {
+                if (r == null) continue;
+                var guid = r.Guid;
+                if (!string.IsNullOrEmpty(guid)) map[guid] = $"rancher:{r.name ?? guid}";
+            }
+        }
+        catch { /* partial map still beats none */ }
+        _describeGuidNames = map;
+    }
+
     private static string DescribeQuery(Il2CppInterop.Runtime.InteropTypes.Il2CppObjectBase? comp, int depth)
     {
         if (comp == null) return "<null>";
@@ -870,6 +911,33 @@ public static class LocationDumper
                 for (int i = 0; i < children.Count; i++)
                     parts.Add(DescribeQuery(children[i], depth + 1));
             return $"{composite._operation}({string.Join(" , ", parts)})";
+        }
+
+        // Event-backed queries carry their real identity on the IGameEvent behind GetEvent(),
+        // not on their serialized fields. Reflecting over the fields instead yields
+        // "Count=539385616" — a pointer rendered as an int, identical on every row and useless
+        // for telling two conditions apart. That is what made the 1.3 shop-condition dump
+        // unable to say WHICH conversation gates each Vac palette, while the conversation
+        // dumper (which does call GetEvent) resolved its keys cleanly.
+        var eventQuery = comp.TryCast<GameEventQueryComponent>();
+        if (eventQuery != null)
+        {
+            string typeName = GetIl2CppTypeName(comp);
+            string dataKey = "(err)", eventKey = "(err)", resolved = "";
+            int count = 0;
+            try
+            {
+                var gameEvent = eventQuery.GetEvent();
+                eventKey = gameEvent?.EventKey ?? "(null)";
+                dataKey  = gameEvent?.DataKey  ?? "(null)";
+            }
+            catch (Exception ex) { eventKey = $"(exc:{ex.Message})"; dataKey = ""; }
+            try { count = eventQuery.Count; } catch { /* count is a bonus, not the identity */ }
+
+            if (!string.IsNullOrEmpty(dataKey) && _describeGuidNames.TryGetValue(dataKey, out var nm))
+                resolved = $" -> '{nm}'";
+
+            return $"{typeName}[event='{eventKey}' dataKey='{dataKey}'{resolved} count={count}]";
         }
 
         try
@@ -1548,7 +1616,7 @@ public static class LocationDumper
         foreach (var director in directors)
         {
             if (director == null) continue;
-            var model = director.RadiantSlimesModel;
+            var model = director._radiantSlimesModel;   // field, not the CallerCount(0) property — see DumpRadiantBagState
             if (model == null) continue;
             var liveBags = model.RadiantShuffleBags;
             if (liveBags == null) continue;
@@ -1598,12 +1666,23 @@ public static class LocationDumper
             if (director == null) continue;
             bool spawnAllowed = director._isRadiantSpawnAllowedCached;
             log.LogInfo($"[AP-Debug]   isRadiantSpawnAllowedCached={spawnAllowed}  DEBUG_ForceRadiantSpawn={director.DEBUG_ForceRadiantSpawn}  DEBUG_BagSizeScalar={director.DEBUG_BagSizeScalar}");
-            var model = director.RadiantSlimesModel;
+            // Direct field, not the RadiantSlimesModel property. The getter is CallerCount(0) and
+            // CLAUDE.md records it as an AccessViolation risk that bypasses managed try/catch and
+            // hard-crashes the process; the pre-seed and the POST Draw trace both already use the
+            // field for that reason. This dump was the one reader still calling the property.
+            var model = director._radiantSlimesModel;
             if (model == null) { log.LogInfo("[AP-Debug]   (director has null RadiantSlimesModel)"); continue; }
             var savedBags = model.RadiantShuffleBags;
             if (savedBags == null) { log.LogInfo("[AP-Debug]   (RadiantShuffleBags dictionary is null)"); continue; }
 
             log.LogInfo($"[AP-Debug]   {savedBags.Count} saved bag(s):");
+            if (savedBags.Count == 0)
+                // Say so in the output, not just in a source comment: an empty dictionary here
+                // reads like a broken radiant system, and it is the normal state for a save that
+                // has never serialized its bags. The live bags are native and not visible here.
+                log.LogInfo("[AP-Debug]     (none persisted yet — normal for a save that has not " +
+                            "serialized its bags; live bags are native and not observable here. " +
+                            "To confirm radiants spawn, look for 'radiant=True' in [AP-Bag] lines.)");
             foreach (var kvp in savedBags)
             {
                 string slimeName = kvp.Key?.name ?? "(null)";
@@ -2878,6 +2957,42 @@ public static class LocationDumper
     /// can be spot-checked against what the enforcer would have concluded.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// Dumps every <c>Palette</c> asset — name, GUID, reference id, display name and pedia entry.
+    /// </summary>
+    /// <remarks>
+    /// Written to map the 22 vac styles listed in the 1.3 patch notes onto shop GUIDs. The shop
+    /// dumps cannot do this on their own: an item whose asset is unloaded prints as
+    /// <c>asset='&lt;not loaded&gt;'</c>, and palettes are sold across three shops (Polestar
+    /// Provisions, the Night Market, and the Caretaker's Shop) whose stock depends on save
+    /// progress. <c>Palette</c> is a ScriptableObjectWithGuid, so enumerating the assets
+    /// directly lists every one regardless of what any shop is showing.
+    ///
+    /// The GUID printed here is <c>ScriptableObjectWithGuid.Guid</c>. Whether it matches the
+    /// shop's <c>AssetGuid</c> is part of what this dump is meant to establish — compare it
+    /// against <c>guid=</c> in the shop dump before relying on it.
+    /// </remarks>
+    public static void DumpPalettes()
+    {
+        var log = Plugin.Instance.Log;
+        var all = Resources.FindObjectsOfTypeAll<Il2CppMonomiPark.SlimeRancher.Ranch.Palette>();
+        log.LogInfo($"[AP-Dump] ========== PALETTE DUMP ({all.Length}) ==========");
+        foreach (var pal in all)
+        {
+            if (pal == null) continue;
+            string name = "?", guid = "?", refId = "?", title = "?", pedia = "(none)";
+            try { name  = pal.name ?? "?"; } catch { }
+            try { guid  = pal.Guid ?? "?"; } catch { }
+            try { refId = pal.ReferenceId ?? "?"; } catch { }
+            try { title = pal.DisplayName?.GetLocalizedString() ?? "?"; } catch { }
+            try { pedia = pal._pediaEntry != null ? pal._pediaEntry.name : "(none)"; } catch { }
+            log.LogInfo(
+                $"[AP-Dump] Palette  name='{name}'  title='{title}'  guid='{guid}'  " +
+                $"ref='{refId}'  pedia='{pedia}'");
+        }
+        log.LogInfo("[AP-Dump] =================================");
+    }
+
     public static void DumpWorldSwitches()
     {
         var log = Plugin.Instance.Log;

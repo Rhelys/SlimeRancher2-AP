@@ -33,7 +33,7 @@ public class DebugPanel : MonoBehaviour
     private const float BtnH    = 26;
     private const float Gap     = 4;
     private const float LabelH  = 20;
-    private const int   Pages   = 10;
+    private const int   Pages   = 12;
 
     // Teleport page — coordinate state (floats; adjusted with ± step buttons or clipboard paste)
     private float _tpX = 0f;
@@ -111,15 +111,22 @@ public class DebugPanel : MonoBehaviour
                 case 2: DrawPageGadgetsDeployment(x, y);  break;
                 case 3: DrawPageFiller(x, y);              break;
                 case 4: DrawPageDumps(x, y);               break;
-                case 5: DrawPageMisc(x, y);                break;
-                case 6: { float ny = DrawPageRadiant(x, y); DrawPageWeatherDumps(x, ny); break; }
-                case 7: { float ny = DrawPageTeleport(x, y); DrawPageGoals(x, ny); break; }
-                case 8: DrawPagePlortsA(x, y);             break;
-                case 9: DrawPagePlortsB(x, y);             break;
+                case 5: DrawPageDumps2(x, y);              break;
+                case 6: DrawPageMisc(x, y);                break;
+                case 7: DrawPageMisc2(x, y);               break;
+                case 8: { float ny = DrawPageRadiant(x, y); DrawPageWeatherDumps(x, ny); break; }
+                case 9: { float ny = DrawPageTeleport(x, y); DrawPageGoals(x, ny); break; }
+                case 10: DrawPagePlortsA(x, y);            break;
+                case 11: DrawPagePlortsB(x, y);            break;
             }
 
-            // Nav buttons sit below 20 content rows (tallest page is ~18 rows)
-            float navY = y + 20 * (BtnH + Gap) + 10;
+            // Nav buttons are anchored to the bottom of the screen rather than placed a fixed
+            // number of rows below the header. The old layout assumed every page fit in 20 rows;
+            // once the dumps page outgrew that, content was drawn straight over the nav buttons
+            // and both became unclickable. Anchoring keeps Prev/Next reachable no matter how long
+            // a page gets, which matters because a page that overflows is exactly when you need
+            // to navigate away from it.
+            float navY = Screen.height - BtnH - 10;
             if (GUI.Button(new Rect(x,                 navY, 100, BtnH), "◀ Prev (Q)")) PagePrev();
             if (GUI.Button(new Rect(x + PanelW - 100,  navY, 100, BtnH), "Next ▶ (E)")) PageNext();
         }
@@ -360,6 +367,19 @@ public class DebugPanel : MonoBehaviour
 
         GUI.color = Color.white;
 
+        GUI.color = Color.white;
+    }
+
+    /// <summary>
+    /// Second half of the Misc page — DeathLink through Zone Protection.
+    /// </summary>
+    /// <remarks>
+    /// Split out on 2026-10-04 for the same reason as the Dumps page: Misc had grown to ~37 rows
+    /// (~1170px), so its lower sections ran off the bottom of a 1080p screen and under the
+    /// bottom-anchored navigation row. IMGUI scroll views are stripped in IL2CPP builds.
+    /// </remarks>
+    private void DrawPageMisc2(float x, float y)
+    {
         y = SectionLabel(x, y, "DeathLink");
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Kill Player (DeathLink)"))
             DeathLinkHandler.KillPlayer();
@@ -574,6 +594,29 @@ public class DebugPanel : MonoBehaviour
             LocationDumper.DumpLandPlots();
         y += BtnH + Gap;
 
+        GUI.color = Color.white;
+        return y;
+    }
+
+    /// <summary>
+    /// Second half of the dumps page — spawn weights and radiant diagnostics.
+    /// </summary>
+    /// <remarks>
+    /// Split out on 2026-10-02. The single dumps page had grown to 28 buttons across three
+    /// sections — about 31 rows, roughly 930px of content. Everything past row 20 ran under the
+    /// navigation row and then off the bottom of the screen, so the radiant and spawn-weight
+    /// dumps could not be clicked at all. IMGUI scroll views are not an option here:
+    /// GUI.BeginScrollView is stripped in IL2CPP builds (see CLAUDE.md).
+    /// </remarks>
+    private float DrawPageDumps2(float x, float y)
+    {
+        GUI.color = new Color(1f, 0.9f, 0.5f);
+
+        y = SectionLabel(x, y, "Palettes");
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Palettes (all vac/ranch styles)"))
+            LocationDumper.DumpPalettes();
+        y += BtnH + Gap;
+
         y = SectionLabel(x, y, "Spawn Weights");
 
         // ── Live loaded-scene list ────────────────────────────────────────────
@@ -658,7 +701,7 @@ public class DebugPanel : MonoBehaviour
         bool noclip = NoClipManager.IsActive;
         GUI.color = noclip ? new Color(0.4f, 1f, 0.4f) : Color.white;
         if (GUI.Button(new Rect(x, y, PanelW, BtnH),
-                noclip ? "NoClip  ON  [Space=up  LCtrl=down  LShift=3x]  (click to disable)"
+                noclip ? "NoClip  ON  [Space=up  LCtrl=down  LShift=5x]  (click to disable)"
                        : "NoClip  OFF  (click to enable)"))
             NoClipManager.Toggle();
         GUI.color = Color.white;
