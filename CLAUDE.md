@@ -132,7 +132,7 @@ Quick reference only — verify against the apworld before relying on a range.
 | 819847–819874 | Plort Doors (28) |
 | 819875–819879 | Conservatory Expansion terminals (5) |
 | 819896–819920 | Plort Market (25) |
-| 819926–820074 | Polestar Provisions Shop (149 defined: 84 base + 65 zone-gated; per-seed random subset active via `randomize_shop`) |
+| 819926–820074, 820081–820096 | Polestar Provisions Shop (165 defined: 84 base + 65 zone-gated + 16 vac palettes added in game update 1.3; per-seed random subset active via `randomize_shop`) |
 
 **Item IDs:**
 

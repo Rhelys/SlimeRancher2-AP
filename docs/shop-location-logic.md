@@ -5,6 +5,9 @@ Sources of truth (both in `docs/dumps/1.2/`):
   conditions + per-item `AvailableCondition`), 2026-07-11.
 - `shop.txt` — runtime item dump from an all-zones-visited save (resolves names), 2026-07-11.
 
+Game update 1.3 removed no shop items and changed no rule-set groups. Its 16 vac palettes
+(820081–820096) were validated against `docs/dumps/1.3/shop_conditions.txt` instead.
+
 The wiki's "new items are added for purchase whenever a new location is visited for the
 first time" is implemented through these conditions.
 

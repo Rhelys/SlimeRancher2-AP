@@ -823,7 +823,7 @@ public static class LocationConstants
     // 819921–819925 reserved (5-ID buffer for future plort additions)
 
     // =====================================================================
-    // POLESTAR PROVISIONS SHOP: 819926–820074 (149, randomize_shop option)
+    // POLESTAR PROVISIONS SHOP: 819926–820074 + 820081–820096 (165, randomize_shop option)
     // 819926–820009: always-available base items (84), in-game category order.
     // 820010–820074: zone-gated items (65), grouped by required zone visit
     // (see docs/shop-location-logic.md).
@@ -985,4 +985,25 @@ public static class LocationConstants
     public const long PolestarShop_LabyrinthWallLamp = 820072;
     public const long PolestarShop_TallIndigoCypress = 820073;
     public const long PolestarShop_LavaLampGrey = 820074;
+
+    // Vac palettes — game update 1.3 (820081–820096). 820075–820080 are drone archives.
+    // Asset names and GUIDs from docs/dumps/1.3/palettes.txt; the Palette asset's
+    // ScriptableObjectWithGuid.Guid equals the shop's AssetGuid, confirmed by joining it against
+    // docs/dumps/1.3/shop_conditions.txt.
+    public const long PolestarShop_VacPalette_Blue = 820081;
+    public const long PolestarShop_VacPalette_Purple = 820082;
+    public const long PolestarShop_VacPalette_Green = 820083;
+    public const long PolestarShop_VacPalette_Red = 820084;
+    public const long PolestarShop_VacPalette_Pink = 820085;
+    public const long PolestarShop_VacPalette_Angelic = 820086;
+    public const long PolestarShop_VacPalette_Tidepools = 820087;
+    public const long PolestarShop_VacPalette_Magma = 820088;
+    public const long PolestarShop_VacPalette_StarlightStrand = 820089;
+    public const long PolestarShop_VacPalette_Gray = 820090;
+    public const long PolestarShop_VacPalette_PowderfallBluffs = 820091;
+    public const long PolestarShop_VacPalette_Peach = 820092;
+    public const long PolestarShop_VacPalette_HotRod = 820093;
+    public const long PolestarShop_VacPalette_Punk = 820094;
+    public const long PolestarShop_VacPalette_LilacDaze = 820095;
+    public const long PolestarShop_VacPalette_Dreamland = 820096;
 }

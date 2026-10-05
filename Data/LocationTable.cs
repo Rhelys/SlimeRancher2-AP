@@ -937,7 +937,7 @@ public static class LocationTable
         new(LocationConstants.RegionGate_PowderfallBluffs, "Region Gate - Powderfall Bluffs", LocationType.RegionGate, "zoneGorge_Area3",  "zoneGorge_Area3_-645_34_681"),
 
         // =================================================================
-        // POLESTAR PROVISIONS SHOP: 819926-820074 (149, randomize_shop)
+        // POLESTAR PROVISIONS SHOP: 819926-820074 + 820081-820096 (165, randomize_shop)
         // 819926-820009: always-available base items (84).
         // 820010-820074: only appear in the shop after visiting their zone —
         // the apworld gives them matching regional logic (docs/shop-location-logic.md).
@@ -1104,6 +1104,26 @@ public static class LocationTable
         new(LocationConstants.PolestarShop_LabyrinthWallLamp, "Polestar Provisions: Labyrinth Wall Lamp", LocationType.PolestarShop, "", "2d22058532d2adb4fb956399a7aac726", "LabyrinthWallLamp"),  // 150nb
         new(LocationConstants.PolestarShop_TallIndigoCypress, "Polestar Provisions: Tall Indigo Cypress", LocationType.PolestarShop, "", "6497fe4cc7110324cbcacf0c2858559c", "TallIndigoCypress"),  // 40nb
         new(LocationConstants.PolestarShop_LavaLampGrey, "Polestar Provisions: Shadow Lava Lamp", LocationType.PolestarShop, "", "0e4bb9bdf192b0945abf54de809608b9", "LavaLampGrey"),  // 500nb
+
+        // Vac palettes (1.3). Sold as ShopItemType.PALETTE, a type new in 1.3; confirmed in-game
+        // that a palette purchase routes its reward through AcquisitionUtility.Acquire_SpawnOrStore,
+        // so AcquisitionSuppressPatch blocks the vanilla palette exactly as it does any other reward.
+        new(LocationConstants.PolestarShop_VacPalette_Blue, "Polestar Provisions: Blue Vac Style", LocationType.PolestarShop, "", "555ed98a3ef2cf341926bbd7828460a4", "VacPalette_Blue"),  // 100nb
+        new(LocationConstants.PolestarShop_VacPalette_Purple, "Polestar Provisions: Purple Vac Style", LocationType.PolestarShop, "", "ced4508c5c195f74e8ff3e49471e6b81", "VacPalette_Purple"),  // 150nb
+        new(LocationConstants.PolestarShop_VacPalette_Green, "Polestar Provisions: Green Vac Style", LocationType.PolestarShop, "", "9eec905352f0ab84cbc1ad308508c175", "VacPalette_Green"),  // 200nb
+        new(LocationConstants.PolestarShop_VacPalette_Red, "Polestar Provisions: Red Vac Style", LocationType.PolestarShop, "", "4d66c52691c02fb4ba5755f2c041b186", "VacPalette_Red"),  // 250nb
+        new(LocationConstants.PolestarShop_VacPalette_Pink, "Polestar Provisions: Pink Vac Style", LocationType.PolestarShop, "", "b7ba7640dfca67d4a964e58844b8b9e1", "VacPalette_Pink"),  // 300nb
+        new(LocationConstants.PolestarShop_VacPalette_Angelic, "Polestar Provisions: Angelic Vac Style", LocationType.PolestarShop, "", "a650a53a2984f6d4983870ccb6f95239", "VacPalette_Angelic"),  // 350nb
+        new(LocationConstants.PolestarShop_VacPalette_Tidepools, "Polestar Provisions: Tidepools Vac Style", LocationType.PolestarShop, "", "43bdb823e4850ff45aecc85501ddc09d", "VacPalette_Tidepools"),  // 1500nb
+        new(LocationConstants.PolestarShop_VacPalette_Magma, "Polestar Provisions: Magma Vac Style", LocationType.PolestarShop, "", "7c4a4d1f1af22aa459cdffacc7160042", "VacPalette_Magma"),  // 1500nb
+        new(LocationConstants.PolestarShop_VacPalette_StarlightStrand, "Polestar Provisions: Starlight Strand Vac Style", LocationType.PolestarShop, "", "91d93b8061f604c47923eb6cecbb2495", "VacPalette_StarlightStrand"),  // 1500nb
+        new(LocationConstants.PolestarShop_VacPalette_Gray, "Polestar Provisions: Gray Vac Style", LocationType.PolestarShop, "", "ec8010e7bda2a294ea16d2fd1ac38a9f", "VacPalette_Gray"),  // 500nb
+        new(LocationConstants.PolestarShop_VacPalette_PowderfallBluffs, "Polestar Provisions: Powderfall Bluffs Vac Style", LocationType.PolestarShop, "", "80be4443999475249be998a4e504f8d4", "VacPalette_PowderfallBluffs"),  // 2000nb
+        new(LocationConstants.PolestarShop_VacPalette_Peach, "Polestar Provisions: Peach Vac Style", LocationType.PolestarShop, "", "313294ab4ff023e4fb96cbff42f7b828", "VacPalette_Peach"),  // 800nb
+        new(LocationConstants.PolestarShop_VacPalette_HotRod, "Polestar Provisions: Hotrod Vac Style", LocationType.PolestarShop, "", "b7d0aa090abec2249b1d291445f72995", "VacPalette_HotRod"),  // 1000nb
+        new(LocationConstants.PolestarShop_VacPalette_Punk, "Polestar Provisions: Punk Vac Style", LocationType.PolestarShop, "", "33158edebaa3e90498e12dcb3f87ecc3", "VacPalette_Punk"),  // 1000nb
+        new(LocationConstants.PolestarShop_VacPalette_LilacDaze, "Polestar Provisions: Lilac Daze Vac Style", LocationType.PolestarShop, "", "e45502f7cd655854f9a15e1dcb74581e", "VacPalette_LilacDaze"),  // 1000nb
+        new(LocationConstants.PolestarShop_VacPalette_Dreamland, "Polestar Provisions: Dreamland Vac Style", LocationType.PolestarShop, "", "223b2eb72a61dd64a8db8e95e95a44b7", "VacPalette_Dreamland"),  // 2000nb
     };
 
     // -------------------------------------------------------------------------
