@@ -99,6 +99,7 @@ internal static class ConversationActiveTrackerPatch
         try
         {
             var holders = UnityEngine.Resources.FindObjectsOfTypeAll<ConversationViewHolder>();
+            var uiTransforms = new HashSet<System.IntPtr>();
             int killed = 0;
             for (int i = 0; i < holders.Length; i++)
             {
@@ -109,16 +110,33 @@ internal static class ConversationActiveTrackerPatch
                 {
                     var tr = transforms[t];
                     if (tr == null) continue;
+                    uiTransforms.Add(tr.Pointer);
                     killed += DG.Tweening.DOTween.Kill(tr, false);
                 }
             }
             // Phase 2: the gift-page award shake is a Sequence whose target is NULL from
             // creation (confirmed via the tween dump — the shake references a presentation
             // object that the suppressed grant never instantiated), so the kill-by-target
-            // pass above can never reach it. Reap any playing top-level tween with a null
-            // target: at conversation end such a tween can only ever spam null-target
-            // warnings — there is nothing valid left for it to animate.
+            // pass above can never reach it.
+            //
+            // Only after a suppressed gift. A null target is not specific to that shake: any
+            // DOTween.To(getter, setter) tween has one, and the game runs those well outside
+            // the conversation UI. Reaping them on every conversation killed one unrelated
+            // tween per Gigi page, and killing with complete=false skips its OnComplete — the
+            // suspected cause of sound effects dying for the rest of the session (deposits,
+            // water, market sales), since a fade that never completes never hands its audio
+            // source back.
+            //
+            // The other case is matched by contents rather than by a missing target: a looping
+            // Sequence (2s, loops=-1) runs on every conversation page, and its child tweens
+            // (DOLocalMoveZ) target transforms the page teardown destroys — DOTween then warns
+            // "Target or field is missing/null" until safe mode reaps it. Phase 1 cannot reach
+            // it either, because DOTween.Kill(target) only matches top-level tweens. A Sequence
+            // whose children animate the conversation UI, or something already destroyed, is
+            // killed here; DOTween's own safe mode would kill it a frame later anyway.
             int reaped = 0;
+            bool giftSuppressed = GiftSuppressedThisConversation;
+            GiftSuppressedThisConversation = false;
             var playing = DG.Tweening.DOTween.PlayingTweens();
             if (playing != null)
             {
@@ -130,6 +148,14 @@ internal static class ConversationActiveTrackerPatch
                     Il2CppSystem.Object? target = null;
                     try { target = tw.target; } catch { /* treat unreadable as null */ }
                     if (target != null) continue;
+
+                    if (!giftSuppressed && !AnimatesConversationUi(tw, uiTransforms, 0))
+                    {
+#if DEBUG
+                        Logger.Info($"[AP-Conv] Tween cleanup ({reason}): left null-target tween alone — {DescribeTween(tw)}");
+#endif
+                        continue;
+                    }
 
                     try
                     {
@@ -151,7 +177,57 @@ internal static class ConversationActiveTrackerPatch
         catch { /* DOTween not initialised or scene tearing down — nothing to kill */ }
     }
 
+    /// <summary>
+    /// Set by the gift-page Prefixes when they block a grant, and consumed by
+    /// <see cref="KillConversationTweens"/>. A suppressed grant is what leaves the award shake
+    /// with a null target, so it is the only case where reaping null-target tweens is safe.
+    /// </summary>
+    internal static bool GiftSuppressedThisConversation;
+
+    /// <summary>
+    /// True when <paramref name="tw"/> — or, for a Sequence, any tween nested in it — targets a
+    /// transform under the conversation UI, or a Unity object that has already been destroyed.
+    /// </summary>
+    private static bool AnimatesConversationUi(DG.Tweening.Tween tw, HashSet<System.IntPtr> uiTransforms, int depth)
+    {
+        if (depth > 4) return false;   // Sequences nest shallowly; bound it anyway
+
+        var seq = tw.TryCast<DG.Tweening.Sequence>();
+        if (seq != null)
+        {
+            var children = seq.sequencedTweens;
+            if (children == null) return false;
+            for (int i = 0; i < children.Count; i++)
+            {
+                var child = children[i];
+                if (child != null && AnimatesConversationUi(child, uiTransforms, depth + 1)) return true;
+            }
+            return false;
+        }
+
+        Il2CppSystem.Object? target = null;
+        try { target = tw.target; } catch { return false; }
+        var uo = target?.TryCast<UnityEngine.Object>();
+        if (uo is null) return false;
+
+        // Unity's equality: a destroyed object compares equal to null. Nothing left to animate.
+        if (uo == null) return true;
+
+        var tr = uo.TryCast<UnityEngine.Transform>() ?? uo.TryCast<UnityEngine.Component>()?.transform;
+        return tr != null && uiTransforms.Contains(tr.Pointer);
+    }
+
 #if DEBUG
+    private static string DescribeTween(DG.Tweening.Tween tw)
+    {
+        try
+        {
+            return $"type={tw.GetIl2CppType().Name}  duration={DG.Tweening.TweenExtensions.Duration(tw, false):0.##}s" +
+                   $"  loops={DG.Tweening.TweenExtensions.Loops(tw)}";
+        }
+        catch (System.Exception ex) { return $"<unreadable: {ex.GetType().Name}>"; }
+    }
+
     /// <summary>
     /// Diagnostic: the null-target DOShakePosition warning comes from a tween whose target is
     /// NOT under the conversation UI hierarchy (the kill above finds nothing). Dump every
@@ -293,6 +369,7 @@ internal static class ConversationPageGiftBlueprintPatch
                 $"gadget='{__instance.gadget?.name}'  " +
                 $"conv='{ConversationActiveTrackerPatch.ActiveConversationDebugName}'" +
                 (alwaysAp ? "  [always an AP item]" : ""));
+            ConversationActiveTrackerPatch.GiftSuppressedThisConversation = true;
             return false; // skip ApplyChanges
         }
 
@@ -348,6 +425,7 @@ internal static class ConversationPageGiftGadgetPatch
                 $"[AP-Conv] GiftGadget suppressed (AP will deliver item): " +
                 $"gadget='{__instance.gadget?.name}'  " +
                 $"conv='{ConversationActiveTrackerPatch.ActiveConversationDebugName}'");
+            ConversationActiveTrackerPatch.GiftSuppressedThisConversation = true;
             return false;
         }
 
@@ -387,6 +465,7 @@ internal static class ConversationPageGiftUpgradeComponentPatch
                 $"component='{__instance.upgradeComponent?.name}'  " +
                 $"conv='{ConversationActiveTrackerPatch.ActiveConversationDebugName}'" +
                 (alwaysAp ? "  [always an AP item]" : ""));
+            ConversationActiveTrackerPatch.GiftSuppressedThisConversation = true;
             return false;
         }
 
