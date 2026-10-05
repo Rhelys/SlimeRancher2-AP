@@ -79,11 +79,34 @@ public static class GoalHandler
     private static int                _newbucksGoalAmount     = -1;
     private static CurrencyDefinition? _newbucksDef           = null;
 
+    /// <summary>Attempts made to resolve the Newbucks definition, to bound the Resources scan.</summary>
+    private static int _newbucksLookupAttempts;
+
     /// <summary>
-    /// PersistenceId of the Newbucks CurrencyDefinition, or -1 if not yet cached.
-    /// Used by <c>PlayerStateAddCurrencyPatch</c> to filter for newbucks-only AddCurrency calls.
+    /// PersistenceId of the Newbucks CurrencyDefinition, or -1 if it cannot be resolved.
     /// </summary>
-    internal static int NewbucksPersistenceId => _newbucksDef?.PersistenceId ?? -1;
+    /// <remarks>
+    /// Resolves on demand. It used to read a field that only <c>CheckNewbucksGoal</c> ever
+    /// populated, and that poll returns immediately unless the goal is <c>newbucks</c> — so on
+    /// every other goal this stayed -1 for the whole session and any caller that was not the
+    /// goal silently matched nothing. That cost the Newbucks multiplier its first test run.
+    ///
+    /// The scan is bounded: Resources may not hold the definition yet during early load, so a
+    /// single failed attempt must not be final, but an unbounded retry would scan every asset on
+    /// every currency change.
+    /// </remarks>
+    internal static int NewbucksPersistenceId
+    {
+        get
+        {
+            if (_newbucksDef == null && _newbucksLookupAttempts < 10)
+            {
+                _newbucksLookupAttempts++;
+                TryCacheNewbucksDef();
+            }
+            return _newbucksDef?.PersistenceId ?? -1;
+        }
+    }
 
     // Slimepedia goal: PediaRuntimeCategory names confirmed via DumpPedia().
     // 'Slimes' (29 entries), 'Resources' (54 entries), 'Radiant Slimes' (22 entries).
@@ -494,9 +517,11 @@ public static class GoalHandler
         if (def != null)
         {
             _newbucksDef = def;
+            // Goal target is only meaningful on the newbucks goal; this now resolves for any
+            // seed, so do not imply a target that is not set.
             Logger.Info(
-                $"[AP] Newbucks currency cached: name='{def.name}' PersistenceId={def.PersistenceId}, " +
-                $"goal target={_newbucksGoalAmount:N0}");
+                $"[AP] Newbucks currency cached: name='{def.name}' PersistenceId={def.PersistenceId}" +
+                (_newbucksGoalAmount >= 0 ? $", goal target={_newbucksGoalAmount:N0}" : ""));
         }
     }
 

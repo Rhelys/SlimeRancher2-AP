@@ -205,7 +205,8 @@ public class ArchipelagoClient
                         $"conversation_checks='{SlotData.ConversationChecks}' " +
                         $"weather_freq_mult={SlotData.WeatherFrequencyMultiplier} force_heavy={SlotData.ForceHeavyWeather} " +
                         $"all_radiant={SlotData.AllRadiantSlimes} radiant_mult={SlotData.RadiantSpawnRateMultiplier} " +
-                        $"start_harvester={SlotData.StartWithResourceHarvester}");
+                        $"start_harvester={SlotData.StartWithResourceHarvester} " +
+                        $"newbucks_mult={SlotData.NewbucksMultiplier}%");
 
                     if (SlotData.DeathLink)
                     {

@@ -255,6 +255,16 @@ public class SlotData
     public int ShadowPlortRequirement { get; init; } = 100;
 
     /// <summary>
+    /// Percentage multiplier on Newbucks earned in-game (10-500, 100 = vanilla).
+    /// Slot data key: <c>"newbucks_multiplier"</c>.
+    /// </summary>
+    /// <remarks>
+    /// Applies only to money the game itself pays out. Archipelago Newbucks filler and ranch-plot
+    /// refunds are excluded — see <c>PlayerStateAddCurrencyScalePatch</c>.
+    /// </remarks>
+    public int NewbucksMultiplier { get; init; } = 100;
+
+    /// <summary>
     /// When true, each of the 5 conservatory expansion terminals is a location check.
     /// Interacting and confirming sends the check; the expansion unlocks only when the
     /// corresponding AP item is received (no Newbucks cost in randomized mode).
@@ -354,6 +364,7 @@ public class SlotData
             StartWithResourceHarvester     = GetBool(raw, "start_with_resource_harvester",    defaultVal: false),
             GordoFeedRequirement           = (int)Math.Clamp(GetLong(raw, "gordo_feed_requirement", 100), 10, 200),
             ShadowPlortRequirement         = (int)Math.Clamp(GetLong(raw, "shadow_plort_requirement", 100), 10, 200),
+            NewbucksMultiplier             = (int)Math.Clamp(GetLong(raw, "newbucks_multiplier", 100), 10, 500),
             RandomizeConservatoryExpansions = GetBool(raw, "randomize_conservatory_expansions", defaultVal: false),
             PlortMarketMode                 = GetString(raw, "plort_market_mode", "disabled"),
             ItemNotifications               = GetString(raw, "item_notifications", "progression_useful"),
