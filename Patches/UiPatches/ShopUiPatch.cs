@@ -259,9 +259,14 @@ internal static class ShopItemDescriptionBlurbPatch
 /// <remarks>
 /// The full art is NOT the blurb's <c>_itemIcon</c> — it is loaded asynchronously by this
 /// framework component from the item's <c>FullArtReference</c> addressable and delivered to
-/// the actual renderer via the <c>_onLoaded</c> UnityEvent (confirmed via in-game UI dump:
+/// the actual renderer via the <c>_onSetSprite</c> UnityEvent (confirmed via in-game UI dump:
 /// no scene Image ever holds the art directly). For AP slots we skip the vanilla load
-/// entirely and fire <c>_onLoaded</c> with the logo, mimicking a completed load.
+/// entirely and fire <c>_onSetSprite</c> with the logo, mimicking a completed load.
+///
+/// The event was called <c>_onLoaded</c> until the 2026-09-23 game update renamed it. That
+/// surfaced as a MissingMethodException thrown from this Prefix on an unmodded, disconnected
+/// save — Il2CppInterop resolves the member when the method is JIT-compiled, so the
+/// <c>IsEnabled</c> guard on the first line never got the chance to return.
 /// <c>_iconSource</c> is cleared so a later <c>TryAcquireCurrentHandle</c> (page re-enable)
 /// cannot restart the vanilla art load.
 /// </remarks>
@@ -288,7 +293,7 @@ internal static class ShopFullArtPatch
         try
         {
             __instance._iconSource = null;
-            __instance._onLoaded?.Invoke(logo);
+            __instance._onSetSprite?.Invoke(logo);
         }
         catch (System.Exception ex)
         {
