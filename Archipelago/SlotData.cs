@@ -111,6 +111,9 @@ public class SlotData
     /// </summary>
     public int NewbucksMultiplier { get; init; } = 100;
 
+    /// <summary>Percent of the vanilla vacpack shoot rate (<c>QualityOfLife</c>).</summary>
+    public int VacpackShootRate { get; init; } = 100;
+
     /// <summary>
     /// The five Harmonizer bells are checks and ring only from their items. The apworld already
     /// folds in Labyrinth scope, so this is false for <c>labyrinth_open</c>.
@@ -197,6 +200,7 @@ public class SlotData
             GordoFeedRequirement           = (int)Math.Clamp(GetLong(raw, "gordo_feed_requirement", 100), 10, 200),
             ShadowPlortRequirement         = (int)Math.Clamp(GetLong(raw, "shadow_plort_requirement", 100), 10, 200),
             NewbucksMultiplier             = (int)Math.Clamp(GetLong(raw, "newbucks_multiplier", 100), 10, 500),
+            VacpackShootRate               = (int)Math.Clamp(GetLong(raw, "vacpack_shoot_rate", 100), 50, 200),
             RandomizeHarmonizers           = GetBool(raw, "randomize_harmonizers", defaultVal: false),
             RandomizeConservatoryExpansions = GetBool(raw, "randomize_conservatory_expansions", defaultVal: false),
             PlortMarketMode                 = GetString(raw, "plort_market_mode", "disabled"),

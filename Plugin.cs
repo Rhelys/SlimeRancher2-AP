@@ -19,10 +19,12 @@ public class Plugin : BasePlugin
     public ApSaveManager     SaveManager { get; private set; } = null!;
     public ConnectionUI?     ConnectionUi { get; private set; }
 
-    /// <summary>When false, all AP logic is bypassed (vanilla SR2). Persisted in config.</summary>
+    /// <summary>
+    /// When false, all AP logic is bypassed (vanilla SR2). Read once at startup from config —
+    /// there is no in-game toggle: flipping it inside a save discarded checks while items kept
+    /// arriving.
+    /// </summary>
     public bool ModEnabled { get; private set; }
-
-    private ConfigEntry<bool>? _modEnabledEntry;
 
     public override void Load()
     {
@@ -30,9 +32,8 @@ public class Plugin : BasePlugin
 
         Logger.Info($"{PluginInfo.NAME} v{PluginInfo.VERSION} loading...");
 
-        _modEnabledEntry = Config.Bind("Mod", "Enabled", true,
-            "Set to false to disable all Archipelago logic and play vanilla SR2.");
-        ModEnabled = _modEnabledEntry.Value;
+        ModEnabled = Config.Bind("Mod", "Enabled", true,
+            "Set to false to disable all Archipelago logic and play vanilla SR2. Restart to apply.").Value;
 
         // Frame-cost profiling: seconds between per-Tick reports, 0 = off. The only way to
         // profile a Release build (F9 is Debug-only).
@@ -65,20 +66,6 @@ public class Plugin : BasePlugin
         new Harmony(PluginInfo.GUID).PatchAll(typeof(Plugin).Assembly);
 
         Logger.Info($"All patches applied. Mod is {(ModEnabled ? "ENABLED" : "DISABLED — vanilla mode")}. Awaiting Archipelago connection.");
-    }
-
-    // -------------------------------------------------------------------------
-    // Mod toggle
-    // -------------------------------------------------------------------------
-
-    /// <summary>Sets and persists the mod-enabled flag. Main thread.</summary>
-    public void SetModEnabled(bool value)
-    {
-        ModEnabled = value;
-        if (_modEnabledEntry != null)
-            _modEnabledEntry.Value = value;
-        Config.Save();
-        Logger.Info($"[AP] Mod {(value ? "ENABLED" : "DISABLED — vanilla mode")}");
     }
 }
 

@@ -7,7 +7,10 @@ namespace SlimeRancher2AP.Patches.PlayerPatches;
 /// <summary>
 /// Quality-of-life tweaks applied to every Archipelago game and never to a vanilla one.
 /// </summary>
-/// <remarks>No apworld option. "Archipelago game" = an AP-bound save, connected or not.</remarks>
+/// <remarks>
+/// "Archipelago game" = an AP-bound save, connected or not. The gadget warm-up has no apworld
+/// option; the shoot rate is <c>vacpack_shoot_rate</c>.
+/// </remarks>
 internal static class QualityOfLife
 {
     internal static bool IsActive
@@ -17,8 +20,12 @@ internal static class QualityOfLife
     // Vacpack shoot rate
     // -------------------------------------------------------------------------
 
-    /// <summary>Shots per second relative to vanilla. 2 = twice as fast.</summary>
-    internal const float VacShootRateMultiplier = 2f;
+    /// <summary>
+    /// Shots per second relative to vanilla, from the apworld's <c>vacpack_shoot_rate</c>.
+    /// 2 = twice as fast.
+    /// </summary>
+    internal static float VacShootRateMultiplier
+        => (Plugin.Instance.ApClient.SlotData?.VacpackShootRate ?? 100) / 100f;
 
     // Vanilla cooldown of the vacpack last adjusted, by instance — a rebuilt one is re-captured.
     private static System.IntPtr _vacPtr;

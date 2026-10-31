@@ -2,7 +2,7 @@
 
 namespace SlimeRancher2AP.UI;
 
-/// <summary>IMGUI overlay: connection state, the mod toggle, timed notifications, and a modal.</summary>
+/// <summary>IMGUI overlay: connection state, timed notifications, and a modal.</summary>
 public class StatusHUD : MonoBehaviour
 {
     public StatusHUD(IntPtr handle) : base(handle) { }
@@ -90,18 +90,12 @@ public class StatusHUD : MonoBehaviour
         GUI.color = _statusColor;
         GUI.Label(new Rect(8, 8, 300, 24), _statusText);
 
-        // Mod toggle — vanilla mode without uninstalling
-        bool modOn = Plugin.Instance.ModEnabled;
-        GUI.color = modOn ? new Color(0.4f, 1f, 0.4f) : new Color(1f, 0.4f, 0.4f);
-        if (GUI.Button(new Rect(8, 36, 130, 26), modOn ? "AP: Enabled" : "AP: Disabled"))
-            Plugin.Instance.SetModEnabled(!modOn);
-
-        // Notifications below the toggle. Skip ToArray() when empty — OnGUI runs twice a frame.
+        // Notifications below the status. Skip ToArray() when empty — OnGUI runs twice a frame.
         GUI.color = Color.white;
         var notices = _notifications.Count > 0 ? _notifications.ToArray() : System.Array.Empty<(string message, float expiry)>();
         for (int i = notices.Length - 1; i >= 0; i--)
         {
-            float row      = 70f + (notices.Length - 1 - i) * 26f;
+            float row      = 36f + (notices.Length - 1 - i) * 26f;
             float timeLeft = notices[i].expiry - Time.unscaledTime;
             float alpha    = Mathf.Clamp01(timeLeft);   // fade out in last second
 

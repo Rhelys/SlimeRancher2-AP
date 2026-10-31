@@ -161,7 +161,7 @@ public class ArchipelagoClient
                         $"weather_freq_mult={SlotData.WeatherFrequencyMultiplier} force_heavy={SlotData.ForceHeavyWeather} " +
                         $"all_radiant={SlotData.AllRadiantSlimes} radiant_mult={SlotData.RadiantSpawnRateMultiplier} " +
                         $"start_harvester={SlotData.StartWithResourceHarvester} " +
-                        $"newbucks_mult={SlotData.NewbucksMultiplier}%");
+                        $"newbucks_mult={SlotData.NewbucksMultiplier}% vac_shoot_rate={SlotData.VacpackShootRate}%");
 
                     if (SlotData.DeathLink)
                     {
