@@ -133,6 +133,8 @@ Quick reference only — verify against the apworld before relying on a range.
 | 819875–819879 | Conservatory Expansion terminals (5) |
 | 819896–819920 | Plort Market (25) |
 | 819926–820074, 820081–820096 | Polestar Provisions Shop (165 defined: 84 base + 65 zone-gated + 16 vac palettes added in game update 1.3; per-seed random subset active via `randomize_shop`) |
+| 820097–820101 | Ring Harmonizer bells (5, `randomize_harmonizers`; keyed by world-switch ID) |
+| 820102 | Gigi's Kiosk: Nullifier (whenever the Grey Labyrinth is in scope; keyed by reward `UniqueId`) |
 
 **Item IDs:**
 
@@ -147,6 +149,8 @@ Quick reference only — verify against the apworld before relying on a range.
 | 819558–819560 | Gadgets — Dash Pad, Spring Pad, Portable Water Tap (always in pool) |
 | 819561 | Disruption Detector (×3, prismacore/slimepedia goals) |
 | 819563–819564 | Gadgets — Refinery Link, Portable Fabricator (always in pool, one each; Mochi's vanilla Refinery Link gift is always suppressed) |
+| 819565–819569 | Harmonizer items, one per bell (`randomize_harmonizers`; progression only for the fight goals) |
+| 819570 | Nullifier (whenever the Grey Labyrinth is in scope; grants the `Harmonizer` gadget blueprint) |
 | 819580–819605 | Filler (Newbucks / Plort / Craft Caches) |
 | 819610–819611 | Slime Ring (filler), Weather Change (useful) |
 | 819612–819616 | Traps (Tarr Spawn, Teleport, Tarr Rain, Vac Spew, Vac Fill) |
@@ -354,16 +358,30 @@ seed with no fabricator locations, and the mod will send 38 checks the server do
 
 ---
 
-## Prismacore encounter prerequisites (`prisma_shard_hunt`)
+## Prismacore encounter prerequisites, Harmonizers and the Nullifier
 
-Vanilla gates the Prismacore fight behind two things the hunt goal replaces with shards.
-`PrismacoreFulfiller` **satisfies** them rather than bypassing them — forcing the fight past
-un-rung bells leaves world state vanilla never produces and risks an unwinnable encounter.
+Vanilla gates the Prismacore fight behind two things. The mod **satisfies** them rather than
+bypassing them — forcing the fight past un-rung bells leaves world state vanilla never produces
+and risks an unwinnable encounter.
 
-| Prerequisite | Player-facing | How the mod satisfies it |
+| Prerequisite | Player-facing | Source in an AP game |
 |---|---|---|
-| Nullifier blueprint (20 Prisma Plorts) | "Nullifier" | `GadgetDirector.AddBlueprint` on the **`Harmonizer`** GadgetDefinition |
-| All 5 Harmonizers activated | "Harmonizers" | `SetStateForAll(DOWN, immediate:false)` on every `WorldStateInvisibleSwitch` named `labySwitchBell` |
+| Nullifier blueprint | "Nullifier" | The **Nullifier** AP item (819570), whenever the Grey Labyrinth is in scope — granted via `GadgetDirector.AddBlueprint` on the **`Harmonizer`** GadgetDefinition. Its vanilla source, Gigi's kiosk, is a check (`KioskRewardPatch`). |
+| All 5 Harmonizers rung | "Harmonizers" | `randomize_harmonizers` on: each bell rings from its own item (`HarmonizerHandler`). Off: the player rings them — or, for `prisma_shard_hunt`, `PrismacoreFulfiller` rings all five once the shards are in. |
+
+**Gigi's kiosk** (`Prestige.RewardsKiosk`, `zoneLabyrinthCoreBase`) is a reward track, not a
+shop. Each entry has a stable `EndGameCostRewardEntry.UniqueId`; the Nullifier entry
+(`b480587c…`, 20 Stable Plorts) holds only the Nullifier, so `KioskRewardPatch` skips its
+`DispenseRewards` and sends the check. The other one-time entries (Tank Booster Component 20,
+Drone Station Component 50) and the repeating Rainbow Coin entry pass through. F9 → Dumps 2 →
+"Dump Gigi Rewards Kiosk" lists them all.
+
+**Harmonizer bells** (`randomize_harmonizers`): a hit runs `BellTechActivator` →
+`WorldStateInvisibleSwitch.Activate` → `SetStateForAll(DOWN)`. `HarmonizerBellPatch` blocks
+`Activate`, sends the check and leaves the bell silent. An item rings its bell with
+`SetStateForAll` if loaded, otherwise by writing `GameModel.AllSwitches()[switchId].state`
+(creating the entry with `InitializeSwitchModel` if the bell was never loaded). Bell switch IDs
+are in `LocationTable`.
 
 **Naming is inverted from what the assets suggest** — verify before touching this. The gadget
 asset `Harmonizer` displays as *"Nullifier"* (pedia dump: `entry='Harmonizer' title='Nullifier'`)

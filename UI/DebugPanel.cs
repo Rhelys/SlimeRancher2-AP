@@ -382,12 +382,17 @@ public class DebugPanel : MonoBehaviour
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Grant Prisma Shard"))
             ItemHandler.ApplyById(ItemTable.PrismaShard, -1);
         y += BtnH + Gap;
-        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Grant Nullifier blueprint"))
-            PrismacoreFulfiller.GrantNullifierBlueprint();
-        y += BtnH + Gap;
+        y = ItemBtn(x, y, "Nullifier", ItemTable.Nullifier);
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Ring all loaded Harmonizer bells"))
             PrismacoreFulfiller.RingAllBells();
         y += BtnH + Gap;
+
+        y = SectionLabel(x, y, $"Harmonizers  (randomized: {Archipelago.HarmonizerHandler.IsActive})");
+        y = ItemBtn(x, y, "Harmonizer - Waterworks",  ItemTable.HarmonizerWaterworks);
+        y = ItemBtn(x, y, "Harmonizer - Lava Depths", ItemTable.HarmonizerLavaDepths);
+        y = ItemBtn(x, y, "Harmonizer - Dreamland",   ItemTable.HarmonizerDreamland);
+        y = ItemBtn(x, y, "Harmonizer - Terrarium",   ItemTable.HarmonizerTerrarium);
+        y = ItemBtn(x, y, "Harmonizer - Core Path",   ItemTable.HarmonizerCorePath);
 
         y = SectionLabel(x, y, "Shop Catalog");
         GUI.Label(new Rect(x + 4, y, PanelW - 8, LabelH),
@@ -595,6 +600,9 @@ public class DebugPanel : MonoBehaviour
         y = SectionLabel(x, y, "Palettes");
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Palettes (all vac/ranch styles)"))
             LocationDumper.DumpPalettes();
+        y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Gigi Rewards Kiosk"))
+            LocationDumper.DumpRewardsKiosk();
         y += BtnH + Gap;
 
         y = SectionLabel(x, y, "Spawn Weights");

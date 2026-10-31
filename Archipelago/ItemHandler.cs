@@ -127,6 +127,7 @@ public static class ItemHandler
             case ItemType.UpgradeComponent:      ApplyUpgradeComponent(item, null, itemIndex); break;
             case ItemType.Trap:                  ApplyTrap(item, null, itemIndex);             break; // return ignored — debug path has no requeue
             case ItemType.RanchPlot:             ApplyRanchPlot(item, null, itemIndex);        break;
+            case ItemType.Harmonizer:            HarmonizerHandler.Apply(item, null, itemIndex); break;
 #if DEBUG
             case ItemType.ShopCatalog:
                 // Persisted count, so the debug grant uses the live path.
@@ -242,6 +243,10 @@ public static class ItemHandler
                 break;
             case ItemType.RanchPlot:
                 ApplyRanchPlot(item, apItem, itemIndex); // count-based, always succeeds
+                break;
+            case ItemType.Harmonizer:
+                if (!HarmonizerHandler.Apply(item, apItem, itemIndex))
+                    advanceWatermark = false;
                 break;
             case ItemType.PrismaShard:
                 // Counter only — invalidate so the next gate check recounts.
@@ -1019,6 +1024,10 @@ public static class ItemHandler
         // suppressed — see ConversationActiveTrackerPatch.AlwaysApGiftAssets.
         [ItemTable.RefineryLink]       = "RefineryLink",
         [ItemTable.PortableFabricator] = "PortableFabricator",
+
+        // The Nullifier — its gadget asset is named "Harmonizer" (see CLAUDE.md). Its vanilla
+        // source, Gigi's kiosk, is a check whenever this item is in the pool (KioskRewardPatch).
+        [ItemTable.Nullifier] = "Harmonizer",
 
         // ×3 for prismacore/slimepedia goals; duplicates hit GrantSingleGadget's guard.
         [ItemTable.DisruptionDetector] = "PrismaDisruptionDetector",

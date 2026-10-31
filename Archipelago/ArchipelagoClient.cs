@@ -295,6 +295,7 @@ public class ArchipelagoClient
         RanchPlotHandler.Reset();
         PrismaShardHandler.Reset();
         ShopCatalogHandler.Reset();
+        HarmonizerHandler.Reset();
         Patches.UiPatches.ShopCatalogNotice.Reset();
         PrismacoreFulfiller.Reset();
         GoalHandler.Reset();   // persisted goal state lives in the save manager, reset below

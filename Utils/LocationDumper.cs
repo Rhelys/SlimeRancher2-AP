@@ -2647,6 +2647,7 @@ public static class LocationDumper
                     string id    = kv.Key ?? "(null)";
                     string state = "(null model)";
                     string obj   = "(not loaded)";
+                    string scene = "";
                     try
                     {
                         var model = kv.Value;
@@ -2654,12 +2655,19 @@ public static class LocationDumper
                         {
                             state = model.state.ToString();
                             var go = model.GetGameObject();
-                            if (go != null) obj = go.name;
+                            if (go != null)
+                            {
+                                obj = go.name;
+                                // The LOADED list above only covers WorldStatePrimarySwitch, so
+                                // this is the only place the Harmonizer bells (and other
+                                // WorldStateInvisibleSwitch puzzles) show which scene they are in.
+                                if (go.scene.IsValid()) scene = $"  scene='{go.scene.name}'";
+                            }
                         }
                     }
                     catch { /* entry unreadable — still worth listing its key */ }
 
-                    log.LogInfo($"[AP-Dump]   id='{id}'  state={state}  obj='{obj}'");
+                    log.LogInfo($"[AP-Dump]   id='{id}'  state={state}  obj='{obj}'{scene}");
                 }
             }
         }
@@ -2832,6 +2840,80 @@ public static class LocationDumper
         catch (Exception ex)
         {
             return $"(error: {ex.Message})";
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Gigi's rewards kiosk
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Every reward entry on the loaded rewards kiosk(s): the stable <c>UniqueId</c> that
+    /// <c>KioskRewardPatch</c> keys on, its cost, its rewards, and whether this save has claimed it.
+    /// Run near Gigi's kiosk (<c>zoneLabyrinthCoreBase</c>).
+    /// </summary>
+    public static void DumpRewardsKiosk()
+    {
+        var log = Plugin.Instance.Log;
+        log.LogInfo("[AP-Dump] ========== GIGI REWARDS KIOSK ==========");
+        int kiosks = 0;
+        foreach (var k in Resources.FindObjectsOfTypeAll<Il2CppMonomiPark.SlimeRancher.Prestige.RewardsKiosk>())
+        {
+            if (k == null || !k.gameObject.scene.IsValid()) continue;   // skip prefabs
+            kiosks++;
+            log.LogInfo($"[AP-Dump] Kiosk '{k.gameObject.name}'  scene='{k.gameObject.scene.name}'");
+            DumpKioskTrack("unique", k._uniqueRewards, k);
+            DumpKioskTrack("repeat", k._repeatRewards, k);
+        }
+        if (kiosks == 0) log.LogInfo("[AP-Dump] No kiosk loaded — run this near Gigi's kiosk.");
+        log.LogInfo("[AP-Dump] =======================================");
+    }
+
+    private static void DumpKioskTrack(string label,
+        Il2CppMonomiPark.SlimeRancher.Prestige.EndGameRewardsDefinition? def,
+        Il2CppMonomiPark.SlimeRancher.Prestige.RewardsKiosk kiosk)
+    {
+        var log = Plugin.Instance.Log;
+        if (def == null) { log.LogInfo($"[AP-Dump]   {label}: (none)"); return; }
+
+        var entries = def.CostsAndRewards;
+        int n = entries == null ? 0
+            : entries.Cast<Il2CppSystem.Collections.Generic.IReadOnlyCollection<
+                  Il2CppMonomiPark.SlimeRancher.Prestige.EndGameCostRewardEntry>>().Count;
+        log.LogInfo($"[AP-Dump]   {label} track '{def.name}': {n} entr(ies), repeats={def.RepeatsTrackAtEnd}");
+
+        var giver = kiosk.TryCast<Il2CppMonomiPark.SlimeRancher.Prestige.IRewardGiver>();
+        for (int i = 0; i < n; i++)
+        {
+            var e = entries![i];
+            if (e is null) continue;   // the game types overload ==/!=, which throw on null
+
+            var costs = new List<string>();
+            if (e.Costs != null)
+                foreach (var c in e.Costs)
+                    if (c is not null) costs.Add($"{c.Amount}x {c.IdentType?.name}");
+
+            string given = "?";
+            try { if (giver != null) given = giver.HasBeenGivenReward(e.UniqueId).ToString(); } catch { }
+
+            string kioskLoc = LocationTable.TryGetKioskReward(e.UniqueId, out var loc) && loc != null
+                ? $"  → AP location {loc.Id}" : "";
+            log.LogInfo($"[AP-Dump]     [{i}] id='{e.UniqueId}'  given={given}  costs=[{string.Join(", ", costs)}]{kioskLoc}");
+
+            if (e.Rewards == null) continue;
+            foreach (var r in e.Rewards)
+            {
+                if (r is null) continue;
+                string guid = "?", name = "?";
+                try { guid = r.Item?.AssetGuid ?? "null"; } catch { }
+                try
+                {
+                    if (r.Item?.UnderlyingLoadedAsset == null) r.Item?.LoadAssetBlocking();   // one-off debug load
+                    name = r.Item?.UnderlyingLoadedAsset?.name ?? "?";
+                }
+                catch (System.Exception ex) { name = $"<load failed: {ex.GetType().Name}>"; }
+                log.LogInfo($"[AP-Dump]         reward: '{name}'  x{r.Count}  gadgetType={r.GadgetType}  guid={guid}");
+            }
         }
     }
 }

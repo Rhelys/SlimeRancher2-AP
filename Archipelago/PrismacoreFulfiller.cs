@@ -1,20 +1,21 @@
-using System.Linq;
 using Il2CppMonomiPark.SlimeRancher.World;
 using UnityEngine;
 
 namespace SlimeRancher2AP.Archipelago;
 
 /// <summary>
-/// For <c>prisma_shard_hunt</c>: once the shards are in, satisfies the vanilla Prismacore
-/// prerequisites (Nullifier blueprint, all Harmonizer bells rung) rather than bypassing them,
-/// which risks an unwinnable fight. Beware the names: the gadget asset "Harmonizer" is the
-/// in-game Nullifier, while the in-game Harmonizers are the <c>labySwitchBell</c> switches.
+/// For <c>prisma_shard_hunt</c> without <c>randomize_harmonizers</c>: once the shards are in,
+/// rings all five Harmonizer bells — the vanilla prerequisite the shards replace — rather than
+/// bypassing it, which risks an unwinnable fight. Beware the names: the gadget asset "Harmonizer"
+/// is the in-game Nullifier, while the in-game Harmonizers are the <c>labySwitchBell</c> switches.
 /// </summary>
+/// <remarks>
+/// The Nullifier is no longer granted here: it is an AP item whenever the Labyrinth is in scope.
+/// With <c>randomize_harmonizers</c> on, the bells ring from their items instead
+/// (<see cref="HarmonizerHandler"/>), so this does nothing.
+/// </remarks>
 public static class PrismacoreFulfiller
 {
-    /// <summary>Asset name of the Nullifier gadget — displays as "Nullifier" in-game.</summary>
-    private const string NullifierGadgetName = "Harmonizer";
-
     /// <summary>Substring identifying a Harmonizer bell switch.</summary>
     private const string BellSwitchName = "labySwitchBell";
 
@@ -30,17 +31,15 @@ public static class PrismacoreFulfiller
     private const int IdlePassesBeforeDormant = 3;
 
     private static float _nextPoll;
-    private static bool  _blueprintGranted;
     private static int   _idlePasses;
     private static bool  _dormant;
 
     /// <summary>Clears all state. Called on disconnect.</summary>
     public static void Reset()
     {
-        _nextPoll         = 0f;
-        _blueprintGranted = false;
-        _idlePasses       = 0;
-        _dormant          = false;
+        _nextPoll   = 0f;
+        _idlePasses = 0;
+        _dormant    = false;
     }
 
     /// <summary>
@@ -63,21 +62,14 @@ public static class PrismacoreFulfiller
         if (!Plugin.Instance.ModEnabled) return;
         if (!PrismaShardHandler.IsHuntGoal) return;
         if (!PrismaShardHandler.IsEncounterUnlocked) return;   // shards not complete yet
+        if (Plugin.Instance.ApClient.SlotData?.RandomizeHarmonizers ?? false) return;   // items ring them
 
         if (_dormant) return;
 
         float now = Time.unscaledTime;
         if (now < _nextPoll) return;
 
-        bool didWork = false;
-
-        if (!_blueprintGranted && GrantNullifierBlueprint())
-        {
-            _blueprintGranted = true;
-            didWork = true;
-        }
-
-        if (RingAllBells() > 0) didWork = true;
+        bool didWork = RingAllBells() > 0;
 
         if (didWork)
         {
@@ -91,40 +83,6 @@ public static class PrismacoreFulfiller
         }
 
         _nextPoll = now + (didWork ? ActiveSeconds : IdleSeconds);
-    }
-
-    /// <summary>Grants the Nullifier blueprint (vanilla: 20 Prisma Plorts).</summary>
-    public static bool GrantNullifierBlueprint()
-    {
-        try
-        {
-            var director = SceneContext.Instance?.GadgetDirector;
-            if (director == null)
-            {
-                // Normal while loading.
-#if DEBUG
-                Utils.DebugTrace.Once("[AP-Prismacore] GadgetDirector not ready yet — will retry");
-#endif
-                return false;
-            }
-
-            var def = Resources.FindObjectsOfTypeAll<GadgetDefinition>()
-                               .FirstOrDefault(g => g != null && g.name == NullifierGadgetName);
-            if (def == null)
-            {
-                Logger.Warning($"[AP-Prismacore] GadgetDefinition '{NullifierGadgetName}' not found");
-                return false;
-            }
-
-            director.AddBlueprint(def, false);
-            Logger.Info("[AP-Prismacore] Nullifier blueprint granted");
-            return true;
-        }
-        catch (System.Exception ex)
-        {
-            Logger.Warning($"[AP-Prismacore] GrantNullifierBlueprint failed: {ex.Message}");
-            return false;
-        }
     }
 
     /// <summary>Rings every loaded Harmonizer bell; returns the number rung.</summary>
@@ -171,7 +129,8 @@ public static class PrismacoreFulfiller
             Logger.Warning($"[AP-Prismacore] RingAllBells failed: {ex.Message}");
         }
 
-        Logger.Info($"[AP-Prismacore] Harmonizer bells: rang {rung}, {alreadyDown} already down");
+        if (rung > 0)
+            Logger.Info($"[AP-Prismacore] Harmonizer bells: rang {rung}, {alreadyDown} already down");
         return rung;
     }
 }

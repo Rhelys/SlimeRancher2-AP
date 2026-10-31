@@ -111,6 +111,18 @@ public class SlotData
     /// </summary>
     public int NewbucksMultiplier { get; init; } = 100;
 
+    /// <summary>
+    /// The five Harmonizer bells are checks and ring only from their items. The apworld already
+    /// folds in Labyrinth scope, so this is false for <c>labyrinth_open</c>.
+    /// </summary>
+    public bool RandomizeHarmonizers { get; init; }
+
+    /// <summary>
+    /// The goal sends the player into the Grey Labyrinth. When true the Nullifier is an AP item
+    /// and Gigi's kiosk Nullifier is a check — mirrors the apworld's <c>_gl_included</c>.
+    /// </summary>
+    public bool GreyLabyrinthInScope => Goal != "labyrinth_open";
+
     /// <summary>Terminals are checks; each expansion opens on its item, at no Newbucks cost.</summary>
     public bool RandomizeConservatoryExpansions { get; init; } = false;
 
@@ -185,6 +197,7 @@ public class SlotData
             GordoFeedRequirement           = (int)Math.Clamp(GetLong(raw, "gordo_feed_requirement", 100), 10, 200),
             ShadowPlortRequirement         = (int)Math.Clamp(GetLong(raw, "shadow_plort_requirement", 100), 10, 200),
             NewbucksMultiplier             = (int)Math.Clamp(GetLong(raw, "newbucks_multiplier", 100), 10, 500),
+            RandomizeHarmonizers           = GetBool(raw, "randomize_harmonizers", defaultVal: false),
             RandomizeConservatoryExpansions = GetBool(raw, "randomize_conservatory_expansions", defaultVal: false),
             PlortMarketMode                 = GetString(raw, "plort_market_mode", "disabled"),
             ItemNotifications               = GetString(raw, "item_notifications", "progression_useful"),

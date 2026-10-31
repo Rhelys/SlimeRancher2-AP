@@ -900,4 +900,13 @@ public static class LocationConstants
     public const long PolestarShop_VacPalette_Punk = 820094;
     public const long PolestarShop_VacPalette_LilacDaze = 820095;
     public const long PolestarShop_VacPalette_Dreamland = 820096;
+
+    // Harmonizer bells (randomize_harmonizers, 820097–820101) and Gigi's kiosk Nullifier
+    // (820102). Their switch IDs and the kiosk reward ID are in LocationTable.
+    public const long Harmonizer_Waterworks = 820097;
+    public const long Harmonizer_LavaDepths = 820098;
+    public const long Harmonizer_Dreamland  = 820099;
+    public const long Harmonizer_Terrarium  = 820100;
+    public const long Harmonizer_CorePath   = 820101;
+    public const long Kiosk_Nullifier       = 820102;
 }

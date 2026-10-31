@@ -1,6 +1,6 @@
 ﻿namespace SlimeRancher2AP.Data;
 
-public enum ItemType { RegionAccess, Upgrade, Gadget, Filler, Useful, UpgradeComponent, Trap, ConservatoryExpansion, RanchPlot, PrismaShard, ShopCatalog, Palette }
+public enum ItemType { RegionAccess, Upgrade, Gadget, Filler, Useful, UpgradeComponent, Trap, ConservatoryExpansion, RanchPlot, PrismaShard, ShopCatalog, Palette, Harmonizer }
 
 /// <summary>Describes a single Archipelago item this game can send or receive.</summary>
 public record ItemInfo(long Id, string Name, ItemType Type);
@@ -95,6 +95,18 @@ public static class ItemTable
     // Utility gadgets — always in the pool, one each. (819562 is the Shop Catalog, below.)
     public const long RefineryLink       = 819563; // RefineryLink
     public const long PortableFabricator = 819564; // PortableFabricator (new in 1.3)
+
+    // Harmonizers — one per Grey Labyrinth bell (randomize_harmonizers). HarmonizerHandler rings
+    // the bell; LocationTable maps each to its world-switch ID.
+    public const long HarmonizerWaterworks = 819565;
+    public const long HarmonizerLavaDepths = 819566;
+    public const long HarmonizerDreamland  = 819567;
+    public const long HarmonizerTerrarium  = 819568;
+    public const long HarmonizerCorePath   = 819569;
+
+    // Nullifier — the gadget asset named "Harmonizer". An AP item whenever the Labyrinth is in
+    // scope; its vanilla source, Gigi's kiosk, becomes a check.
+    public const long Nullifier = 819570;
 
     // Filler — Newbucks: 819580–819582
     public const long Newbucks250  = 819580;
@@ -302,6 +314,14 @@ public static class ItemTable
         // Gadgets — Utility
         new(RefineryLink,       "Refinery Link",        ItemType.Gadget),
         new(PortableFabricator, "Portable Fabricator",  ItemType.Gadget),
+
+        // Grey Labyrinth: the Nullifier blueprint, and one item per Harmonizer bell
+        new(Nullifier,            "Nullifier",                ItemType.Gadget),
+        new(HarmonizerWaterworks, "Harmonizer - Waterworks",  ItemType.Harmonizer),
+        new(HarmonizerLavaDepths, "Harmonizer - Lava Depths", ItemType.Harmonizer),
+        new(HarmonizerDreamland,  "Harmonizer - Dreamland",   ItemType.Harmonizer),
+        new(HarmonizerTerrarium,  "Harmonizer - Terrarium",   ItemType.Harmonizer),
+        new(HarmonizerCorePath,   "Harmonizer - Core Path",   ItemType.Harmonizer),
 
         // Conservatory Expansions
         new(ExpansionGully,     "The Gully Access",     ItemType.ConservatoryExpansion),

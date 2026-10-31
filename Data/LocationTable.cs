@@ -69,6 +69,19 @@ public enum LocationType
     /// <c>PlortDoorPoller</c>; the rows exist only for scouting and <see cref="LocationTable.GetById"/>.
     /// </summary>
     RegionGate,
+
+    /// <summary>
+    /// A Grey Labyrinth Harmonizer bell (<c>randomize_harmonizers</c>), checked by trying to ring
+    /// it. Lookup key: the bell's world-switch ID (<c>WorldSwitchDefinition.ID</c>).
+    /// <c>EntryName</c> is the ID of the Harmonizer item that rings it.
+    /// </summary>
+    Harmonizer,
+
+    /// <summary>
+    /// A reward on Gigi's kiosk (<c>RewardsKiosk</c>). Lookup key: the reward entry's
+    /// <c>EndGameCostRewardEntry.UniqueId</c>.
+    /// </summary>
+    KioskReward,
 }
 
 /// <summary>Which conversations are checks (slot data <c>"conversation_checks"</c>).</summary>
@@ -1017,6 +1030,23 @@ public static class LocationTable
         new(LocationConstants.PolestarShop_VacPalette_Punk, "Polestar Provisions: Punk Vac Style", LocationType.PolestarShop, "", "33158edebaa3e90498e12dcb3f87ecc3", "VacPalette_Punk"),  // 1000nb
         new(LocationConstants.PolestarShop_VacPalette_LilacDaze, "Polestar Provisions: Lilac Daze Vac Style", LocationType.PolestarShop, "", "e45502f7cd655854f9a15e1dcb74581e", "VacPalette_LilacDaze"),  // 1000nb
         new(LocationConstants.PolestarShop_VacPalette_Dreamland, "Polestar Provisions: Dreamland Vac Style", LocationType.PolestarShop, "", "223b2eb72a61dd64a8db8e95e95a44b7", "VacPalette_Dreamland"),  // 2000nb
+
+        // -------------------------------------------------------------------------
+        // HARMONIZER BELLS: 820097-820101 (randomize_harmonizers)
+        // Key = world-switch ID of each labySwitchBell, from "Dump World Switches" (2026-10-31).
+        // EntryName = the ID of the Harmonizer item that rings it.
+        // -------------------------------------------------------------------------
+        new(LocationConstants.Harmonizer_Waterworks, "Ring Harmonizer - Waterworks",  LocationType.Harmonizer, "zoneLabStrandEntrance",              "switch1844039672", "819565"),
+        new(LocationConstants.Harmonizer_LavaDepths, "Ring Harmonizer - Lava Depths", LocationType.Harmonizer, "zoneLabValleyEntrance_B",            "switch0920266440", "819566"),
+        new(LocationConstants.Harmonizer_Dreamland,  "Ring Harmonizer - Dreamland",   LocationType.Harmonizer, "zoneLabyrinthDreamland_C",           "switch1871767908", "819567"),
+        new(LocationConstants.Harmonizer_Terrarium,  "Ring Harmonizer - Terrarium",   LocationType.Harmonizer, "zoneLabyrinthTerrarium_FoyerGazebo", "switch1347880955", "819568"),
+        new(LocationConstants.Harmonizer_CorePath,   "Ring Harmonizer - Core Path",   LocationType.Harmonizer, "zoneLabyrinthCorePath",              "switch0520631811", "819569"),
+
+        // -------------------------------------------------------------------------
+        // GIGI'S KIOSK: 820102. Key = the Nullifier reward's EndGameCostRewardEntry.UniqueId
+        // (HighTierEndGameRewards entry 0, 20 Stable Plorts — kiosk dump, 2026-10-31).
+        // -------------------------------------------------------------------------
+        new(LocationConstants.Kiosk_Nullifier, "Gigi's Kiosk: Nullifier", LocationType.KioskReward, "zoneLabyrinthCoreBase", "b480587c8ecd493ebc16e58a42772906", "Harmonizer"),
     };
 
     // -------------------------------------------------------------------------
@@ -1040,7 +1070,9 @@ public static class LocationTable
                       && l.Type != LocationType.ConversationKeyGift
                       && l.Type != LocationType.ConversationDecoGift
                       && l.Type != LocationType.ConversationNonGift
-                      && l.Type != LocationType.RegionGate)              // detected via RegionTable/PlortDoorPoller; PB posKey duplicates PlortDoor_EmberValley_4
+                      && l.Type != LocationType.RegionGate               // detected via RegionTable/PlortDoorPoller; PB posKey duplicates PlortDoor_EmberValley_4
+                      && l.Type != LocationType.Harmonizer               // keyed by switch ID via _byHarmonizerSwitchId
+                      && l.Type != LocationType.KioskReward)             // keyed by reward ID via _byKioskRewardId
              .ToDictionary(l => l.GameObjectName);
 
     /// <summary>Keyed by plort <c>IdentifiableType.name</c>.</summary>
@@ -1073,6 +1105,16 @@ public static class LocationTable
                        || l.Type == LocationType.SlimepediaRadiantEntry)   // EntryName = RadiantXxx asset name
                       && l.EntryName != null)
              .ToDictionary(l => l.EntryName!);
+
+    /// <summary>Harmonizer bells, keyed by world-switch ID.</summary>
+    private static readonly Dictionary<string, LocationInfo> _byHarmonizerSwitchId
+        = All.Where(l => l.Type == LocationType.Harmonizer)
+             .ToDictionary(l => l.GameObjectName);
+
+    /// <summary>Gigi's kiosk rewards, keyed by <c>EndGameCostRewardEntry.UniqueId</c>.</summary>
+    private static readonly Dictionary<string, LocationInfo> _byKioskRewardId
+        = All.Where(l => l.Type == LocationType.KioskReward)
+             .ToDictionary(l => l.GameObjectName);
 
     /// <summary>Keyed by numeric location ID.</summary>
     private static readonly Dictionary<long, LocationInfo> _byId
@@ -1124,6 +1166,18 @@ public static class LocationTable
         => All.Where(l => l.Type == LocationType.FabricatorCraft && l.EntryName == upgradeName)
               .OrderBy(l => l.Id)
               .ToList();
+
+    /// <summary>Look up a Harmonizer bell location by its world-switch ID.</summary>
+    public static bool TryGetHarmonizerBySwitchId(string switchId, out LocationInfo? info)
+        => _byHarmonizerSwitchId.TryGetValue(switchId, out info);
+
+    /// <summary>All Harmonizer bell locations, in ID order.</summary>
+    public static IReadOnlyList<LocationInfo> Harmonizers { get; }
+        = All.Where(l => l.Type == LocationType.Harmonizer).OrderBy(l => l.Id).ToList();
+
+    /// <summary>Look up a Gigi's kiosk reward location by its reward entry ID.</summary>
+    public static bool TryGetKioskReward(string rewardId, out LocationInfo? info)
+        => _byKioskRewardId.TryGetValue(rewardId, out info);
 
     /// <summary>Look up a conversation location by debug name.</summary>
     public static bool TryGetByConversation(string debugName, out LocationInfo? info)
