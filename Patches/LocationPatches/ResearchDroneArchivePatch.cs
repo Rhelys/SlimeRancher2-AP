@@ -8,7 +8,8 @@ namespace SlimeRancher2AP.Patches.LocationPatches;
 /// <summary>
 /// Opening a drone's archive page (needs the Drone Archive Key) sends its check, keyed by
 /// <c>mainEntry.archivedEntry.name</c>. Hooks <c>ToggleArchive</c> and checks
-/// <c>isInArchive</c> after — <c>ShowArchiveEntry</c> is only called natively.
+/// <c>isInArchive</c> after — <c>ShowArchiveEntry</c> is only called natively. Any toggle also
+/// sends the drone's own check, keyed by <c>mainEntry.name</c>.
 /// </summary>
 [HarmonyPatch(typeof(ResearchDroneUI), "ToggleArchive")]
 internal static class ResearchDroneArchivePatch
@@ -25,13 +26,24 @@ internal static class ResearchDroneArchivePatch
             $"[AP-Drone] ToggleArchive: isInArchive={__instance.isInArchive}" +
             $"  main='{mainName}'  archive='{archiveName}'");
 
-        if (!__instance.isInArchive) return;
-
         if (!Plugin.Instance.ModEnabled || !Plugin.Instance.SaveManager.IsSaveBound)
             return;
 
         if (Plugin.Instance.ApClient?.SlotData?.RandomizeResearchDrones != true)
             return;
+
+        // The archive is only reachable from the drone's own page, so this drone has been
+        // read. Sending its check here backs up the poll in ResearchDronePatch, which a quick
+        // switch to the archive was reported to slip past.
+        if (mainEntry != null
+            && LocationTable.TryGetByEntryName(mainName, out var mainInfo) && mainInfo is not null
+            && !Plugin.Instance.SaveManager.IsChecked(mainInfo.Id))
+        {
+            Logger.Info($"[AP] Research Drone check via archive toggle: '{mainInfo.Name}' (id={mainInfo.Id})");
+            Plugin.Instance.ApClient?.SendCheck(mainInfo.Id);
+        }
+
+        if (!__instance.isInArchive) return;
 
         if (archiveEntry == null)
             return; // This drone has no archive content — nothing to check.
