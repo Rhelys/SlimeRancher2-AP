@@ -1,55 +1,24 @@
 namespace SlimeRancher2AP.Data;
 
 /// <summary>
-/// Numeric location IDs. These MUST match the IDs defined in the companion Python apworld.
-/// Base offset: 819000
-///
-/// RANGE ALLOCATIONS (authoritative source: Archipelago-SR2\worlds\slime_rancher_2\locations.py):
-///   819000â€”819131  Treasure Pods (113 total; 819132â€”819199 spare â€” no GL pods) â€” 200 slots
-///   819200â€“819249  Shadow Plort Doors (Grey Labyrinth)          â€”  50 slots
-///   819250â€“819299  Gordo Slimes (wild/static)                   â€”  50 slots
-///   819300â€“819349  Map Data Nodes                               â€”  50 slots
-///   819350â€“819399  Slimepedia Entries                           â€”  50 slots
-///   819400â€“819449  Fabricator â€” Vacpack Upgrade crafts          â€”  50 slots
-///   819450â€“819479  Research Drones                              â€”  30 slots
-///   819480â€“819494  Ghostly Drones                               â€”  15 slots
-///   819495â€”819499  Reserved                                     â€”   5 slots
-///   819630â€”819683  Slimepedia Resources                         â€”  54 slots
-///   819700â€”819714  Conversation Key Gifts (functional items)    â€”  15 slots
-///   819821–819842  Radiant Slimepedia Entries (22 entries, confirmed via DumpRadiantSlimes)
-///   819843–819845  Region Gate Switches (3 entries, locations/bundled mode only)
-///   819715â€”819762  Conversation Decoration Gifts                â€”  48 slots
-///   819763â€”819816  Conversation Non-Gift (story/lore/deflect)   â€”  54 slots
-///
-/// Zone scene name â†’ in-game name mapping (confirmed via AP-Dump):
-///   zoneConservatory(_*) â†’ Conservatory (home base, always accessible)
-///   zoneFields(_Area*)   â†’ Rainbow Fields
-///   zoneGorge(_Area*)    â†’ Ember Valley
-///   zoneStrand(_Area*)   â†’ Starlight Strand
-///   zoneBluffs(_Area*)   â†’ Powderfall Bluffs
-///   zoneLabyrinth(_*)    â†’ Grey Labyrinth  (TBD â€” not yet dumped)
+/// Numeric location IDs. These MUST match the apworld's locations.py, which is authoritative.
+/// Scene prefixes: zoneFields = Rainbow Fields,
+/// zoneGorge = Ember Valley, zoneStrand = Starlight Strand, zoneBluffs = Powderfall Bluffs.
 /// </summary>
 public static class LocationConstants
 {
     // =========================================================================
-    // TREASURE PODS: 819000 â€” 819131  (113 total — no GL pods exist)
-    // posKey format: “sceneName_X_Y_Z” (world position rounded to nearest int).
-    //
-    //   819000â€”819019  Conservatory      ( 3 used of 20)
-    //   819020â€”819037  Rainbow Fields    (18 used of 18)
-    //   819038â€”819073  Ember Valley      (36 used of 36)
-    //   819074â€”819106  Starlight Strand  (33 used of 33)
-    //   819107â€”819131  Powderfall Bluffs (25 used of 25)
-    //   819132â€”819199  spare (no GL pods)
+    // TREASURE PODS: 819000–819131 (113; the Grey Labyrinth has none; 819132–819199 spare)
+    // posKey = "sceneName_X_Y_Z", world position rounded to the nearest int.
     // =========================================================================
 
-    // Conservatory â€” 3 pods confirmed âœ…
+    // Conservatory — 3 pods confirmed ✅
     public const long TreasurePod_Conservatory_01  = 819000;  // zoneConservatory_Arboretum_511_61_502   Flag Meat
     public const long TreasurePod_Conservatory_02  = 819001;  // zoneConservatory_Den_686_2_50           Flag Veggie
     public const long TreasurePod_Conservatory_03  = 819002;  // zoneConservatory_Garden_836_23_289      Flag Fruit
-    // 819003â€“819019 spare
+    // 819003–819019 spare
 
-    // Rainbow Fields (zoneFields) â€” 18 pods confirmed âœ…
+    // Rainbow Fields (zoneFields) — 18 pods confirmed ✅
     public const long TreasurePod_RainbowFields_01  = 819020;  // zoneFields_315_-1_345           Tank Guard Component
     public const long TreasurePod_RainbowFields_02  = 819021;  // zoneFields_343_-3_323           Coastal Rock
     public const long TreasurePod_RainbowFields_03  = 819022;  // zoneFields_Area1_213_48_279     Slimestage
@@ -69,7 +38,7 @@ public static class LocationConstants
     public const long TreasurePod_RainbowFields_17  = 819036;  // zoneFields_Area3_-9_-2_409      Emerald Cypress Cluster
     public const long TreasurePod_RainbowFields_18  = 819037;  // zoneFields_Area4_275_32_627     Boombox
 
-    // Ember Valley (zoneGorge) â€” 36 pods confirmed âœ…
+    // Ember Valley (zoneGorge) — 36 pods confirmed ✅
     public const long TreasurePod_EmberValley_01    = 819038;  // zoneGorge_Area1_-440_37_485     Dash Pad
     public const long TreasurePod_EmberValley_02    = 819039;  // zoneGorge_Area1_-272_22_502     Stony Egg Lamp Statue
     // 819040 removed — not a valid check location
@@ -107,7 +76,7 @@ public static class LocationConstants
     public const long TreasurePod_EmberValley_35    = 819072;  // zoneGorge_Area5_-810_-3_383     Golden Dervish Statue
     public const long TreasurePod_EmberValley_36    = 819073;  // zoneGorge_Area5_-802_7_196      Carousel
 
-    // Starlight Strand (zoneStrand) â€” 33 pods confirmed âœ…
+    // Starlight Strand (zoneStrand) — 33 pods confirmed ✅
     public const long TreasurePod_StarlightStrand_01  = 819074;  // zoneStrand_115_2_-256            Tank Booster Component
     public const long TreasurePod_StarlightStrand_02  = 819075;  // zoneStrand_92_5_-63              Coastal Rock Pillar
     public const long TreasurePod_StarlightStrand_03  = 819076;  // zoneStrand_-152_-3_-46           Lantern Beach
@@ -142,7 +111,7 @@ public static class LocationConstants
     public const long TreasurePod_StarlightStrand_32  = 819105;  // zoneStrand_Area5_348_33_-337     Area 5 B
     public const long TreasurePod_StarlightStrand_33  = 819106;  // zoneStrand_Area5_-138_24_-236    Area 5 C
 
-    // Powderfall Bluffs (zoneBluffs) â€” 25 pods confirmed âœ…
+    // Powderfall Bluffs (zoneBluffs) — 25 pods confirmed ✅
     public const long TreasurePod_PowderfallBluffs_01  = 819107;  // zoneBluffs_Area1_-711_-5_1278    Glacial Crystal
     public const long TreasurePod_PowderfallBluffs_02  = 819108;  // zoneBluffs_Area1_-881_20_1449    Ice Lamp
     public const long TreasurePod_PowderfallBluffs_03  = 819109;  // zoneBluffs_Area1_-837_69_1492    Power Core
@@ -170,12 +139,8 @@ public static class LocationConstants
     public const long TreasurePod_PowderfallBluffs_25  = 819131;  // zoneBluffs_Area4_-1077_8_1761    Aurora Flowers
 
     // =========================================================================
-    // SHADOW PLORT DOORS: 819200 â€“ 819249  (Grey Labyrinth only)
-    // Only active in the location pool for Goals 3 and 4 (Enter/Stabilize Prismacore).
-    // posKeys must be confirmed by running dump in Grey Labyrinth.
+    // SHADOW PLORT DOORS: 819200–819249 (Grey Labyrinth) — keyed by posKey
     // =========================================================================
-    // All 25 doors confirmed âœ…. All share gameObject.name='TriggerActivate' â€”
-    // PlortDepositorPatch uses WorldUtils.PositionKey() for lookup.
     public const long ShadowPlortDoor_01 = 819200;  // zoneLabStrandEntrance_918_56_-1238
     public const long ShadowPlortDoor_02 = 819201;  // zoneLabStrandEntrance_1160_51_-1357
     public const long ShadowPlortDoor_03 = 819202;  // zoneLabStrandEntranceMain_B_1195_38_-1410
@@ -203,14 +168,10 @@ public static class LocationConstants
     public const long ShadowPlortDoor_25 = 819224;  // zoneLabyrinthTerrarium_JungleGlacier_2079_185_-975
 
     // =========================================================================
-    // GORDO SLIMES: 819250 â€“ 819299  (wild/static only â€” no Gordo Snare gordos)
-    // 16 total confirmed across all regions. GordoPatch filters scene='' gordos.
-    //
-    // Note: gordoAngler and gordoFlutter static world instances have Unity " (1)"
-    // suffix (snare templates have the base name); see LocationTable.
+    // GORDO SLIMES: 819250–819299 (world gordos only, not snares)
     // =========================================================================
     public const long Gordo_Pink      = 819250;  // zoneFields_Area3
-    // 819251 intentionally unused (was Gordo_Pink_02 â€” only one static Pink Gordo exists)
+    // 819251 unused — only one world Pink Gordo exists
     public const long Gordo_Cotton    = 819252;  // zoneFields_Area1
     public const long Gordo_Phosphor  = 819253;  // zoneFields
     public const long Gordo_Rock      = 819254;  // zoneGorge_Area3     (was listed as Tabby)
@@ -224,17 +185,15 @@ public static class LocationConstants
     public const long Gordo_Angler    = 819262;  // zoneStrand_Area3  (GO name: "gordoAngler (1)")
     public const long Gordo_Flutter   = 819263;  // zoneStrand_Area4  (GO name: "gordoFlutter (1)")
     public const long Gordo_Saber     = 819264;  // zoneBluffs_Area2
-    public const long Gordo_Sloomber  = 819265;  // zoneLabyrinthDreamland_C  (GO name: "SloomberGordo" â€” note caps/no prefix)
+    public const long Gordo_Sloomber  = 819265;  // zoneLabyrinthDreamland_C  (GO name: "SloomberGordo" — note caps/no prefix)
     public const long Gordo_Twin      = 819266;  // zoneLabyrinthHub_C
-    public const long Gordo_Kinetic   = 819267;  // zoneLabyrinthTerrarium_FoyerGazebo  (not in original design â€” discovered via dump)
+    public const long Gordo_Kinetic   = 819267;  // zoneLabyrinthTerrarium_FoyerGazebo  (not in original design — discovered via dump)
 
     // =========================================================================
-    // MAP DATA NODES: 819300 â€“ 819349
-    // posKeys confirmed for Ember Valley, Starlight Strand, Powderfall Bluffs.
-    // Rainbow Fields posKeys pending (second dump didn't include that section).
+    // MAP DATA NODES: 819300–819349
     // =========================================================================
-    public const long MapNode_RainbowFields_01     = 819300;  // zoneFields_Area1_188_4_216 âœ…
-    public const long MapNode_RainbowFields_02     = 819301;  // zoneFields_Area3_103_16_290 âœ…
+    public const long MapNode_RainbowFields_01     = 819300;  // zoneFields_Area1_188_4_216 ✅
+    public const long MapNode_RainbowFields_02     = 819301;  // zoneFields_Area3_103_16_290 ✅
     public const long MapNode_EmberValley_01       = 819302;  // zoneGorge_Area1_-443_17_560
     public const long MapNode_EmberValley_02       = 819303;  // zoneGorge_Area3_-561_47_747
     public const long MapNode_EmberValley_03       = 819304;  // zoneGorge_Area4_-757_29_461
@@ -243,25 +202,19 @@ public static class LocationConstants
     public const long MapNode_StarlightStrand_03   = 819307;  // zoneStrand_Area4_261_54_-655
     public const long MapNode_PowderfallBluffs_01  = 819308;  // zoneBluffs_Area2_-821_8_1709
     public const long MapNode_PowderfallBluffs_02  = 819309;  // zoneBluffs_Area3_-575_86_1579
-    public const long MapNode_GreyLabyrinth_01     = 819310;  // zoneLabStrandEntranceMain_B_1275_64_-1426 âœ…
-    public const long MapNode_GreyLabyrinth_02     = 819311;  // zoneLabValleyEntrance_1782_66_-1165 âœ…
-    public const long MapNode_GreyLabyrinth_03     = 819312;  // zoneLabyrinthHub_1472_92_-1149 âœ…
-    public const long MapNode_GreyLabyrinth_04     = 819313;  // zoneLabyrinthDreamland_B_771_151_-998 âœ…
-    public const long MapNode_GreyLabyrinth_05     = 819314;  // zoneLabyrinthDreamland_C_926_164_-434 âœ…
-    public const long MapNode_GreyLabyrinth_06     = 819315;  // zoneLabyrinthTerrarium_FoyerGazebo_2171_162_-772 âœ…
-    public const long MapNode_GreyLabyrinth_07     = 819316;  // zoneLabyrinthTerrarium_JungleGlacier_2020_167_-969 âœ…
+    public const long MapNode_GreyLabyrinth_01     = 819310;  // zoneLabStrandEntranceMain_B_1275_64_-1426 ✅
+    public const long MapNode_GreyLabyrinth_02     = 819311;  // zoneLabValleyEntrance_1782_66_-1165 ✅
+    public const long MapNode_GreyLabyrinth_03     = 819312;  // zoneLabyrinthHub_1472_92_-1149 ✅
+    public const long MapNode_GreyLabyrinth_04     = 819313;  // zoneLabyrinthDreamland_B_771_151_-998 ✅
+    public const long MapNode_GreyLabyrinth_05     = 819314;  // zoneLabyrinthDreamland_C_926_164_-434 ✅
+    public const long MapNode_GreyLabyrinth_06     = 819315;  // zoneLabyrinthTerrarium_FoyerGazebo_2171_162_-772 ✅
+    public const long MapNode_GreyLabyrinth_07     = 819316;  // zoneLabyrinthTerrarium_JungleGlacier_2020_167_-969 ✅
 
     // =========================================================================
-    // SLIMEPEDIA ENTRIES: 819350 â€“ 819399
-    // PediaEntry.name values confirmed via in-game DumpPedia() on 2026-04-10.
-    // PediaCategory asset name: "Slimes" â€” 29 entries total, all included.
-    // Largo, FeralSlime, and Gordo are included because PediaRuntimeCategory.AllUnlocked()
-    // checks all 29 and they are required for the slimepedia goal.
+    // SLIMEPEDIA ENTRIES: 819350–819399 — every entry in the "Slimes" category
     // =========================================================================
-    // Ordering matches the apworld locations.py exactly (verified 2026-04-12).
-    // Rainbow Fields slimes: 819350â€“819361, then EmberValley: 819362â€“819367,
-    // StarlightStrand: 819368, PowderfallBluffs: 819369â€“819373,
-    // GreyLabyrinth: 819374, misc: 819375â€“819378.
+    // By region: Fields 819350–61, EV 819362–67, SS 819368, PB 819369–73, GL 819374,
+    // misc 819375–78.
     public const long Slimepedia_Pink     = 819350;
     public const long Slimepedia_Cotton   = 819351;
     public const long Slimepedia_Tabby    = 819352;
@@ -291,16 +244,12 @@ public static class LocationConstants
     public const long Slimepedia_Largo      = 819376;
     public const long Slimepedia_FeralSlime = 819377;
     public const long Slimepedia_Gordo      = 819378;
-    // Concept entry for radiant slimes as a whole. Lives in the game's Slimes category but
-    // only unlocks after encountering a radiant slime, so it is gated by
-    // randomize_slimepedia_radiant (with the 22 individual radiant entries), not by the
-    // base Slimes toggle.
+    // The radiant concept entry: in the Slimes category, but gated by
+    // randomize_slimepedia_radiant since it needs a radiant encounter.
     public const long Slimepedia_RadiantSlime = 819379;
 
     // =========================================================================
-    // FABRICATOR — VACPACK UPGRADE CRAFTS: 819400–819449
-    // Order matches the apworld exactly (locations.py FABRICATOR_LOCATIONS list).
-    // UpgradeDefinition.name values confirmed via DumpUpgradeComponents() in-game.
+    // FABRICATOR — VACPACK UPGRADE CRAFTS: 819400–819449 (order matches FABRICATOR_LOCATIONS)
     // =========================================================================
     public const long Fabricator_ResourceHarvester  = 819400; // UpgradeDef: ResourceNodeHarvester (confirmed)
     public const long Fabricator_HealthCapacity_1   = 819401; // UpgradeDef: HealthCapacity (confirmed)
@@ -342,9 +291,7 @@ public static class LocationConstants
     public const long Fabricator_EnergyRegen_2      = 819437;
 
     // =========================================================================
-    // RESEARCH DRONES: 819450 â€“ 819479
-    // Constant names match the ResearchDroneEntry asset name for clarity.
-    // 23 confirmed across Conservatory/Fields/Gorge/Strand/Bluffs. Grey Lab pending.
+    // RESEARCH DRONES: 819450–819472 (23) — named after their ResearchDroneEntry
     // =========================================================================
     public const long ResearchDrone_Gully                  = 819450;
     public const long ResearchDrone_Conservatory           = 819451;
@@ -370,23 +317,10 @@ public static class LocationConstants
     public const long ResearchDrone_BluffsSaber            = 819471;
     public const long ResearchDrone_BluffsFinal            = 819472;
     // =========================================================================
-    // RESEARCH DRONE ARCHIVES: 819473 â€” 819495, continued at 820075 â€” 820080  (19 total)
-    // Only SOME drones have an archivedEntry.  Where one exists it is named
-    // "<DroneEntryName>Archive", but the presence of an archive is per-drone: the 4 Powderfall
-    // Bluffs drones have none, so the naming pattern alone proves nothing.
-    //
-    // COMPLETE as of 2026-08-02 — asset dumps covering every zone accounted for all 23 drones.
-    // Before that these rows were built by discovery (the patch logs an "Unknown archive entry"
-    // warning when a player opens an archive with no table row), which only ever covered drones
-    // someone had actually reached with the Archive Key and left the set stuck at 13.
-    // A row for an archive that does not exist is an unreachable AP location and can make a seed
-    // unbeatable, so verify new drones with
-    // F9 → Dumps → "Dump Research Drone Archives" (once per zone; SR2 streams them).
-    //
-    // The continuation block starts at 820075 because 819496–819499 leaves only 4 free and the
-    // intervening IDs belong to Ghostly Drones.
-    //
-    // Repurposed from the “GL research drones” reserved block (no GL drones exist).
+    // RESEARCH DRONE ARCHIVES: 819473–819479, 819490–819495, 820075–820080 (19) — COMPLETE
+    // Named "<DroneEntryName>Archive" where one exists, but the 4 PB drones have none, so the
+    // pattern proves nothing. A row for a nonexistent archive is an unreachable location —
+    // verify new drones with F9 → "Dump Research Drone Archives" (once per zone).
     // =========================================================================
     public const long ResearchDroneArchive_Gully                  = 819473;
     public const long ResearchDroneArchive_Conservatory           = 819474;
@@ -395,141 +329,131 @@ public static class LocationConstants
     public const long ResearchDroneArchive_Tidepools              = 819477;
     public const long ResearchDroneArchive_FieldsExpanse          = 819478;
     public const long ResearchDroneArchive_FieldsBluff            = 819479;
-    // 819480–819489 = Ghostly Drones (do not use)
+    // 819480–819489 = Ghostly Drones
     public const long ResearchDroneArchive_GorgeOverlook          = 819490;
     public const long ResearchDroneArchive_GorgeRuinedOverlook    = 819491;
     public const long ResearchDroneArchive_GorgeLabyrinthGate     = 819492;
     public const long ResearchDroneArchive_StrandField            = 819493;
     public const long ResearchDroneArchive_StrandWaterfall        = 819494;
     public const long ResearchDroneArchive_StrandLabyrinthGate    = 819495;
-    // 819496–819499 spare
-    // Continuation block (820075+) — archives confirmed after the original 13.
-    // 820075 came from a player report; 820076–820080 from asset dumps taken in Ember Valley,
-    // Starlight Strand and the Conservatory on 2026-08-02, which observed 19 of the 23 drones
-    // and found an archive on every one of them.
+    // 819496–819499 spare; continued at 820075.
     public const long ResearchDroneArchive_StrandSplitTree        = 820075;
     public const long ResearchDroneArchive_GorgeOceanPerch        = 820076;
     public const long ResearchDroneArchive_GorgeCaveHub           = 820077;
     public const long ResearchDroneArchive_GorgeMagmaFieldsPerch  = 820078;
     public const long ResearchDroneArchive_StrandMushroomAlley    = 820079;
     public const long ResearchDroneArchive_StrandSlopedCliff      = 820080;
-    // 820081+ spare. There is no PB block: all 4 Powderfall Bluffs drones report
-    // archivedEntry == null (confirmed by asset dump, not just by in-game observation).
+    // 820081+ belongs to the shop's vac palettes.
 
     // =========================================================================
-    // GHOSTLY DRONES: 819480 â€” 819494
-    // posKey confirmed for Gorge/Strand/Bluffs. Conservatory + Fields pending
-    // (second dump run didn't paste that section â€” rerun in those zones).
+    // GHOSTLY DRONES: 819480–819489 — keyed by posKey
     // =========================================================================
-    public const long GhostlyDrone_Conservatory_01    = 819480;  // zoneConservatory_560_42_466 âœ… (ComponentAcquisitionDroneConservatory)
-    public const long GhostlyDrone_Conservatory_02    = 819481;  // zoneConservatory_589_27_27  âœ… (ComponentAcquisitionDroneConservatory3)
-    public const long GhostlyDrone_Conservatory_03    = 819482;  // zoneConservatory_740_17_506 âœ… (ComponentAcquisitionDroneConservatory2)
-    public const long GhostlyDrone_RainbowFields_01   = 819483;  // zoneFields_Area1_219_62_277 âœ… (ComponentAcquisitionDroneFields)
-    public const long GhostlyDrone_EmberValley_01     = 819484;  // zoneGorge_Area3_-615_82_692 âœ…
-    public const long GhostlyDrone_StarlightStrand_01 = 819485;  // zoneStrand_Area2_176_71_-395 âœ…
-    public const long GhostlyDrone_PowderfallBluffs_01 = 819486; // zoneBluffs_Area4_-1050_71_1823 âœ…
-    public const long GhostlyDrone_GreyLabyrinth_01   = 819487;  // zoneLabyrinthDreamland_1208_142_-834 âœ… (parent: Drone_Component)
-    public const long GhostlyDrone_GreyLabyrinth_02   = 819488;  // zoneLabyrinthTerrarium_FoyerGazebo_1941_170_-792 âœ… (parent: Drone_Component)
-    public const long GhostlyDrone_GreyLabyrinth_03   = 819489;  // zoneLabyrinthCorePath_1415_57_-1008 âœ… (parent: DroneComponent)
-    // 819490â€“819494 spare
+    public const long GhostlyDrone_Conservatory_01    = 819480;  // zoneConservatory_560_42_466 ✅ (ComponentAcquisitionDroneConservatory)
+    public const long GhostlyDrone_Conservatory_02    = 819481;  // zoneConservatory_589_27_27  ✅ (ComponentAcquisitionDroneConservatory3)
+    public const long GhostlyDrone_Conservatory_03    = 819482;  // zoneConservatory_740_17_506 ✅ (ComponentAcquisitionDroneConservatory2)
+    public const long GhostlyDrone_RainbowFields_01   = 819483;  // zoneFields_Area1_219_62_277 ✅ (ComponentAcquisitionDroneFields)
+    public const long GhostlyDrone_EmberValley_01     = 819484;  // zoneGorge_Area3_-615_82_692 ✅
+    public const long GhostlyDrone_StarlightStrand_01 = 819485;  // zoneStrand_Area2_176_71_-395 ✅
+    public const long GhostlyDrone_PowderfallBluffs_01 = 819486; // zoneBluffs_Area4_-1050_71_1823 ✅
+    public const long GhostlyDrone_GreyLabyrinth_01   = 819487;  // zoneLabyrinthDreamland_1208_142_-834 ✅ (parent: Drone_Component)
+    public const long GhostlyDrone_GreyLabyrinth_02   = 819488;  // zoneLabyrinthTerrarium_FoyerGazebo_1941_170_-792 ✅ (parent: Drone_Component)
+    public const long GhostlyDrone_GreyLabyrinth_03   = 819489;  // zoneLabyrinthCorePath_1415_57_-1008 ✅ (parent: DroneComponent)
+    // 819490–819495 = drone archives
 
     // =========================================================================
-    // CONVERSATION KEY GIFTS: 819700 â€” 819714
-    // debug name â†’ location (ConversationCheckMode.KeyItems and above)
+    // CONVERSATION KEY GIFTS: 819700–819714 (named after the conversation debug name)
     // =========================================================================
 
-    // Viktor â€” functional gadgets
-    public const long Conv_Viktor_IntroCall            = 819700;  // ViktorIntroCall             â†’ TeleporterHomeYellow (first phone call)
-    public const long Conv_Viktor_GadgetIntro          = 819714;  // ViktorGift_GadgetIntro      â†’ MedStation + SimpleTable + SimpleChair
-    public const long Conv_Viktor_TeleporterPink        = 819701;  // ViktorGift1_TeleporterPink â†’ TeleporterPink
-    public const long Conv_Viktor_TeleporterBlue        = 819702;  // ViktorGift2_TeleporterBlue â†’ TeleporterBlue
-    public const long Conv_Viktor_TeleporterGrey        = 819703;  // ViktorGift3_TeleporterGrey â†’ TeleporterGrey
-    public const long Conv_Viktor_TeleporterViolet      = 819704;  // ViktorGift4_TeleporterViolet â†’ TeleporterViolet
-    public const long Conv_Viktor_TeleporterHomeBlue    = 819705;  // ViktorGift_TeleporterHome1Blue â†’ TeleporterHomeBlue
-    public const long Conv_Viktor_TeleporterHomeRed     = 819706;  // ViktorGift_TeleporterHome2Red  â†’ TeleporterHomeRed
-    public const long Conv_Viktor_TeleporterHomeGreen   = 819707;  // ViktorGift_TeleporterHome3Green â†’ TeleporterHomeGreen
-    public const long Conv_Viktor_EnergyBeamNode        = 819708;  // ViktorStoryCipher4          â†’ EnergyBeamNode (Radiant Projector)
+    // Viktor — functional gadgets
+    public const long Conv_Viktor_IntroCall            = 819700;  // ViktorIntroCall             → TeleporterHomeYellow (first phone call)
+    public const long Conv_Viktor_GadgetIntro          = 819714;  // ViktorGift_GadgetIntro      → MedStation + SimpleTable + SimpleChair
+    public const long Conv_Viktor_TeleporterPink        = 819701;  // ViktorGift1_TeleporterPink → TeleporterPink
+    public const long Conv_Viktor_TeleporterBlue        = 819702;  // ViktorGift2_TeleporterBlue → TeleporterBlue
+    public const long Conv_Viktor_TeleporterGrey        = 819703;  // ViktorGift3_TeleporterGrey → TeleporterGrey
+    public const long Conv_Viktor_TeleporterViolet      = 819704;  // ViktorGift4_TeleporterViolet → TeleporterViolet
+    public const long Conv_Viktor_TeleporterHomeBlue    = 819705;  // ViktorGift_TeleporterHome1Blue → TeleporterHomeBlue
+    public const long Conv_Viktor_TeleporterHomeRed     = 819706;  // ViktorGift_TeleporterHome2Red  → TeleporterHomeRed
+    public const long Conv_Viktor_TeleporterHomeGreen   = 819707;  // ViktorGift_TeleporterHome3Green → TeleporterHomeGreen
+    public const long Conv_Viktor_EnergyBeamNode        = 819708;  // ViktorStoryCipher4          → EnergyBeamNode (Radiant Projector)
 
-    // Thora â€” functional gadget
-    public const long Conv_Thora_GordoSnareAdvanced     = 819709;  // ThoraGift2                  â†’ GordoSnareAdvanced
+    // Thora — functional gadget
+    public const long Conv_Thora_GordoSnareAdvanced     = 819709;  // ThoraGift2                  → GordoSnareAdvanced
 
-    // Ogden â€” functional gadgets
-    public const long Conv_Ogden_SuperHydroTurret       = 819710;  // OgdenGift1                  â†’ SuperHydroTurret
-    public const long Conv_Ogden_PortableScareSlime     = 819711;  // OgdenGift3                  â†’ PortableScareSlime
+    // Ogden — functional gadgets
+    public const long Conv_Ogden_SuperHydroTurret       = 819710;  // OgdenGift1                  → SuperHydroTurret
+    public const long Conv_Ogden_PortableScareSlime     = 819711;  // OgdenGift3                  → PortableScareSlime
 
-    // Mochi â€” functional items
-    public const long Conv_Mochi_MarketLink             = 819712;  // MochiGift1                  â†’ MarketLink
-    public const long Conv_Mochi_ArchiveKeyComponent    = 819713;  // MochiStoryDrones3            â†’ ArchiveKeyComponent
-
-    // =========================================================================
-    // CONVERSATION DECORATION GIFTS: 819715 â€” 819762
-    // (ConversationCheckMode.AllGifts and above)
-    // =========================================================================
-
-    // BOb â€” decorative ranch items (rocks)
-    public const long Conv_BOb_RainbowLumps             = 819715;  // BObGift2          â†’ RainbowLumps
-    public const long Conv_BOb_ThinCavePillar           = 819716;  // BObGift3          â†’ ThinCavePillar
-    public const long Conv_BOb_RockClump                = 819717;  // BObGift4          â†’ RockClump
-    public const long Conv_BOb_ShortMagmaClump          = 819718;  // BObGift6          â†’ ShortMagmaClump
-    public const long Conv_BOb_RockFragments            = 819719;  // BObGiftRelocated1 â†’ RockFragments
-    public const long Conv_BOb_StalagmiteCluster        = 819720;  // BObGiftRelocated2 â†’ StalagmiteCluster
-    public const long Conv_BOb_RockCluster              = 819721;  // BObGiftRelocated3 â†’ RockCluster
-    public const long Conv_BOb_SharpBoulder             = 819722;  // BObGiftRelocated4 â†’ SharpBoulder
-
-    // Mochi â€” decorative ranch items (plants/fungi)
-    public const long Conv_Mochi_RootArches             = 819723;  // MochiGift3           â†’ RootArches
-    public const long Conv_Mochi_VioletSwirlShroom      = 819724;  // MochiGift4           â†’ VioletSwirlShroom
-    public const long Conv_Mochi_ShortPinkCoralColumns  = 819725;  // MochiGift6           â†’ ShortPinkCoralColumns
-    public const long Conv_Mochi_AshBlooms              = 819726;  // MochiGift7           â†’ AshBlooms
-    public const long Conv_Mochi_TallAshwood            = 819727;  // MochiGift8           â†’ TallAshwood
-    public const long Conv_Mochi_ShortRedAshwood        = 819728;  // MochiGift9           â†’ ShortRedAshwood
-    public const long Conv_Mochi_RoundedMagmaPool       = 819729;  // MochiGift10          â†’ RoundedMagmaPool
-    public const long Conv_Mochi_PinkGlowShroom         = 819730;  // MochiGiftRelocated1  â†’ PinkGlowShroom
-    public const long Conv_Mochi_GnarledAshwood         = 819731;  // MochiGiftRelocated2  â†’ GnarledAshwood
-    public const long Conv_Mochi_AzureGlowShroom        = 819732;  // MochiGiftRelocated3  â†’ AzureGlowShroom
-    public const long Conv_Mochi_MediumRedAshwood       = 819733;  // MochiGiftRelocated4  â†’ MediumRedAshwood
-
-    // Ogden â€” decorative ranch items (plants/trees)
-    public const long Conv_Ogden_TallEmeraldCypress     = 819734;  // OgdenGift4           â†’ TallEmeraldCypress
-    public const long Conv_Ogden_EmeraldShrubs          = 819735;  // OgdenGift6           â†’ EmeraldShrubs
-    public const long Conv_Ogden_AmberShrubs            = 819736;  // OgdenGift7           â†’ AmberShrubs
-    public const long Conv_Ogden_OchrePoppies           = 819737;  // OgdenGift8           â†’ OchrePoppies
-    public const long Conv_Ogden_EmeraldVineTrellis     = 819738;  // OgdenGift9           â†’ EmeraldVineTrellis
-    public const long Conv_Ogden_PinkBonsai             = 819739;  // OgdenGift10          â†’ PinkBonsai
-    public const long Conv_Ogden_AzureShrubs            = 819740;  // OgdenGiftRelocated1  â†’ AzureShrubs
-    public const long Conv_Ogden_AmberCypress           = 819741;  // OgdenGiftRelocated3  â†’ AmberCypress
-    public const long Conv_Ogden_MediumPinkCoralColumns = 819742;  // OgdenGiftRelocated4  â†’ MediumPinkCoralColumns
-
-    // Thora â€” decorative ranch items (plants/grass)
-    public const long Conv_Thora_PinkMangrove           = 819743;  // ThoraGift1           â†’ PinkMangrove
-    public const long Conv_Thora_RainbowGrass           = 819744;  // ThoraGift3           â†’ RainbowGrass
-    public const long Conv_Thora_PinkGrass              = 819745;  // ThoraGift4           â†’ PinkGrass
-    public const long Conv_Thora_AmberGrass             = 819746;  // ThoraGift5           â†’ AmberGrass
-    public const long Conv_Thora_ShortPalm              = 819747;  // ThoraGift6           â†’ ShortPalm
-    public const long Conv_Thora_GreenGrass             = 819748;  // ThoraGift7           â†’ GreenGrass
-    public const long Conv_Thora_RedGrass               = 819749;  // ThoraGift8           â†’ RedGrass
-    public const long Conv_Thora_GoldpetalFlowers       = 819750;  // ThoraGiftRelocated1  â†’ GoldpetalFlowers
-    public const long Conv_Thora_AzureGrass             = 819751;  // ThoraGiftRelocated2  â†’ AzureGrass
-    public const long Conv_Thora_CinderSpikeBlossoms    = 819752;  // ThoraGiftRelocated3  â†’ CinderSpikeBlossoms
-    public const long Conv_Thora_SunfireDaisies         = 819753;  // ThoraGiftRelocated4  â†’ SunfireDaisies
-
-    // Viktor â€” decorative ranch items (decor/flags)
-    public const long Conv_Viktor_PinwheelLarge         = 819754;  // ViktorGift_PinwheelLarge    â†’ PinwheelLarge
-    public const long Conv_Viktor_PinwheelSmall         = 819755;  // ViktorGift_PinwheelSmall    â†’ PinwheelSmall
-    public const long Conv_Viktor_Streamer              = 819756;  // ViktorGift_StreamerSimple   â†’ Streamer
-    public const long Conv_Viktor_StreamerScarf         = 819757;  // ViktorGift_StreamerScarf    â†’ StreamerScarf
-    public const long Conv_Viktor_SimpleFlag            = 819758;  // ViktorGift_FlagSimple       â†’ SimpleFlag
-    public const long Conv_Viktor_WindSocks             = 819759;  // ViktorGift_Windsocks        â†’ WindSocks
-    public const long Conv_Viktor_FlagAttention         = 819760;  // ViktorGift_FlagAttention    â†’ FlagAttention
-    public const long Conv_Viktor_FlagCautious          = 819761;  // ViktorGift_FlagCautious     â†’ FlagCautious
-    public const long Conv_Viktor_FlagCurious           = 819762;  // ViktorGift_FlagCurious      â†’ FlagCurious
+    // Mochi — functional items
+    public const long Conv_Mochi_MarketLink             = 819712;  // MochiGift1                  → MarketLink
+    public const long Conv_Mochi_ArchiveKeyComponent    = 819713;  // MochiStoryDrones3            → ArchiveKeyComponent
 
     // =========================================================================
-    // CONVERSATION NON-GIFT (story / lore / deflect): 819763 â€” 819816
-    // (ConversationCheckMode.All only)
+    // CONVERSATION DECORATION GIFTS: 819715–819762
     // =========================================================================
 
-    // Viktor â€” story + deflect
+    // BOb — decorative ranch items (rocks)
+    public const long Conv_BOb_RainbowLumps             = 819715;  // BObGift2          → RainbowLumps
+    public const long Conv_BOb_ThinCavePillar           = 819716;  // BObGift3          → ThinCavePillar
+    public const long Conv_BOb_RockClump                = 819717;  // BObGift4          → RockClump
+    public const long Conv_BOb_ShortMagmaClump          = 819718;  // BObGift6          → ShortMagmaClump
+    public const long Conv_BOb_RockFragments            = 819719;  // BObGiftRelocated1 → RockFragments
+    public const long Conv_BOb_StalagmiteCluster        = 819720;  // BObGiftRelocated2 → StalagmiteCluster
+    public const long Conv_BOb_RockCluster              = 819721;  // BObGiftRelocated3 → RockCluster
+    public const long Conv_BOb_SharpBoulder             = 819722;  // BObGiftRelocated4 → SharpBoulder
+
+    // Mochi — decorative ranch items (plants/fungi)
+    public const long Conv_Mochi_RootArches             = 819723;  // MochiGift3           → RootArches
+    public const long Conv_Mochi_VioletSwirlShroom      = 819724;  // MochiGift4           → VioletSwirlShroom
+    public const long Conv_Mochi_ShortPinkCoralColumns  = 819725;  // MochiGift6           → ShortPinkCoralColumns
+    public const long Conv_Mochi_AshBlooms              = 819726;  // MochiGift7           → AshBlooms
+    public const long Conv_Mochi_TallAshwood            = 819727;  // MochiGift8           → TallAshwood
+    public const long Conv_Mochi_ShortRedAshwood        = 819728;  // MochiGift9           → ShortRedAshwood
+    public const long Conv_Mochi_RoundedMagmaPool       = 819729;  // MochiGift10          → RoundedMagmaPool
+    public const long Conv_Mochi_PinkGlowShroom         = 819730;  // MochiGiftRelocated1  → PinkGlowShroom
+    public const long Conv_Mochi_GnarledAshwood         = 819731;  // MochiGiftRelocated2  → GnarledAshwood
+    public const long Conv_Mochi_AzureGlowShroom        = 819732;  // MochiGiftRelocated3  → AzureGlowShroom
+    public const long Conv_Mochi_MediumRedAshwood       = 819733;  // MochiGiftRelocated4  → MediumRedAshwood
+
+    // Ogden — decorative ranch items (plants/trees)
+    public const long Conv_Ogden_TallEmeraldCypress     = 819734;  // OgdenGift4           → TallEmeraldCypress
+    public const long Conv_Ogden_EmeraldShrubs          = 819735;  // OgdenGift6           → EmeraldShrubs
+    public const long Conv_Ogden_AmberShrubs            = 819736;  // OgdenGift7           → AmberShrubs
+    public const long Conv_Ogden_OchrePoppies           = 819737;  // OgdenGift8           → OchrePoppies
+    public const long Conv_Ogden_EmeraldVineTrellis     = 819738;  // OgdenGift9           → EmeraldVineTrellis
+    public const long Conv_Ogden_PinkBonsai             = 819739;  // OgdenGift10          → PinkBonsai
+    public const long Conv_Ogden_AzureShrubs            = 819740;  // OgdenGiftRelocated1  → AzureShrubs
+    public const long Conv_Ogden_AmberCypress           = 819741;  // OgdenGiftRelocated3  → AmberCypress
+    public const long Conv_Ogden_MediumPinkCoralColumns = 819742;  // OgdenGiftRelocated4  → MediumPinkCoralColumns
+
+    // Thora — decorative ranch items (plants/grass)
+    public const long Conv_Thora_PinkMangrove           = 819743;  // ThoraGift1           → PinkMangrove
+    public const long Conv_Thora_RainbowGrass           = 819744;  // ThoraGift3           → RainbowGrass
+    public const long Conv_Thora_PinkGrass              = 819745;  // ThoraGift4           → PinkGrass
+    public const long Conv_Thora_AmberGrass             = 819746;  // ThoraGift5           → AmberGrass
+    public const long Conv_Thora_ShortPalm              = 819747;  // ThoraGift6           → ShortPalm
+    public const long Conv_Thora_GreenGrass             = 819748;  // ThoraGift7           → GreenGrass
+    public const long Conv_Thora_RedGrass               = 819749;  // ThoraGift8           → RedGrass
+    public const long Conv_Thora_GoldpetalFlowers       = 819750;  // ThoraGiftRelocated1  → GoldpetalFlowers
+    public const long Conv_Thora_AzureGrass             = 819751;  // ThoraGiftRelocated2  → AzureGrass
+    public const long Conv_Thora_CinderSpikeBlossoms    = 819752;  // ThoraGiftRelocated3  → CinderSpikeBlossoms
+    public const long Conv_Thora_SunfireDaisies         = 819753;  // ThoraGiftRelocated4  → SunfireDaisies
+
+    // Viktor — decorative ranch items (decor/flags)
+    public const long Conv_Viktor_PinwheelLarge         = 819754;  // ViktorGift_PinwheelLarge    → PinwheelLarge
+    public const long Conv_Viktor_PinwheelSmall         = 819755;  // ViktorGift_PinwheelSmall    → PinwheelSmall
+    public const long Conv_Viktor_Streamer              = 819756;  // ViktorGift_StreamerSimple   → Streamer
+    public const long Conv_Viktor_StreamerScarf         = 819757;  // ViktorGift_StreamerScarf    → StreamerScarf
+    public const long Conv_Viktor_SimpleFlag            = 819758;  // ViktorGift_FlagSimple       → SimpleFlag
+    public const long Conv_Viktor_WindSocks             = 819759;  // ViktorGift_Windsocks        → WindSocks
+    public const long Conv_Viktor_FlagAttention         = 819760;  // ViktorGift_FlagAttention    → FlagAttention
+    public const long Conv_Viktor_FlagCautious          = 819761;  // ViktorGift_FlagCautious     → FlagCautious
+    public const long Conv_Viktor_FlagCurious           = 819762;  // ViktorGift_FlagCurious      → FlagCurious
+
+    // =========================================================================
+    // CONVERSATION NON-GIFT (story / lore / deflect): 819763–819816
+    // =========================================================================
+
+    // Viktor — story + deflect
     public const long Conv_Viktor_StoryCipher1          = 819763;  // ViktorStoryCipher1
     public const long Conv_Viktor_StoryCipher2          = 819764;  // ViktorStoryCipher2
     public const long Conv_Viktor_StoryCipher3          = 819765;  // ViktorStoryCipher3
@@ -537,14 +461,14 @@ public static class LocationConstants
     public const long Conv_Viktor_Deflect2              = 819767;  // ViktorDeflect2
     public const long Conv_Viktor_Deflect3              = 819768;  // ViktorDeflect3
 
-    // Mochi â€” story + deflect
+    // Mochi — story + deflect
     public const long Conv_Mochi_StoryDrones1           = 819769;  // MochiStoryDrones1
     public const long Conv_Mochi_StoryDrones2           = 819770;  // MochiStoryDrones2
     public const long Conv_Mochi_Deflect1               = 819771;  // MochiDeflect1
     public const long Conv_Mochi_Deflect2               = 819772;  // MochiDeflect2
     public const long Conv_Mochi_Deflect3               = 819773;  // MochiDeflect3
 
-    // Ogden â€” story + deflect
+    // Ogden — story + deflect
     public const long Conv_Ogden_StoryRainbow1          = 819774;  // OgdenStoryRainbow1
     public const long Conv_Ogden_StoryRainbow2          = 819775;  // OgdenStoryRainbow2
     public const long Conv_Ogden_StoryRainbow3          = 819776;  // OgdenStoryRainbow3
@@ -552,7 +476,7 @@ public static class LocationConstants
     public const long Conv_Ogden_Deflect2               = 819778;  // OgdenDeflect2
     public const long Conv_Ogden_Deflect3               = 819779;  // OgdenDeflect3
 
-    // Thora â€” story + deflect
+    // Thora — story + deflect
     public const long Conv_Thora_StoryBigNews1          = 819780;  // ThoraStoryBigNews1
     public const long Conv_Thora_StoryBigNews2          = 819781;  // ThoraStoryBigNews2
     public const long Conv_Thora_StoryBigNews3          = 819782;  // ThoraStoryBigNews3
@@ -560,10 +484,10 @@ public static class LocationConstants
     public const long Conv_Thora_Deflect2               = 819784;  // ThoraDeflect2
     public const long Conv_Thora_Deflect3               = 819785;  // ThoraDeflect3
 
-    // BOb â€” misc non-gift
+    // BOb — misc non-gift
     public const long Conv_BOb_Yolky1                   = 819786;  // BObYolky1
 
-    // Gigi â€” all non-gift conversations
+    // Gigi — all non-gift conversations
     public const long Conv_Gigi_Intro                   = 819787;  // GigiIntro
     public const long Conv_Gigi_IntroAlt                = 819788;  // GigiIntroAlt
     public const long Conv_Gigi_Hub                     = 819789;  // GigiHub
@@ -595,22 +519,14 @@ public static class LocationConstants
     public const long Conv_Gigi_Core_FightComplete      = 819815;  // GigiCore_FightComplete
     public const long Conv_Gigi_Core_PostGame           = 819816;  // GigiCore_PostGame
 
-    // NPC Intro Calls — missing from original key-gift range; added at 819817+
-    // These are the first call from each NPC; in-game gift is replaced by AP check.
+    // NPC intro calls (each NPC's first call; its gift becomes a check)
     public const long Conv_Thora_IntroCall              = 819817;  // ThoraIntroCall
     public const long Conv_Ogden_IntroCall              = 819818;  // OgdenIntroCall
     public const long Conv_Mochi_IntroCall              = 819819;  // MochiIntroCall  (gives RefineryLink in vanilla)
     public const long Conv_BOb_IntroCall                = 819820;  // BObGift1Intro   → RainbowMound blueprint (standalone FixedConversation, requires EV+Strand+ThoraIntroCall)
 
     // =========================================================================
-    // SLIMEPEDIA RESOURCES ENTRIES: 819630 – 819683  (54 entries)
-    // EntryName = PediaEntry.name (confirmed via AP-Dump DumpPedia, 2026-04-14).
-    // Zones reflect where each resource is first encountered:
-    //   819630–819650  Rainbow Fields  (21 entries)
-    //   819651–819660  Ember Valley    (10 entries)
-    //   819661–819672  Starlight Strand (12 entries)
-    //   819673–819680  Powderfall Bluffs (8 entries)
-    //   819681–819683  Grey Labyrinth   (3 entries)
+    // SLIMEPEDIA RESOURCES ENTRIES: 819630–819684 (55), grouped by where each is first found
     // =========================================================================
 
     // Rainbow Fields (21)
@@ -681,9 +597,7 @@ public static class LocationConstants
     public const long SlimepediaRes_Sprinkles            = 819684;
 
     // =========================================================================
-    // RADIANT SLIMEPEDIA ENTRIES: 819821 – 819842  (22 entries)
-    // EntryName = RadiantSlimePediaEntry.name (Unity asset name, stable).
-    // Confirmed via DumpRadiantSlimes() in-game; alphabetical order.
+    // RADIANT SLIMEPEDIA ENTRIES: 819821–819842 (22, alphabetical)
     // =========================================================================
     public const long SlimepediaRadiant_Angler   = 819821;
     public const long SlimepediaRadiant_Batty    = 819822;
@@ -709,10 +623,8 @@ public static class LocationConstants
     public const long SlimepediaRadiant_Yolky    = 819842;
 
     // =========================================================================
-    // REGION GATE SWITCHES: 819843 – 819845  (3 entries)
-    // Only active when region_access_mode = "locations" or "bundled".
-    // Check is sent when the player activates a gate switch that is still blocked.
-    // Switch name → ID mapping mirrors RegionTable.SwitchToLocationId.
+    // REGION GATE SWITCHES: 819843–819845 (locations/bundled modes) — sent on pressing a
+    // still-locked gate. See RegionTable.SwitchToLocationId.
     // =========================================================================
     public const long RegionGate_EmberValley      = 819843;
     public const long RegionGate_StarlightStrand  = 819844;
@@ -720,14 +632,8 @@ public static class LocationConstants
     // 819846 spare
 
     // =========================================================================
-    // OTHER PUZZLE DOORS: 819847 – 819895  (49 slots reserved)
-    // PuzzleSlotLockable doors (lockTag='plort_door') other than:
-    //   • Grey Labyrinth shadow plort doors (819200–819249)
-    //   • PB region gate (819845)
-    // All 28 doors confirmed via AP-Dump across all zones (2026-04-21).
-    // Optional locations enabled by the "randomize_puzzle_doors" apworld option.
-    //
-    // Lookup key: posKey "sceneName_X_Y_Z" (same as TreasurePod).
+    // OTHER PLORT DOORS: 819847–819874 (randomize_puzzle_doors) — keyed by posKey
+    // Every plort door except the shadow doors and the PB region gate.
     // =========================================================================
 
     // Ember Valley (4 doors)
@@ -753,7 +659,7 @@ public static class LocationConstants
     public const long PlortDoor_StarlightStrand_11 = 819862; // zoneStrand_Area2_251_2_-232
     public const long PlortDoor_StarlightStrand_12 = 819863; // zoneStrand_Area4_116_60_-651
 
-    // Grey Labyrinth (11 plort_door entries — excludes shadow_plort_collector/door)
+    // Grey Labyrinth (11)
     public const long PlortDoor_GreyLabyrinth_1  = 819864; // zoneLabStrandEntrance_1159_53_-1404
     public const long PlortDoor_GreyLabyrinth_2  = 819865; // zoneLabStrandEntranceMain_B_1222_29_-1307
     public const long PlortDoor_GreyLabyrinth_3  = 819866; // zoneLabStrandEntranceMain_B_1266_50_-1435
@@ -766,10 +672,7 @@ public static class LocationConstants
     public const long PlortDoor_GreyLabyrinth_10 = 819873; // zoneLabyrinthTerrarium_JungleGlacier_1951_140_-854
     public const long PlortDoor_GreyLabyrinth_11 = 819874; // zoneLabyrinthTerrarium_JungleGlacier_2145_155_-856
     // =========================================================================
-    // CONSERVATORY EXPANSIONS: 819875 – 819879  (5 entries)
-    // Enabled by the "randomize_conservatory_expansions" apworld option.
-    // GameObjectName = AccessDoor._id (IdHandler string).
-    // Confirmed via F9 → Dumps → "Dump Access Doors" in the Conservatory.
+    // CONSERVATORY EXPANSIONS: 819875–819879 (randomize_conservatory_expansions)
     // =========================================================================
     public const long ConservatoryExpansion_Gully     = 819875;
     public const long ConservatoryExpansion_Tidepools = 819876;
@@ -779,11 +682,7 @@ public static class LocationConstants
     // 819880–819895 spare
 
     // =========================================================================
-    // PLORT MARKET: 819896 – 819920  (25 entries)
-    // Enabled by the "randomize_plort_market" apworld option.
-    // GameObjectName = IdentifiableType.name (e.g. "PinkPlort").
-    // Lookup: LocationTable.TryGetPlortMarketByPlortName(id.name).
-    // IDs 819921–819925 reserved as buffer for future plort additions.
+    // PLORT MARKET: 819896–819920 (randomize_plort_market) — keyed by plort type name
     // =========================================================================
 
     // Rainbow Fields (7)
@@ -820,13 +719,11 @@ public static class LocationConstants
     public const long PlortMarket_Twin     = 819918;
     public const long PlortMarket_Hyper    = 819919;
     public const long PlortMarket_Stable   = 819920;
-    // 819921–819925 reserved (5-ID buffer for future plort additions)
+    // 819921–819925 reserved for future plorts
 
     // =====================================================================
-    // POLESTAR PROVISIONS SHOP: 819926–820074 + 820081–820096 (165, randomize_shop option)
-    // 819926–820009: always-available base items (84), in-game category order.
-    // 820010–820074: zone-gated items (65), grouped by required zone visit
-    // (see docs/shop-location-logic.md).
+    // POLESTAR PROVISIONS SHOP: 819926–820074 + 820081–820096 (165, randomize_shop)
+    // 819926–820009 always stocked (84); 820010–820074 zone-gated (65, docs/shop-location-logic.md).
     // =====================================================================
     public const long PolestarShop_PinkAnemoneCluster = 819926;
     public const long PolestarShop_Seashells = 819927;
@@ -986,10 +883,7 @@ public static class LocationConstants
     public const long PolestarShop_TallIndigoCypress = 820073;
     public const long PolestarShop_LavaLampGrey = 820074;
 
-    // Vac palettes — game update 1.3 (820081–820096). 820075–820080 are drone archives.
-    // Asset names and GUIDs from docs/dumps/1.3/palettes.txt; the Palette asset's
-    // ScriptableObjectWithGuid.Guid equals the shop's AssetGuid, confirmed by joining it against
-    // docs/dumps/1.3/shop_conditions.txt.
+    // Vac palettes — game update 1.3 (820081–820096), from docs/dumps/1.3/palettes.txt.
     public const long PolestarShop_VacPalette_Blue = 820081;
     public const long PolestarShop_VacPalette_Purple = 820082;
     public const long PolestarShop_VacPalette_Green = 820083;

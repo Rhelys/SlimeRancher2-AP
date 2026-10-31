@@ -9,15 +9,9 @@ using UnityEngine.UI;
 namespace SlimeRancher2AP.UI;
 
 /// <summary>
-/// Archipelago connection panel, rendered as a proper UGUI panel inside the game's
-/// native Options menu when the "Archipelago" tab is selected.
-///
-/// On first Show() the panel is built programmatically and reparented as a sibling of
-/// OptionsUIRoot.itemsPanel so it occupies the same screen area.  itemsPanel is
-/// deactivated while our tab is active, then restored on tab switch / close.
-///
-/// No IMGUI is used — GUI.TextField is stripped in this IL2CPP build.
-/// TMP_InputField handles text capture and keyboard focus natively.
+/// The connection panel on the Options menu's Archipelago tab: UGUI built on first Show(), as a
+/// sibling of OptionsUIRoot.itemsPanel in its screen area. Not IMGUI — GUI.TextField is
+/// stripped in this IL2CPP build.
 /// </summary>
 public class ConnectionUI : MonoBehaviour
 {
@@ -36,7 +30,6 @@ public class ConnectionUI : MonoBehaviour
         Plugin.Instance.ApClient.OnDisconnected     += () => SetStatus("Disconnected", new Color(0.9f, 0.75f, 0.1f));
     }
 
-    /// <summary>True while our panel GameObject is active in the scene.</summary>
     public bool IsVisible => _panel != null && _panel.activeSelf;
 
     // -------------------------------------------------------------------------
@@ -47,31 +40,21 @@ public class ConnectionUI : MonoBehaviour
     public void Show() =>
         Logger.Info("[AP] ConnectionUI.Show() — use Options > Archipelago to connect");
 
-    /// <summary>
-    /// Called when the Archipelago tab is selected.
-    /// Builds the panel on first call, then makes it visible and hides the native
-    /// items panel so our UI occupies the same space.
-    /// </summary>
+    /// <summary>On selecting the tab: builds the panel once, then shows it.</summary>
     public void Show(Transform panelParent, GameObject nativeItemsPanel)
     {
         if (_panel == null)
             BuildPanel(panelParent, nativeItemsPanel);
 
-        // itemsPanel toggling is handled by the Prefix which holds the live reference.
-        _panel!.SetActive(true);
+        _panel!.SetActive(true);   // the caller toggles itemsPanel
 
-        // Refresh fields from saved config each time the tab is opened.
         var saved = ArchipelagoData.LoadFromConfig(Plugin.Instance.Config);
         if (_hostField != null) _hostField.text = $"{saved.Uri}:{saved.Port}";
         if (_slotField != null) _slotField.text = saved.SlotName;
         if (_passField != null) _passField.text = saved.Password;
     }
 
-    /// <summary>
-    /// Hides our panel. itemsPanel restoration is the caller's responsibility —
-    /// the Prefix always has the live OptionsUIRoot reference; the Close patch
-    /// doesn't need to restore it (the game tears down the menu itself).
-    /// </summary>
+    /// <summary>Hides the panel; restoring itemsPanel is the caller's job.</summary>
     public void Hide()
     {
         if (_panel != null && _panel.gameObject != null)
@@ -85,8 +68,7 @@ public class ConnectionUI : MonoBehaviour
     [HideFromIl2Cpp]
     private void BuildPanel(Transform panelParent, GameObject nativeItemsPanel)
     {
-        // Root panel — sibling of itemsPanel, same RectTransform so it fills the
-        // same area in the Options menu content zone.
+        // Sibling of itemsPanel with the same RectTransform.
         _panel = new GameObject("APConnectionPanel");
         _panel.transform.SetParent(panelParent, false);
 
@@ -100,8 +82,7 @@ public class ConnectionUI : MonoBehaviour
             rt.offsetMax = src.offsetMax;
         }
 
-        // Sample font and native button style from an existing OptionsItemViewHolder so our
-        // UI matches the rest of the options menu exactly.
+        // Borrow the native row style so the panel matches.
         TMP_FontAsset? font          = null;
         ColorBlock     nativeCb      = ColorBlock.defaultColorBlock;
         Color          nativeBgColor = new Color(0.09f, 0.09f, 0.13f, 0.85f);
@@ -120,14 +101,12 @@ public class ConnectionUI : MonoBehaviour
             Logger.Info("[AP] ConnectionUI: sampled native options button style");
         }
 
-        // Grab a font from any existing TMP element in the scene so text renders.
         var allTmp = Resources.FindObjectsOfTypeAll<TextMeshProUGUI>();
         for (int i = 0; i < allTmp.Count; i++)
         {
             if (allTmp[i].font != null) { font = allTmp[i].font; break; }
         }
 
-        // Lay out the four content blocks with a VerticalLayoutGroup.
         var vlg = _panel.AddComponent<VerticalLayoutGroup>();
         vlg.padding    = new RectOffset(24, 24, 24, 24);
         vlg.spacing    = 10;
@@ -147,13 +126,12 @@ public class ConnectionUI : MonoBehaviour
     }
 
     // -------------------------------------------------------------------------
-    // Helpers — each returns the TMP_InputField or TMP_Text for later wiring.
+    // Helpers
     // -------------------------------------------------------------------------
 
     [HideFromIl2Cpp]
     private TMP_InputField AddLabeledField(string label, TMP_FontAsset? font, bool password)
     {
-        // Container stacks label + field vertically.
         var container = new GameObject(label.Replace(" ", "") + "_Container");
         container.transform.SetParent(_panel!.transform, false);
         container.AddComponent<RectTransform>();
@@ -166,7 +144,6 @@ public class ConnectionUI : MonoBehaviour
         cvlg.childForceExpandWidth  = true;
         cvlg.childForceExpandHeight = false;
 
-        // Label
         var labelGo = new GameObject("Label");
         labelGo.transform.SetParent(container.transform, false);
         labelGo.AddComponent<RectTransform>();
@@ -180,7 +157,6 @@ public class ConnectionUI : MonoBehaviour
         labelText.color    = new Color(0.65f, 0.85f, 1.0f);   // light blue — stands out on dark panel
         if (font != null) labelText.font = font;
 
-        // Input field root
         var fieldGo = new GameObject("InputField");
         fieldGo.transform.SetParent(container.transform, false);
         fieldGo.AddComponent<RectTransform>();
@@ -191,7 +167,7 @@ public class ConnectionUI : MonoBehaviour
         var bg = fieldGo.AddComponent<Image>();
         bg.color = new Color(0.12f, 0.12f, 0.16f, 0.95f);
 
-        // Text area (acts as viewport inside TMP_InputField)
+        // The input field's viewport
         var textArea = new GameObject("TextArea");
         textArea.transform.SetParent(fieldGo.transform, false);
         var taRt = textArea.AddComponent<RectTransform>();
@@ -201,7 +177,6 @@ public class ConnectionUI : MonoBehaviour
         taRt.offsetMax = new Vector2(-6, -4);
         textArea.AddComponent<RectMask2D>();
 
-        // Placeholder
         var phGo = new GameObject("Placeholder");
         phGo.transform.SetParent(textArea.transform, false);
         var phRt = phGo.AddComponent<RectTransform>();
@@ -214,11 +189,8 @@ public class ConnectionUI : MonoBehaviour
         phText.fontSize            = 15;
         phText.color               = new Color(0.45f, 0.45f, 0.45f);
         phText.enableWordWrapping  = false;
-        // Intentionally NOT assigning the sampled SR2 font here — the game font is
-        // an all-caps typeface that lacks lowercase glyphs. TMP's built-in
-        // LiberationSans SDF (the default fallback) renders both cases correctly.
+        // Not the game font: it is all-caps and lacks lowercase glyphs. TMP's default does both.
 
-        // Main text
         var textGo = new GameObject("Text");
         textGo.transform.SetParent(textArea.transform, false);
         var textRt = textGo.AddComponent<RectTransform>();
@@ -230,14 +202,10 @@ public class ConnectionUI : MonoBehaviour
         textComp.fontSize           = 15;
         textComp.color              = Color.white;
         textComp.enableWordWrapping = false;
-        // Intentionally NOT assigning the sampled SR2 font — same reason as above.
-
-        // Wire up TMP_InputField
         var inputField = fieldGo.AddComponent<TMP_InputField>();
         inputField.textViewport  = taRt;
         inputField.textComponent = textComp;
         inputField.placeholder   = phText.Cast<Graphic>();
-        // fontAsset intentionally not set — let TMP use its default case-sensitive font.
         inputField.pointSize     = 15;
 
         if (password)
@@ -249,21 +217,16 @@ public class ConnectionUI : MonoBehaviour
     [HideFromIl2Cpp]
     private void AddButtonRow(TMP_FontAsset? font, ColorBlock nativeCb, Color nativeBgColor)
     {
-        // Spacer before buttons to visually separate from fields
         var spacer = new GameObject("ButtonSpacer");
         spacer.transform.SetParent(_panel!.transform, false);
         spacer.AddComponent<RectTransform>();
         spacer.AddComponent<LayoutElement>().minHeight = 4;
 
-        // Each button is a full-width options-row-style selectable
         AddOptionRow("Connect",    font, nativeCb, nativeBgColor, OnConnectClicked);
         AddOptionRow("Disconnect", font, nativeCb, nativeBgColor, () => Plugin.Instance.ApClient.Disconnect());
     }
 
-    /// <summary>
-    /// Creates a full-width selectable row using the exact same ColorBlock and background
-    /// color as the native OptionsItemViewHolder so it blends with the rest of the menu.
-    /// </summary>
+    /// <summary>A full-width button row in the native options-row colours.</summary>
     [HideFromIl2Cpp]
     private void AddOptionRow(string label, TMP_FontAsset? font,
         ColorBlock nativeCb, Color nativeBgColor, System.Action onClick)
@@ -275,22 +238,18 @@ public class ConnectionUI : MonoBehaviour
         var le = go.AddComponent<LayoutElement>();
         le.minHeight = 52;
 
-        // Background — set to white so the ColorBlock multiplier works correctly.
         var img = go.AddComponent<Image>();
         img.color = Color.white;
 
         var btn = go.AddComponent<Button>();
-        // Inject the native ColorBlock directly — normal/highlight/press colours match
-        // the rest of the options rows exactly.
         btn.colors        = nativeCb;
         btn.targetGraphic = img;
 
-        // Force the image to the native normal colour right away so it doesn't flash white.
+        // Avoid a white flash before the first transition.
         img.color = nativeBgColor;
 
         btn.onClick.AddListener(DelegateSupport.ConvertDelegate<UnityEngine.Events.UnityAction>(onClick));
 
-        // Label — left-aligned, same weight as options item labels
         var textGo = new GameObject("Label");
         textGo.transform.SetParent(go.transform, false);
         var textRt = textGo.AddComponent<RectTransform>();

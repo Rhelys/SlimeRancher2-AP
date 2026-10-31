@@ -2,11 +2,7 @@ using HarmonyLib;
 
 namespace SlimeRancher2AP.Patches.LocationPatches;
 
-/// <summary>
-/// Scales GordoEat.TargetCount on Awake based on the gordo_feed_requirement slot data option.
-/// A value of 100 (vanilla) results in no change; lower values reduce the feed count proportionally.
-/// The result is always at least 1.
-/// </summary>
+/// <summary><c>gordo_feed_requirement</c>: scales <c>GordoEat.TargetCount</c> on Awake (at least 1).</summary>
 [HarmonyPatch(typeof(GordoEat), "Awake")]
 internal static class GordoFeedRequirementPatch
 {

@@ -3,139 +3,65 @@
 namespace SlimeRancher2AP.Archipelago;
 
 /// <summary>
-/// Strongly-typed representation of the slot data returned by the Archipelago server on login.
-/// Keys must match those defined in the companion Python apworld.
+/// Slot data from login. Keys and option semantics are defined by the apworld (options.py,
+/// fill_slot_data); the docs here note only what the mod does with them.
 /// </summary>
 public class SlotData
 {
     public bool   DeathLink          { get; init; }
 
-    /// <summary>
-    /// Percentage of filler slots replaced with traps (0 = no traps, 100 = all filler is traps).
-    /// Slot data key: <c>"trap_percentage"</c>.
-    /// </summary>
     public int    TrapPercentage     { get; init; } = 0;
     public string Goal               { get; init; } = "labyrinth_open";
 
-    /// <summary>
-    /// Lifetime newbucks earned threshold for the "newbucks" goal.
-    /// Read from slot data key "newbucks_goal_amount"; default 1,000,000.
-    /// </summary>
     public long   NewbucksGoalAmount { get; init; } = 1_000_000;
 
-    /// <summary>
-    /// Number of plorts of EACH in-scope type that must be sold for the "plort_seller"
-    /// goal (per-seed value rolled by the apworld between the min/max options).
-    /// Read from slot data key "plort_goal_amount"; default 25.
-    /// </summary>
+    /// <summary>Plorts of EACH in-scope type to sell for "plort_seller" (rolled per seed).</summary>
     public int    PlortGoalAmount { get; init; } = 25;
 
     public bool   RandomizeGordos        { get; init; } = true;
     public bool   RandomizePods          { get; init; } = true;
     public bool   RandomizeMapNodes      { get; init; } = true;
     /// <summary>
-    /// Informational only — no mod behaviour depends on this.
+    /// Diagnostics only — never gate on it. Crafts are checks in both modes; the option only
+    /// decides whether they hold shuffled items or their vanilla upgrade.
     /// </summary>
-    /// <remarks>
-    /// Fabricator crafts are AP location checks in both modes. The option decides what the
-    /// apworld puts in them: a shuffled multiworld item when true, or the upgrade that craft
-    /// grants in the vanilla game, locked in place, when false. Either way the mod sends the
-    /// check and applies whatever item comes back, so nothing here should gate on it.
-    /// Retained for diagnostics. Slot data key: <c>"randomize_fabricator"</c>.
-    /// </remarks>
     public bool   RandomizeFabricator    { get; init; } = true;
     public bool   RandomizeSlimepedia          { get; init; } = false;
     public bool   RandomizeSlimepediaResources { get; init; } = false;
 
-    /// <summary>
-    /// When true, catching a new radiant slime type for the first time unlocks its
-    /// Slimepedia entry as an Archipelago location check.
-    /// Slot data key: <c>"randomize_slimepedia_radiant"</c>.
-    /// </summary>
     public bool   RandomizeSlimepediaRadiant   { get; init; } = false;
 
-    /// <summary>
-    /// Multiplier applied to radiant slime spawn frequency. 1 = normal (default).
-    /// Higher values increase spawn frequency: 2 = twice as common, 5 = five times as common.
-    /// Implemented by dividing all shuffle-bag sizes by this value in
-    /// <c>RadiantSlimeSpawnRatePatch</c> on scene init.
-    /// Slot data key: <c>"radiant_spawn_rate_multiplier"</c>. Range: 1–10.
-    /// </summary>
-    /// <summary>
-    /// When true, every slime encounter is forced to be a radiant spawn — the shuffle-bag
-    /// algorithm is bypassed entirely. <see cref="RadiantSpawnRateMultiplier"/> has no
-    /// additional effect when this is enabled.
-    /// Slot data key: <c>"all_radiant_slimes"</c>.
-    /// </summary>
+    /// <summary>Every encounter radiant, bypassing the shuffle bag (overrides the multiplier).</summary>
     public bool   AllRadiantSlimes             { get; init; } = false;
+    /// <summary>Divides shuffle-bag sizes (<c>RadiantSlimeSpawnRatePatch</c>).</summary>
     public int    RadiantSpawnRateMultiplier   { get; init; } = 1;
 
-    /// <summary>
-    /// Multiplier applied to Gold and Lucky slime spawn weight.
-    /// 1 = vanilla weights (default). Higher values make Gold/Lucky slimes proportionally
-    /// more likely to spawn from any spawner that includes them.
-    /// Implemented by scaling <c>SlimeSet.Member.Weight</c> for Gold/Lucky members in
-    /// <c>GoldLuckySpawnRatePatch</c> on scene init.
-    /// Slot data key: <c>"gold_lucky_spawn_rate_multiplier"</c>. Range: 1–50.
-    /// </summary>
+    /// <summary>Scales Gold/Lucky <c>SlimeSet.Member.Weight</c> (<c>GoldLuckySpawnRatePatch</c>).</summary>
     public int    GoldLuckySpawnRateMultiplier { get; init; } = 1;
 
     public bool   RandomizeResearchDrones  { get; init; } = false;
     public bool   RandomizeGhostlyDrones   { get; init; } = false;
 
-    /// <summary>
-    /// Controls whether the 28 plort doors become Archipelago location checks.
-    /// <c>"vanilla"</c> — disabled; <c>"locations"</c> — filling a door sends a check.
-    /// Slot data key: <c>"randomize_plort_doors"</c>.
-    /// </summary>
+    /// <summary><c>"vanilla"</c> or <c>"locations"</c> (the 28 plort doors are checks).</summary>
     public string RandomizePlortDoors      { get; init; } = "vanilla";
 
     /// <summary>
-    /// Grey Labyrinth shadow plort doors (25). <c>"disabled"</c> — not checks;
-    /// <c>"locations"</c> — opening a door sends a check. Only meaningful when the Grey
-    /// Labyrinth is in scope (every goal except <c>labyrinth_open</c>).
+    /// <c>"disabled"</c> or <c>"locations"</c>. Gates only the check — the vanilla reward (some
+    /// doors dispense pool items) is suppressed in both modes.
     /// </summary>
-    /// <remarks>
-    /// The vanilla reward is suppressed in BOTH modes — several of these doors are dispensers
-    /// that hand out a blueprint / upgrade component / spawned items, which would conflict
-    /// with the same items being randomized into the pool. This flag gates only the check.
-    /// Slot data key: <c>"randomize_shadow_doors"</c>.
-    /// </remarks>
     public string RandomizeShadowDoors     { get; init; } = "disabled";
 
-    /// <summary>
-    /// When true, the first time each of the 25 sellable plort types is sold at the Plort Market
-    /// becomes an Archipelago location check (25 checks total).
-    /// Slot data key: <c>"randomize_plort_market"</c>.
-    /// </summary>
     public bool   RandomizePlortMarket     { get; init; } = false;
 
-    /// <summary>
-    /// When true, a per-seed random subset of Polestar Provisions shop items are Archipelago
-    /// location checks (the apworld picks the subset; the mod activates only the locations
-    /// that exist in the seed). First purchase sends the check with the vanilla blueprint
-    /// grant suppressed; the slot then reads as sold out.
-    /// Slot data key: <c>"randomize_shop"</c>.
-    /// </summary>
+    /// <summary>Only the seed's subset is active (<c>IsLocationInSeed</c>).</summary>
     public bool   RandomizeShop            { get; init; } = false;
 
-    /// <summary>
-    /// When true, post-game Sanctuary content is part of the seed — currently the
-    /// "Slimepedia: Sprinkles" location, which also becomes required by the slimepedia
-    /// goal. When false the Sprinkles entry is neither a check nor a goal requirement.
-    /// Slot data key: <c>"randomize_sanctuary"</c>.
-    /// </summary>
+    /// <summary>Adds the Sprinkles pedia location, which the slimepedia goal then requires.</summary>
     public bool   RandomizeSanctuary       { get; init; } = false;
 
     /// <summary>
-    /// Ranch plot randomization — three independent tiers (see <c>RanchPlotHandler</c>).
-    /// When <c>RandomizePlots</c> is true, an empty plot can only be built on while the
-    /// number of built plots in its area is below the received "Ranch Plot" item count for
-    /// that area (StartingPlots Conservatory copies arrive as precollected items, so the
-    /// mod just counts received items). Buildings and upgrades gate their purchase-menu
-    /// entries until their item is received.
-    /// Slot data keys: <c>"randomize_plots"</c>, <c>"starting_plots"</c>,
-    /// <c>"randomize_plot_buildings"</c>, <c>"randomize_plot_upgrades"</c>.
+    /// Ranch plots, three independent tiers — see <c>RanchPlotHandler</c>. Starting plots arrive
+    /// as precollected items, so the mod only counts received items.
     /// </summary>
     public bool   RandomizePlots           { get; init; } = false;
     public int    StartingPlots            { get; init; } = 2;
@@ -143,179 +69,73 @@ public class SlotData
     public bool   RandomizePlotUpgrades    { get; init; } = false;
 
     /// <summary>
-    /// Controls how region gate switches and zone teleporters are handled.
-    /// <list type="bullet">
-    ///   <item><term>"vanilla"</term><description>
-    ///     Region gates work as in the base game — activating a switch opens the zone immediately.
-    ///     No region access items are in the AP pool. RegionGatePatch does not block gates.
-    ///     The zone teleporter is granted automatically when the gate opens in-world (default).
-    ///   </description></item>
-    ///   <item><term>"locations"</term><description>
-    ///     Gate switches become blocked location checks. Region gates will not open until the
-    ///     matching Region Access item is received. TeleporterZone is not auto-granted.
-    ///   </description></item>
-    ///   <item><term>"bundled"</term><description>
-    ///     Same as locations, but also grants the matching zone teleporter blueprint automatically
-    ///     when the Region Access item is received.
-    ///   </description></item>
-    /// </list>
-    /// Slot data key: <c>"region_access_mode"</c>.
+    /// <c>"vanilla"</c>: gates open normally and grant their zone teleporter. <c>"locations"</c>:
+    /// pressing a gate is a check; it opens on its Region Access item. <c>"bundled"</c>: as
+    /// locations, and the access item also grants the zone teleporter.
     /// </summary>
     public string RegionAccessMode { get; init; } = "vanilla";
 
-    /// <summary>
-    /// Controls which CommStation conversations become Archipelago location checks.
-    /// <list type="bullet">
-    ///   <item><term><see cref="ConversationCheckMode.Off"/></term>
-    ///     <description>No conversation locations (default). All ranchers give vanilla gifts.</description></item>
-    ///   <item><term><see cref="ConversationCheckMode.Conditional"/></term>
-    ///     <description>The 8 conversations with confirmed zone or chain access conditions
-    ///     (Radiant Projector Blueprint, Gordo Snare Advanced, Archive Key,
-    ///     Mochi/Ogden/Thora intro calls, BOb's first gift and Yolky 1).</description></item>
-    ///   <item><term><see cref="ConversationCheckMode.All"/></term>
-    ///     <description>Every conversation — all 120 total including decorative gifts and story/lore dialogue.</description></item>
-    /// </list>
-    /// Slot data key: <c>"conversation_checks"</c> — values: <c>"none"</c>, <c>"conditional"</c>, <c>"all"</c>.
-    /// </summary>
+    /// <summary>See <see cref="ConversationCheckMode"/>; values <c>"none"</c>, <c>"conditional"</c>, <c>"all"</c>.</summary>
     public ConversationCheckMode ConversationChecks { get; init; } = ConversationCheckMode.Off;
 
-    /// <summary>
-    /// When true, Tarr slimes are excluded from the randomizer: the Slimepedia Tarr location
-    /// is removed from the pool and Tarr Spawn / Tarr Rain traps have weight 0.
-    /// Slot data key: <c>"disable_tarr"</c>.
-    /// </summary>
     public bool DisableTarr { get; init; } = false;
 
-    /// <summary>
-    /// When true, RNG-gated slime locations are excluded from the pool:
-    /// Slimepedia Gold/Lucky/Yolky, Radiant Yolky, and Fabricator Golden Sureshot I/II/III.
-    /// The slimepedia goal skips these entries when checking for completion.
-    /// Slot data key: <c>"exclude_rng_slimes"</c>.
-    /// </summary>
+    /// <summary>The slimepedia and plort_seller goals skip the excluded entries too.</summary>
     public bool ExcludeRngSlimes { get; init; } = false;
 
-    /// <summary>
-    /// When true, weather-dependent locations are excluded from the pool:
-    /// Slimepedia Tangle/Dervish, Radiant Tangle/Dervish, and Resources
-    /// Lightning Mote/Storm Glass/Drift Crystal.
-    /// The slimepedia goal skips these entries when checking for completion.
-    /// Slot data key: <c>"exclude_weather_checks"</c>.
-    /// </summary>
+    /// <summary>The slimepedia and plort_seller goals skip the excluded entries too.</summary>
     public bool ExcludeWeatherChecks { get; init; } = false;
 
-    /// <summary>
-    /// When true, Tarr bites always kill the player instantly regardless of health or multiplier.
-    /// Slot data key: <c>"tarr_instakill"</c>.
-    /// </summary>
     public bool TarrInstakill { get; init; } = false;
 
-    /// <summary>
-    /// Multiplier applied to all incoming player damage. 1 = normal (default). Range: 1–5.
-    /// Slot data key: <c>"incoming_damage_multiplier"</c>.
-    /// </summary>
     public int IncomingDamageMultiplier { get; init; } = 1;
 
-    /// <summary>
-    /// When true, weather events jump directly to their Heavy state as soon as they start.
-    /// Light and Medium states are bypassed. Flat single-state patterns (Slime Rain, Snow)
-    /// are unaffected (MapTier 0 — no tiered variants exist for them).
-    /// On by default to ensure players reliably see severe-weather resource spawns.
-    /// Slot data key: <c>"force_heavy_weather"</c>.
-    /// </summary>
+    /// <summary>Weather jumps straight to its Heavy state; single-state patterns are unaffected.</summary>
     public bool ForceHeavyWeather { get; init; } = true;
 
-    /// <summary>
-    /// Divides <c>WeatherRegistry.ForecastHourIntervalLow/High</c> by this value on scene load,
-    /// making weather events start more frequently.
-    /// 1 = vanilla interval (default). Range: 1–4.
-    /// Slot data key: <c>"weather_frequency_multiplier"</c>.
-    /// </summary>
+    /// <summary>Divides <c>WeatherRegistry.ForecastHourIntervalLow/High</c> on scene load.</summary>
     public int WeatherFrequencyMultiplier { get; init; } = 1;
 
-    /// <summary>
-    /// When true, the Resource Harvester upgrade is precollected — it appears in
-    /// <c>AllItemsReceived</c> at session start and is applied through the normal
-    /// item pipeline on first connect.
-    /// Slot data key: <c>"start_with_resource_harvester"</c>.
-    /// </summary>
+    /// <summary>Precollected by the apworld, so it arrives through the normal item pipeline.</summary>
     public bool StartWithResourceHarvester { get; init; } = false;
 
-    /// <summary>
-    /// Percentage of the vanilla feed count required to pop a Gordo (10–200).
-    /// 100 = vanilla (default). Applied by scaling <c>GordoEat.TargetCount</c> on Awake.
-    /// Slot data key: <c>"gordo_feed_requirement"</c>.
-    /// </summary>
+    /// <summary>Percent of the vanilla feed count; scales <c>GordoEat.TargetCount</c>.</summary>
     public int GordoFeedRequirement { get; init; } = 100;
 
-    /// <summary>
-    /// Percentage of the vanilla Shadow Plort count required to trigger a Grey Labyrinth
-    /// shadow plort door / dispenser. 100 = vanilla. Clamped to 10–200; the resulting count
-    /// is always at least 1. Slot data key: <c>"shadow_plort_requirement"</c>.
-    /// </summary>
+    /// <summary>Percent of the vanilla shadow plort count per door; at least 1.</summary>
     public int ShadowPlortRequirement { get; init; } = 100;
 
     /// <summary>
-    /// Percentage multiplier on Newbucks earned in-game (10-500, 100 = vanilla).
-    /// Slot data key: <c>"newbucks_multiplier"</c>.
+    /// Percent applied to in-game payouts only — AP filler and plot refunds are excluded
+    /// (<c>PlayerStateAddCurrencyScalePatch</c>).
     /// </summary>
-    /// <remarks>
-    /// Applies only to money the game itself pays out. Archipelago Newbucks filler and ranch-plot
-    /// refunds are excluded — see <c>PlayerStateAddCurrencyScalePatch</c>.
-    /// </remarks>
     public int NewbucksMultiplier { get; init; } = 100;
 
-    /// <summary>
-    /// When true, each of the 5 conservatory expansion terminals is a location check.
-    /// Interacting and confirming sends the check; the expansion unlocks only when the
-    /// corresponding AP item is received (no Newbucks cost in randomized mode).
-    /// Slot data key: <c>"randomize_conservatory_expansions"</c>.
-    /// </summary>
+    /// <summary>Terminals are checks; each expansion opens on its item, at no Newbucks cost.</summary>
     public bool RandomizeConservatoryExpansions { get; init; } = false;
 
-    /// <summary>
-    /// Controls plort market saturation at game start.
-    /// "disabled" = vanilla; "5_items" = full saturation + 5×20% recovery items;
-    /// "10_items" = full saturation + 10×10% recovery items.
-    /// Slot data key: <c>"plort_market_mode"</c>.
-    /// </summary>
+    /// <summary><c>"disabled"</c>, <c>"5_items"</c> or <c>"10_items"</c> (saturated start plus recovery items).</summary>
     public string PlortMarketMode { get; init; } = "disabled";
 
     /// <summary>
-    /// How prominently received items are announced on the HUD.
-    /// "none" = silent; "progression" = major popup for progression items only;
-    /// "progression_useful" = major popup for progression and useful; "all" = both of those
-    /// plus a small side notification for filler and traps.
-    /// Slot data key: <c>"item_notifications"</c>. Consumed by <see cref="UI.ItemNotifier"/>.
+    /// <c>"none"</c>, <c>"progression"</c>, <c>"progression_useful"</c> or <c>"all"</c> — see
+    /// <see cref="UI.ItemNotifier"/>.
     /// </summary>
     public string ItemNotifications { get; init; } = "progression_useful";
 
-    /// <summary>
-    /// Prisma Shards needed to unlock the Prismacore encounter (<c>prisma_shard_hunt</c> goal).
-    /// Slot data key: <c>"prisma_shards_required"</c>.
-    /// </summary>
+    /// <summary>Shards needed to unlock the Prismacore fight (<c>prisma_shard_hunt</c>).</summary>
     public int PrismaShardsRequired { get; init; } = 0;
 
-    /// <summary>
-    /// Total Prisma Shards placed in the pool. Display only — the gate uses
-    /// <see cref="PrismaShardsRequired"/>. Slot data key: <c>"prisma_shards_total"</c>.
-    /// </summary>
+    /// <summary>Shards in the pool. Display only.</summary>
     public int PrismaShardsTotal { get; init; } = 0;
 
     /// <summary>
-    /// Progressive Shop Catalog copies placed in this seed, or 0 when the option is off.
-    /// Slot data key: <c>"shop_catalog_items"</c>.
+    /// Catalog copies actually placed (0 = off) — already lowered when the seed had too few shop
+    /// checks, so never read the raw option.
     /// </summary>
-    /// <remarks>
-    /// This is the count the apworld actually placed, already lowered when the seed had too few
-    /// shop checks to divide — never the raw option. Reading the option instead would hide waves
-    /// that no catalog item can ever open.
-    /// </remarks>
     public int ShopCatalogItems { get; init; } = 0;
 
-    /// <summary>
-    /// Wave index per shop location ID: 0 is on sale from the start, wave N needs N catalog
-    /// copies. Empty when the catalog is off. Slot data key: <c>"shop_catalog_waves"</c>.
-    /// </summary>
+    /// <summary>Wave per shop location: wave N needs N catalog copies; 0 is on sale from the start.</summary>
     public IReadOnlyDictionary<long, int> ShopCatalogWaves { get; init; }
         = new Dictionary<long, int>();
 
@@ -383,8 +203,7 @@ public class SlotData
     private static string GetString(Dictionary<string, object> d, string key, string defaultVal = "")
     {
         if (!d.TryGetValue(key, out var v) || v is null) return defaultVal;
-        // New apworld sends human-readable strings; old/other apworlds may send integers.
-        // Accept either — ToString() on a string is a no-op.
+        // Older apworlds may send integers.
         var str = v.ToString();
         return string.IsNullOrEmpty(str) ? defaultVal : str;
     }
@@ -395,15 +214,9 @@ public class SlotData
             : defaultVal;
 
     /// <summary>
-    /// Reads a JSON object of <c>"locationId": wave</c> pairs.
+    /// Reads <c>"locationId": wave</c> pairs, from either a <c>JObject</c> (persisted JSON) or a
+    /// dictionary (live). Bad entries are skipped, never thrown.
     /// </summary>
-    /// <remarks>
-    /// Handles both shapes slot data arrives in: a live server sends values the MultiClient has
-    /// already turned into Newtonsoft tokens, while the offline path deserialises persisted JSON
-    /// where a nested object lands as a <c>JObject</c>. Anything unparseable is skipped rather
-    /// than throwing — a malformed entry should cost one shop item's gating, not the whole
-    /// connection.
-    /// </remarks>
     private static IReadOnlyDictionary<long, int> GetIntMap(Dictionary<string, object> d, string key)
     {
         var result = new Dictionary<long, int>();

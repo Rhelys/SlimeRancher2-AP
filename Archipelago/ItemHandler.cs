@@ -27,26 +27,21 @@ public static class ItemHandler
     private static readonly System.Random _rng = new();
 
     /// <summary>
-    /// Cached reference to the player's ActorUpgradeHandler, populated by
-    /// ActorUpgradeHandlerCtorPatch on first game load. ActorUpgradeHandler is not a
-    /// MonoBehaviour so GetComponent always returns null; constructor interception is required.
+    /// The player's ActorUpgradeHandler, cached by ActorUpgradeHandlerCtorPatch. It is not a
+    /// MonoBehaviour, so GetComponent cannot find it.
     /// </summary>
     public static ActorUpgradeHandler? UpgradeHandler { get; set; }
 
     /// <summary>
-    /// True while <c>ItemHandler.ApplyUpgrade</c> is actively calling
-    /// <c>ActorUpgradeHandler.ApplyUpgrade</c>. Read by <c>FabricatorUpgradeBlockPatch</c>
-    /// to distinguish AP-pipeline upgrade grants from Fabricator direct grants.
-    /// Fabricator grants are blocked; AP pipeline grants are allowed.
+    /// True while the AP pipeline reads or writes an upgrade level. Lets the write past
+    /// <c>FabricatorUpgradeBlockPatch</c> and exempts the read from <c>UpgradeModelGetLevelPatch</c>.
     /// </summary>
     internal static bool IsApplyingItem { get; private set; }
 
     /// <summary>
-    /// True while <c>ApplyNewbucks</c> is calling <c>PlayerState.AddCurrency</c> to grant a
-    /// Newbucks filler item. Read by <c>NewbucksEarnings</c> so AP-granted Newbucks are neither
-    /// scaled by the multiplier nor counted toward the "newbucks" goal — only money earned in-game is.
+    /// True while the mod grants Newbucks (filler, plot refunds), so <c>NewbucksEarnings</c>
+    /// neither scales nor counts them toward the "newbucks" goal.
     /// </summary>
-    // Setter used by ApplyNewbucks and RanchPlotHandler.RefundNewbucks.
     internal static bool IsGrantingCurrency { get; set; }
 
     // IdentifiableType names confirmed via AP-Dump log (GadgetDirector.RefineryTypeGroup).
@@ -122,11 +117,7 @@ public static class ItemHandler
         switch (item.Type)
         {
             case ItemType.RegionAccess:          ApplyRegionAccess(item);                        break;
-            // itemIndex is the debug panel's internal 9000+ counter, unrelated to the AP server
-            // position. Pass -1 so the deferred-open paths (TickExpansionDoors /
-            // TriggerPendingDoorUnlock) skip UpdateLastItemIndex — writing 9000+ there would
-            // corrupt the watermark and skip all real items until the connect-time sanity
-            // check forces a full replay.
+            // -1, not the debug counter: the deferred-open paths would write it to the watermark.
             case ItemType.ConservatoryExpansion: ApplyConservatoryExpansion(item, -1);          break;
             case ItemType.Upgrade:               ApplyUpgrade(item, null, itemIndex);          break;
             case ItemType.Gadget:                ApplyGadget(item, null, itemIndex);           break;
@@ -137,11 +128,8 @@ public static class ItemHandler
             case ItemType.Trap:                  ApplyTrap(item, null, itemIndex);             break; // return ignored — debug path has no requeue
             case ItemType.RanchPlot:             ApplyRanchPlot(item, null, itemIndex);        break;
 #if DEBUG
-            // The live path only recounts the AP server snapshot, which a local grant cannot
-            // add to — so the debug panel keeps its own offset instead.
             case ItemType.ShopCatalog:
-                // Unlike Prisma Shards the count is persisted, not snapshot-only, so the debug
-                // grant can go through the same path the live one does.
+                // Persisted count, so the debug grant uses the live path.
                 Plugin.Instance.SaveManager.AccumulateShopCatalog();
                 ShopCatalogHandler.MarkDirty();
                 Logger.Info(
@@ -149,6 +137,7 @@ public static class ItemHandler
                     $"{ShopCatalogHandler.Total}");
                 break;
             case ItemType.PrismaShard:
+                // Snapshot-only count — a local grant cannot add to it, so use the debug offset.
                 PrismaShardHandler.DebugGrant();
                 Logger.Info(
                     $"[AP-Debug] Prisma Shard granted — {PrismaShardHandler.Progress}" +
@@ -157,21 +146,15 @@ public static class ItemHandler
 #endif
         }
 
-        // Intentionally do NOT call UpdateLastItemIndex here.
-        // Debug panel grants use an internal counter (starting at 9000) that has no
-        // relation to the AP server item index. Calling UpdateLastItemIndex would corrupt
-        // the watermark and cause all subsequent real AP items (idx 0–N) to be permanently
-        // skipped on reconnect (idx <= 9000+ always true).
+        // No UpdateLastItemIndex: the debug counter starts at 9000 and would make every real
+        // item read as already applied.
     }
 
     public static void Apply(ApItemInfo apItem, int itemIndex)
     {
-        // Defer if the scene context isn't ready (e.g., loading screen).
-        // Guard: only requeue items that haven't been applied yet. Items with
-        // itemIndex <= LastItemIndex were already applied in a previous session;
-        // requeuing them here would cause an infinite loop on the loading screen
-        // because OnItemReceived may enqueue them before OnConnected loads the
-        // correct LastItemIndex from the save file (race condition on reconnect).
+        // Defer while loading. Only requeue items above the watermark: on reconnect,
+        // OnItemReceived can enqueue history before OnConnected loads LastItemIndex, and
+        // requeuing those would loop forever on the loading screen.
         if (SceneContext.Instance == null)
         {
             if (itemIndex > Plugin.Instance.SaveManager.LastItemIndex)
@@ -192,21 +175,15 @@ public static class ItemHandler
             return;
         }
 
-        // If the server's item name doesn't match the local table's name for this ID, the
-        // server is using a stale or different apworld data package (e.g. item IDs were
-        // reordered between versions).  We apply by ID (authoritative), but log a clear
-        // warning so this isn't mistaken for a mod bug.
+        // Name mismatch = the server runs a different apworld version. Apply by ID, but warn.
         if (apItem.ItemName != item.Name)
             Logger.Warning(
                 $"[AP] DATA PACKAGE MISMATCH — server says id={apItem.ItemId} is '{apItem.ItemName}', " +
                 $"but local table maps that ID to '{item.Name}'. " +
                 $"Regenerate the game on the AP server with the current apworld version to fix.");
 
-        // Filler and trap items are one-shot effects (Newbucks, craft caches, teleport, etc.).
-        // If the watermark was reset due to a server history mismatch, ALL items replay from
-        // index 0 — these must be skipped to avoid duplicate grants and trap-on-load crashes.
-        // Upgrades, gadgets, and region access are idempotent or self-correcting and are
-        // intentionally NOT guarded here so they always reach the correct level on reconnect.
+        // One-shot items must not re-fire when a watermark reset replays from index 0.
+        // Everything else is idempotent and deliberately replays.
         bool isEphemeral = item.Type is ItemType.Filler or ItemType.Useful or ItemType.Trap;
         if (isEphemeral && Plugin.Instance.SaveManager.IsEphemeralApplied(itemIndex))
         {
@@ -214,21 +191,16 @@ public static class ItemHandler
                 $"[AP] Skipping already-applied {item.Type.ToString().ToLowerInvariant()}: " +
                 $"{item.Name} (idx={itemIndex})");
             Plugin.Instance.SaveManager.UpdateLastItemIndex(itemIndex);
-            // Confirmed already-applied — it no longer needs the deferred-item safety net.
             Plugin.Instance.SaveManager.RemoveDeferredItem(itemIndex);
             return;
         }
 
-        // Traps log when they actually fire (or silently requeue in Release builds).
-        // Filler and UpgradeComponent also log inside their apply methods.
-        // Logging here would spam every frame while a rate-limited item waits.
+        // These types log inside their own apply methods; logging here would spam every frame
+        // while a rate-limited item waits.
         if (item.Type is not ItemType.Trap and not ItemType.Filler and not ItemType.Useful and not ItemType.UpgradeComponent)
             Logger.Info($"[AP] Applying item: {item.Name} (id={item.Id}, idx={itemIndex})");
 
-        // All Apply* helpers return true when the item was applied successfully and
-        // false when it was requeued for a later retry (scene/player not ready, or trap
-        // rate-limited).  When false, we must NOT advance the watermark — the item will
-        // be replayed from _itemQueue this session (or from the server snapshot on reconnect).
+        // Apply* returns false when the item was requeued; the watermark must not advance then.
         bool advanceWatermark = true;
 
         switch (item.Type)
@@ -272,17 +244,14 @@ public static class ItemHandler
                 ApplyRanchPlot(item, apItem, itemIndex); // count-based, always succeeds
                 break;
             case ItemType.PrismaShard:
-                // Nothing to grant in-world: the shard exists only as a counter for the
-                // prisma_shard_hunt gate. Invalidate the cache so the next gate check recounts.
+                // Counter only — invalidate so the next gate check recounts.
                 PrismaShardHandler.MarkDirty();
                 Logger.Info(
                     $"[AP] Prisma Shard received — {PrismaShardHandler.Collected}/" +
                     $"{PrismaShardHandler.Required}");
                 break;
             case ItemType.ShopCatalog:
-                // Nothing to grant in-world either — the copy count is the whole state. Persist
-                // it first so the count survives offline, where the server snapshot reads 0,
-                // then invalidate so the next shop open recounts.
+                // Counter only. Persisted because the server snapshot reads 0 offline.
                 Plugin.Instance.SaveManager.AccumulateShopCatalog();
                 ShopCatalogHandler.MarkDirty();
                 {
@@ -292,9 +261,7 @@ public static class ItemHandler
                         $"[AP] Progressive Shop Catalog received — {held}/" +
                         $"{ShopCatalogHandler.Total}, releasing {released} shop item(s)");
 
-                    // The shop list is only rebuilt when the shop is opened (filtering it while
-                    // the UI is live corrupts the pooled rows), so without this the player has
-                    // no signal that anything changed until they happen to walk back to Polestar.
+                    // The shop list only refreshes when opened, so tell the player now.
                     if (released > 0)
                         UI.StatusHUD.Instance?.ShowNotification(
                             $"Shop Catalog {held} — {released} new items at Polestar Provisions");
@@ -305,26 +272,21 @@ public static class ItemHandler
         if (advanceWatermark)
         {
             Plugin.Instance.SaveManager.UpdateLastItemIndex(itemIndex);
-            // Persist the index so this filler/trap is never re-applied on future replays.
             if (isEphemeral)
                 Plugin.Instance.SaveManager.MarkEphemeralApplied(itemIndex);
 
-            // The item has now been applied — clear its deferred-item safety-net entry.
-            // Must ONLY happen on the applied path: when advanceWatermark is false the item
-            // was just parked (trap rate-limit / expansion hold) and its AddDeferredItem entry
-            // is exactly what protects it from being lost below the watermark on reconnect.
+            // Applied path only: a parked item's deferred entry is what keeps it from being
+            // lost below the watermark on reconnect.
             Plugin.Instance.SaveManager.RemoveDeferredItem(itemIndex);
 
-            // Announce it. Hooked here rather than at the individual Notify() call sites so a
-            // requeued item cannot announce itself twice while it waits to actually apply.
+            // Announced here, not at Notify() sites, so a requeued item cannot announce twice.
             SlimeRancher2AP.UI.ItemNotifier.OnItemApplied(item, apItem);
         }
     }
 
     // -------------------------------------------------------------------------
 
-    // Maps region access item name → zone teleporter GadgetDefinition asset name.
-    // Used by both bundled mode (ApplyRegionAccess) and auto mode (RegionGatePatch Postfix).
+    // Region access item name → zone teleporter GadgetDefinition name (bundled and auto modes).
     private static readonly Dictionary<string, string> RegionToZoneTeleporter = new()
     {
         ["Ember Valley Access"]      = "TeleporterZoneGorge",
@@ -335,19 +297,13 @@ public static class ItemHandler
 
     private static void ApplyRegionAccess(Data.ItemInfo item)
     {
-        // UnlockRegion FIRST — so RegionGatePatch.Prefix's IsRegionUnlocked check passes
-        // immediately when we call SetStateForAll below.
         Plugin.Instance.SaveManager.UnlockRegion(item.Name);
         Notify($"Received: {item.Name}");
 
         var mode = Plugin.Instance.ApClient.SlotData?.RegionAccessMode ?? "vanilla";
 
-        // Bundled mode: the zone teleporter is bundled with the access item — and this grant
-        // is the ONLY source of the teleporter (the apworld does not put teleporter items in
-        // the pool in bundled mode). Region access items often apply mid-scene-load, where
-        // the grant can fail (GadgetDirector null, gadget assets not loaded, AddBlueprint
-        // analytics throw). The watermark advances regardless, so a failed grant must be
-        // parked for retry or the teleporter is permanently lost.
+        // Bundled mode: this grant is the teleporter's only source. It often fails mid-scene-load
+        // and the watermark advances regardless, so a failure is parked for retry.
         if (mode == "bundled" && !GrantRegionTeleporter(item.Name))
         {
             _pendingRegionTeleporters.Add(item.Name);
@@ -355,16 +311,12 @@ public static class ItemHandler
                 $"[AP] Zone teleporter for '{item.Name}' not grantable yet (scene loading?) — queued for retry.");
         }
 
-        // ── Powderfall Bluffs: PuzzleSlotLockable (plort door), not WorldStatePrimarySwitch ──
-        // The plorts are already consumed when the door was filled; we can't "re-fill" it.
-        // Call ActivateOnUnlock() directly to open the door now that access is granted.
-        // PB is a special case: there is no button to press again, so auto-activation is required.
-        // (Unauthorized entry before this item arrives is enforced by GateReturnEnforcer,
-        // not by blocking ActivateOnUnlock — the door opens from native code we can't patch.)
+        // ── Powderfall Bluffs: a plort door, not a button ──
+        // There is nothing to press again, so open it directly. (Early entry is handled by
+        // GateReturnEnforcer — the door opens from native code we can't patch.)
         if (item.Name == RegionTable.PBRegionItemName)
         {
-            // Identify the PB gate by posKey, not object name — multiple doors share the
-            // name "objLabyrinthPlortDoor01Small" across different zones.
+            // By posKey — the door's object name is shared across zones.
             bool pbFound = false;
             foreach (var door in Resources.FindObjectsOfTypeAll<PuzzleSlotLockable>())
             {
@@ -390,9 +342,7 @@ public static class ItemHandler
                 }
                 Logger.Info("[AP] Opened PB Slime Door via ActivateOnUnlock.");
 
-                // Belt-and-suspenders: the Prefix on PuzzleSlotLockable.ActivateOnUnlock already
-                // sends this check, but call it here too in case the Prefix was blocked or the
-                // connection state changed. Idempotent — SendCheck guards with IsChecked().
+                // Normally sent by the ActivateOnUnlock Prefix; repeated in case it didn't fire.
                 if (mode != "vanilla")
                     Plugin.Instance.ApClient.SendCheck(LocationConstants.RegionGate_PowderfallBluffs);
 
@@ -405,11 +355,8 @@ public static class ItemHandler
             return;
         }
 
-        // ── EV / SS and any future WorldStatePrimarySwitch gates ──
-        // The gate is now unlocked in the save file (UnlockRegion above).
-        // RegionGatePatch.Prefix will allow the gate to open the next time the player
-        // physically presses the button — IsRegionUnlocked will return true and the
-        // Prefix will pass through, opening the gate and sending the location check.
+        // ── EV / SS button gates ──
+        // Nothing to do: the next button press now passes RegionGatePatch.
         if (!RegionTable.TryGetSwitch(item.Name, out var switchName))
         {
             Logger.Info($"[AP] Region '{item.Name}' unlocked — no switch mapping, nothing more to do.");
@@ -420,23 +367,19 @@ public static class ItemHandler
             $"[AP] Region '{item.Name}' unlocked — press the gate button ('{switchName}') to open it.");
     }
 
-    // Doors where the AP item arrived before the player sent the check (pressed the terminal).
-    // Keyed by doorId → (itemName, itemIndex). The door must NOT be opened until the check is
-    // sent — otherwise OnInteract sees it's already OPEN and skips the purchase dialog.
-    // Populated by ApplyConservatoryExpansion when IsChecked == false.
-    // Consumed by TriggerPendingDoorUnlock (called from AccessDoorPurchasePatch after SendCheck).
+    // Doors whose item arrived before their terminal check was sent. Held closed until then —
+    // an already-OPEN door makes OnInteract skip the purchase dialog, so the check could never
+    // be sent. Drained by TriggerPendingDoorUnlock.
     private static readonly Dictionary<string, (string itemName, int itemIndex)> _pendingDoorUnlocks = new();
 
-    // Doors that couldn't be opened yet because their sub-scene wasn't loaded.
-    // Tick() polls these every few seconds until the door appears.
+    // Doors whose sub-scene wasn't loaded yet; polled by TickExpansionDoors.
     private static readonly List<(string doorId, string itemName, int itemIndex)> _pendingExpansions = new();
     private static int _expansionTickCounter = 0;
     private const int ExpansionTickInterval = 180; // ~3 seconds at 60 fps
 
     /// <summary>
-    /// Called every frame from ApUpdateBehaviour.Update, but only does work every ~3 seconds.
-    /// Retries any expansion doors whose sub-scene wasn't loaded when the AP item first arrived.
-    /// Advances the watermark and removes each entry as soon as the door is found and opened.
+    /// Per-frame; every ~3 s retries expansion doors whose sub-scene wasn't loaded, advancing
+    /// the watermark as each opens.
     /// </summary>
     internal static void TickExpansionDoors()
     {
@@ -462,9 +405,8 @@ public static class ItemHandler
     }
 
     /// <summary>
-    /// Called from <c>AccessDoorPurchasePatch</c> immediately after the check is sent.
-    /// If the AP item for this door arrived before the check was sent, this opens the door
-    /// and advances the watermark now that the ordering constraint is satisfied.
+    /// Called by <c>AccessDoorPurchasePatch</c> after the check is sent; opens a door whose
+    /// item was held waiting for it.
     /// </summary>
     internal static void TriggerPendingDoorUnlock(string doorId)
     {
@@ -491,9 +433,8 @@ public static class ItemHandler
     }
 
     /// <summary>
-    /// Opens the Conservatory expansion door corresponding to the received AP item.
-    /// Returns false (without advancing watermark) when the door's sub-scene isn't loaded
-    /// yet — the door is added to the pending list so TickExpansionDoors() retries each frame.
+    /// Opens the item's Conservatory expansion door. Returns false when it must wait — for its
+    /// terminal check, or for its sub-scene to load.
     /// </summary>
     private static bool ApplyConservatoryExpansion(Data.ItemInfo item, int itemIndex)
     {
@@ -506,27 +447,19 @@ public static class ItemHandler
 
         Notify($"Received: {item.Name}");
 
-        // Look up the AP location so we can check whether the player already pressed the terminal.
         if (!Data.LocationTable.TryGetByObjectName(doorId, out var locInfo) || locInfo == null)
         {
             Logger.Warning($"[AP] ApplyConservatoryExpansion: no LocationTable entry for door '{doorId}' — opening immediately.");
             goto openNow;
         }
 
-        // If the check hasn't been sent yet, the player hasn't pressed the terminal.
-        // Opening the door now would cause OnInteract to bail out (door already OPEN),
-        // so the purchase dialog would never show and the check would never be sent.
-        // Queue this door and let TriggerPendingDoorUnlock handle it after the check is sent.
+        // Terminal not pressed yet — hold the door (see _pendingDoorUnlocks).
         if (!Plugin.Instance.SaveManager.IsChecked(locInfo.Id))
         {
-            // Upsert: also replace an existing entry that has the -1 debug sentinel so a real
-            // AP grant arriving after a debug grant records its true index.
+            // A real index replaces a -1 debug entry.
             if (!_pendingDoorUnlocks.TryGetValue(doorId, out var existing) || existing.itemIndex < 0)
                 _pendingDoorUnlocks[doorId] = (item.Name, itemIndex);
-            // Persist the index: later items can advance the watermark past this one while the
-            // door is held, and the hold can span sessions (player may not press the terminal
-            // this session). Without this the item would be lost below the watermark on reconnect.
-            // Skipped for the -1 debug sentinel (no real AP position to protect).
+            // The hold can span sessions while later items advance the watermark past it.
             if (itemIndex >= 0)
                 Plugin.Instance.SaveManager.AddDeferredItem(itemIndex);
             Logger.Info($"[AP] Expansion '{item.Name}' received before terminal check — door '{doorId}' held until check is sent.");
@@ -538,16 +471,12 @@ public static class ItemHandler
                              .FirstOrDefault(d => d._id == doorId);
         if (door == null)
         {
-            // Only add to pending list once — reconnect replays will try again anyway
             if (!_pendingExpansions.Exists(e => e.doorId == doorId))
                 _pendingExpansions.Add((doorId, item.Name, itemIndex));
-            // Persist the index so the item survives a session ending before the door's
-            // sub-scene ever loads (see the pending-door-unlock case above).
-            // Skipped for the -1 debug sentinel (no real AP position to protect).
             if (itemIndex >= 0)
                 Plugin.Instance.SaveManager.AddDeferredItem(itemIndex);
             Logger.Info($"[AP] AccessDoor '{doorId}' not in scene yet — queued for deferred open.");
-            return false; // watermark NOT advanced — Tick() will advance it when door opens
+            return false; // TickExpansionDoors advances the watermark when the door opens
         }
 
         OpenDoor(door, doorId, item.Name);
@@ -563,10 +492,7 @@ public static class ItemHandler
         Logger.Info($"[AP] Opened conservatory expansion: {itemName} (door='{doorId}')");
     }
 
-    /// <summary>
-    /// Called from RegionGatePatch Postfix (auto mode) when a zone gate opens in-world.
-    /// Looks up the region name for the given switch and grants its zone teleporter.
-    /// </summary>
+    /// <summary>Auto mode: grants the zone teleporter when a gate opens in-world (RegionGatePatch).</summary>
     internal static void TryGrantRegionTeleporterForSwitch(string switchName, string sceneName)
     {
         if (!RegionTable.TryGetRegionForSwitch(switchName, sceneName, out var regionName)) return;
@@ -575,10 +501,8 @@ public static class ItemHandler
     }
 
     /// <summary>
-    /// Attempts to grant the zone teleporter for <paramref name="regionName"/>.
-    /// Returns <c>false</c> when the grant could not be confirmed yet — callers must park
-    /// that for retry: in bundled mode this grant is the only source of the teleporter and
-    /// the item's watermark has already advanced.
+    /// Grants the region's zone teleporter. Returns <c>false</c> when not yet confirmed — callers
+    /// must park it for retry, as the item's watermark has already advanced.
     /// </summary>
     private static bool GrantRegionTeleporter(string regionName)
     {
@@ -589,24 +513,14 @@ public static class ItemHandler
     }
 
     /// <summary>
-    /// Ensures the blueprint for <paramref name="gadgetName"/> is in the player's possession.
-    /// Returns <c>true</c> when the blueprint is CONFIRMED possessed (already was, or the
-    /// grant verifiably succeeded) and <c>false</c> when the grant could not complete yet —
-    /// director unavailable, gadget assets not loaded, or AddBlueprint threw with the
-    /// blueprint still missing.
-    ///
-    /// <para>
-    /// Verification uses <c>HasBlueprint</c>, NOT <c>IsBlueprintUnlocked</c>. GadgetsModel
-    /// keeps separate sets: <c>blueprints</c> (possessed — what AddBlueprint writes and
-    /// HasBlueprint reads) and <c>availBlueprints</c> (available-to-acquire — what
-    /// IsBlueprintUnlocked reads). AP-granted blueprints only enter <c>availBlueprints</c>
-    /// via vanilla unlock events, which never fire in AP mode — so verifying with
-    /// IsBlueprintUnlocked after a successful AddBlueprint returned false forever,
-    /// re-queuing the grant every 3 seconds for the whole session and re-running
-    /// AddBlueprint/AddItem on each retry (player-reported log spam + inflated teleporter
-    /// unit counts).
-    /// </para>
+    /// Ensures the player possesses the gadget's blueprint. Returns <c>true</c> only when
+    /// confirmed; <c>false</c> means retry (director or assets not ready, or AddBlueprint threw).
     /// </summary>
+    /// <remarks>
+    /// Verify with <c>HasBlueprint</c> (the set AddBlueprint writes), never
+    /// <c>IsBlueprintUnlocked</c> — that reads a separate set only vanilla unlock events fill, so
+    /// it stays false forever in AP mode and the retry loop re-grants endlessly.
+    /// </remarks>
     private static bool EnsureGadgetBlueprint(string gadgetName)
     {
         var director = SceneContext.Instance?.GadgetDirector;
@@ -616,41 +530,29 @@ public static class ItemHandler
                                  .FirstOrDefault(d => d.name == gadgetName);
         if (gadgetDef == null) return false; // gadget assets not loaded yet — retry
 
-        // Idempotency: skip if already possessed (handles reconnect replays and double-fires)
         if (director.HasBlueprint(gadgetDef)) return true;
 
         GrantSingleGadget(director, gadgetName);
 
-        // Verify rather than assume: AddBlueprint can throw mid-scene-load (analytics ctor)
-        // with the blueprint still missing, and GrantSingleGadget swallows that failure.
+        // GrantSingleGadget swallows AddBlueprint's mid-load throws, so check the result.
         return director.HasBlueprint(gadgetDef);
     }
 
-    // Region names whose zone teleporter grant failed and must be retried once the scene is
-    // further along. Populated by ApplyRegionAccess (bundled) and TryGrantRegionTeleporterForSwitch
-    // (vanilla); drained by TickRegionTeleporters.
+    // Regions whose zone teleporter grant failed; drained by TickRegionTeleporters.
     private static readonly HashSet<string> _pendingRegionTeleporters = new();
-    // Retry attempts per pending region. Retrying is only meant to bridge scene loading
-    // (seconds); if a grant still can't be verified after MaxTeleporterRetries the failure is
-    // systemic — give up until the next connect-time validation instead of re-running
-    // AddBlueprint/AddItem every 3 seconds for the rest of the session (which a broken
-    // verification check once did for hours, inflating the player's gadget inventory).
+    // Retries only bridge scene loading. Past the cap the failure is systemic — give up until
+    // the next connect rather than re-grant (and inflate the inventory) all session.
     private static readonly Dictionary<string, int> _teleporterRetryCounts = new();
     private const int MaxTeleporterRetries = 40; // ~2 minutes at one attempt per 3 s
     private static int _teleporterTickCounter = 0;
     private const int TeleporterTickInterval = 180; // ~3 seconds at 60 fps
 
-    // Set on every connect (from the post-login main-thread action). When true and the scene
-    // is ready, TickRegionTeleporters seeds _pendingRegionTeleporters with every unlocked
-    // region in bundled mode — healing saves where a bundled teleporter grant was lost in a
-    // previous session (the region access item never replays once below the watermark).
+    // Set on connect: in bundled mode, re-check every unlocked region's teleporter, healing a
+    // grant lost in an earlier session (the access item never replays below the watermark).
     private static volatile bool _pendingBundledValidation;
 
-    // The DroneStation gadget blueprint's only vanilla source is a treasure pod, which AP
-    // replaces with a location check — so Quantum Drone Station items bundle the blueprint
-    // instead (see ApplyUseful). This connect-time validation heals saves from before that
-    // fix, where modules were received without the blueprint (those item indices sit below
-    // the watermark and never replay).
+    // The DroneStation blueprint's vanilla source (a treasure pod) is a check in AP, so Quantum
+    // Drone Station items bundle it. Validated on connect to heal saves that got modules without it.
     private const string DroneStationGadgetName = "DroneStation"; // confirmed via DumpGadgets
     private static volatile bool _pendingDroneBlueprintValidation;
     private static int _droneBlueprintRetryCount;
@@ -674,10 +576,7 @@ public static class ItemHandler
         _droneBlueprintRetryCount = 0;
     }
 
-    /// <summary>
-    /// Called every frame from <c>ApUpdateBehaviour.Update</c>; does work every ~3 seconds.
-    /// Retries failed zone-teleporter grants and runs the connect-time bundled validation.
-    /// </summary>
+    /// <summary>Per-frame; every ~3 s retries teleporter grants and runs connect-time validation.</summary>
     internal static void TickRegionTeleporters()
     {
         if (!_pendingBundledValidation && !_pendingDroneBlueprintValidation
@@ -685,10 +584,7 @@ public static class ItemHandler
         if (++_teleporterTickCounter < TeleporterTickInterval) return;
         _teleporterTickCounter = 0;
 
-        // Connect-time DroneStation blueprint validation: any received Quantum Drone
-        // Station implies the blueprint must be possessed (its vanilla treasure pod source
-        // is suppressed in AP mode). EnsureGadgetBlueprint is idempotent — an already-owned
-        // blueprint resolves to an immediate no-op.
+        // Any received Quantum Drone Station implies the DroneStation blueprint.
         if (_pendingDroneBlueprintValidation && SceneContext.Instance?.Player != null)
         {
             if (!HasReceivedQuantumDroneStation())
@@ -709,9 +605,7 @@ public static class ItemHandler
             }
         }
 
-        // Connect-time validation: in bundled mode every unlocked region must have its
-        // teleporter blueprint. GrantRegionTeleporter is idempotent, so regions that already
-        // have it resolve to an immediate no-op on the first retry pass.
+        // Bundled mode: every unlocked region must have its teleporter.
         if (_pendingBundledValidation && SceneContext.Instance?.Player != null)
         {
             _pendingBundledValidation = false;
@@ -729,7 +623,6 @@ public static class ItemHandler
 
         if (_pendingRegionTeleporters.Count == 0) return;
 
-        // Snapshot — GrantRegionTeleporter success mutates the set.
         foreach (var regionName in _pendingRegionTeleporters.ToArray())
         {
             if (GrantRegionTeleporter(regionName))
@@ -753,11 +646,7 @@ public static class ItemHandler
         }
     }
 
-    /// <summary>
-    /// True when at least one Quantum Drone Station appears in the session's full
-    /// received-item snapshot (same pattern as the Market Recovery count in
-    /// <c>PlortMarketModePatch</c>).
-    /// </summary>
+    /// <summary>True when the server snapshot holds at least one Quantum Drone Station.</summary>
     private static bool HasReceivedQuantumDroneStation()
     {
         var items = Plugin.Instance.ApClient.Session?.Items?.AllItemsReceived;
@@ -768,64 +657,37 @@ public static class ItemHandler
     }
 
     /// <summary>
-    /// Tracks the current absolute level of each upgrade, populated by the
-    /// <c>OnUpgradeChanged</c> patch in <c>ActorUpgradeHandlerPatch.cs</c>.
-    /// Fires both on save-data restore and on explicit <c>ApplyUpgrade</c> calls,
-    /// so it always reflects the true in-game state.
+    /// Last known level per upgrade, from <c>OnUpgradeChanged</c>, save restore, and our own writes.
     /// </summary>
     private static readonly Dictionary<string, int> _upgradeLevels = new();
 
-    /// <summary>One-shot guard for the null-model warning.</summary>
     private static bool _warnedNullModel;
 
-    /// <summary>Called by <c>ActorUpgradeHandlerPatch.OnUpgradeChangedPostfix</c>.</summary>
     public static void TrackUpgradeLevel(string upgradeName, int newLevel)
         => _upgradeLevels[upgradeName] = newLevel;
 
     /// <summary>
-    /// Clears the tracked upgrade levels. Called on disconnect so a new game / different AP
-    /// slot in the same process does not inherit the previous session's levels — stale values
-    /// made <c>ApplyUpgrade</c> skip grants as "already maxed" and let
-    /// <c>UpgradeObtainedQueryPatch</c> report upgrades the fresh save doesn't have.
-    /// The cache is rebuilt by OnUpgradeChanged (save restore), ApplyUpgrade, and
-    /// ValidateAndRepairUpgrades on the next session.
+    /// Called on disconnect, so the next save or slot does not inherit levels — stale ones made
+    /// grants skip as "already maxed".
     /// </summary>
     public static void ResetUpgradeTracking() => _upgradeLevels.Clear();
 
     /// <summary>
-    /// True once <c>UpgradeModel.Push</c> has restored the SR2 save's upgrade levels into the
-    /// model this session.
+    /// True once <c>UpgradeModel.Push</c> has restored the save's levels this session. Before
+    /// that every level reads -1, so reconciliation would "repair" the whole set.
     /// </summary>
-    /// <remarks>
-    /// Reconciling against the AP watermark before this is meaningless: the model is still
-    /// empty, every upgrade reads level -1, and the "repair" re-applies the whole set from the
-    /// snapshot. Observed in a player log — 13 upgrades all reported
-    /// <c>SR2 model level=-1</c> on a save at watermark 191, because validation ran ~0.6s after
-    /// the handler was cached but before Push had run. Anything the watermark does not account
-    /// for is silently dropped in that window.
-    /// </remarks>
     public static bool UpgradesRestored { get; private set; }
 
-    /// <summary>Clears the restore signal. Called on disconnect and on scene change.</summary>
-    /// <remarks>
-    /// Deliberately does NOT clear <see cref="NoRestoreExpected"/>: a new game creates the save
-    /// and then transitions scene, so a flag cleared here would be wiped moments after the
-    /// new-game path set it.
-    /// </remarks>
+    /// <summary>
+    /// Called on disconnect and scene change. Leaves <see cref="NoRestoreExpected"/> alone — a
+    /// new game sets it and then changes scene.
+    /// </summary>
     public static void ResetUpgradeRestoreState() => UpgradesRestored = false;
 
     /// <summary>
-    /// True when the active save was created fresh this session, so no <c>UpgradeModel.Push</c>
-    /// is coming and there is nothing to wait for.
+    /// True for a save created this session: no <c>Push</c> is coming, so reconciliation runs
+    /// immediately instead of waiting out the grace period.
     /// </summary>
-    /// <remarks>
-    /// A new game never routes through <c>AutoSaveDirector.BeginLoad</c> and has no persisted
-    /// upgrade levels to restore, so <c>Push</c> is never called. Without this, reconciliation
-    /// sat out the full grace period and then logged a warning about an unrestored model on
-    /// every single new game — for a model that was correctly empty. Reconciling immediately is
-    /// right here: the new-game path requests a full replay, so the AP snapshot is the only
-    /// source the model should be built from.
-    /// </remarks>
     public static bool NoRestoreExpected { get; private set; }
 
     /// <summary>Marks the active save as freshly created — no restore <c>Push</c> will arrive.</summary>
@@ -835,9 +697,7 @@ public static class ItemHandler
     public static void MarkLoadedSave() => NoRestoreExpected = false;
 
     /// <summary>
-    /// Called from <c>UpgradeModelPushPatch</c> once the save's upgrade levels are in the model.
-    /// Rebuilds the tracked cache from the model so it reflects what the player actually holds,
-    /// including upgrades that never came through AP.
+    /// Called by <c>UpgradeModelPushPatch</c>; rebuilds the tracked cache from the restored model.
     /// </summary>
     public static void OnUpgradesRestored()
     {
@@ -858,45 +718,19 @@ public static class ItemHandler
     }
 
     /// <summary>
-    /// Returns the last tracked model level for <paramref name="upgradeName"/>, or -1 if the
-    /// upgrade has never been applied this session (not yet tracked).
-    /// Used by <c>UpgradeModelGetLevelPatch</c> to floor the patched return value so that
-    /// AP-granted upgrades are still recognized by game logic such as
-    /// <c>PlayerUpgradeObtainedQueryComponent.IsSatisfied</c>.
+    /// Last tracked level, or -1. <c>UpgradeModelGetLevelPatch</c> floors its result with this so
+    /// queries like <c>PlayerUpgradeObtainedQueryComponent</c> still see AP-granted upgrades.
     /// </summary>
     public static int GetTrackedLevel(string upgradeName)
         => _upgradeLevels.TryGetValue(upgradeName, out var lvl) ? lvl : -1;
 
     /// <summary>
-    /// Reads the true <c>UpgradeModel</c> level for <paramref name="def"/>, or -1 when the
-    /// handler or model is not ready yet.
+    /// Writes an absolute level into the <c>UpgradeModel</c> — what SR2 saves and queries read.
     /// </summary>
     /// <remarks>
-    /// Bypasses <c>UpgradeModelGetLevelPatch</c>, which would otherwise return the Fabricator
-    /// checked count rather than the level the player actually holds. The flag is saved and
-    /// restored rather than blindly cleared, so calling this from inside an item application
-    /// cannot end that application's suppression early.
-    /// </remarks>
-
-    /// <summary>
-    /// Writes an absolute upgrade level into the <c>UpgradeModel</c>, which is what SR2 saves
-    /// and what the game's own queries read.
-    /// </summary>
-    /// <remarks>
-    /// <b>Not</b> <c>ActorUpgradeHandler.ApplyUpgrade</c>. That applies stat MODIFIERS
-    /// (<c>_appliedModifiers</c> / <c>SetModifiersFromModel</c>) and never touches the model, so
-    /// an upgrade granted through it works for the rest of the session, is never saved, and is
-    /// absent from <c>PlayerUpgradeObtainedQueryComponent</c> — which is why Gigi could insist a
-    /// player needed a Water Tank they were visibly carrying, and why watermark reconciliation
-    /// re-applied the same upgrades on every single load.
-    ///
-    /// Confirmed by read-back: after ApplyUpgrade the model still reported -1.
-    ///
-    /// Writing the model matches what vanilla does — the Fabricator drives
-    /// <c>IncrementUpgradeLevel</c>, which is exactly why FabricatorUpgradeBlockPatch has to
-    /// intercept it. The handler picks the change up through its own OnUpgradeChanged and
-    /// applies the modifiers itself, so ApplyUpgrade must NOT also be called or the modifiers
-    /// would be applied twice.
+    /// Never <c>ActorUpgradeHandler.ApplyUpgrade</c>: it applies stat modifiers only, so the
+    /// upgrade is never saved and invisible to the game's own upgrade queries. The handler
+    /// applies modifiers itself via OnUpgradeChanged, so calling both would apply them twice.
     /// </remarks>
     private static bool WriteModelLevel(UpgradeDefinition def, int level)
     {
@@ -918,13 +752,15 @@ public static class ItemHandler
         finally { IsApplyingItem = previous; }
     }
 
+    /// <summary>
+    /// The true model level, or -1 if not ready. Bypasses <c>UpgradeModelGetLevelPatch</c>;
+    /// the flag is restored, not cleared, so this is safe inside an item application.
+    /// </summary>
     public static int GetRealModelLevel(UpgradeDefinition def)
     {
         if (def == null || UpgradeHandler == null) return -1;
 
-        // Diagnostic: a null _model makes every level read -1, which looks identical to "the
-        // player has nothing" and causes ValidateAndRepairUpgrades to re-apply the same
-        // upgrades on every connect. Logged once so the cause is unambiguous in a log.
+        // A null model reads like "the player has nothing" — say so once in the log.
         if (UpgradeHandler._model == null)
         {
             if (!_warnedNullModel)
@@ -947,11 +783,7 @@ public static class ItemHandler
         finally { IsApplyingItem = previous; }
     }
 
-    /// <summary>
-    /// Maps an AP item ID to the corresponding UpgradeDefinition asset name, or null if
-    /// the item is not an upgrade.  Extracted so both <see cref="ApplyUpgrade"/> and
-    /// <see cref="ValidateAndRepairUpgrades"/> share the same mapping without duplication.
-    /// </summary>
+    /// <summary>AP item ID → UpgradeDefinition name, or null if not an upgrade.</summary>
     private static string? GetUpgradeName(long itemId) => itemId switch
     {
         ItemTable.ProgressiveHealthTank        => "HealthCapacity",
@@ -973,17 +805,9 @@ public static class ItemHandler
     };
 
     /// <summary>
-    /// Compares the expected upgrade levels (computed from the AP session's item history up to
-    /// the saved watermark) against the actual SR2 model levels and applies any correction.
-    /// Handles the case where the SR2 save was behind the AP watermark — e.g. because the game
-    /// crashed before the autosave after items were applied.
-    ///
-    /// Corrects in both directions: raises a level the save is missing, and lowers one the
-    /// server never delivered (only when the server history covers the watermark — see
-    /// <c>historyCoversWatermark</c>). Safe to call repeatedly — an upgrade already at the
-    /// expected level is left alone. Must be called on the main thread after
-    /// <see cref="UpgradeHandler"/> is non-null (i.e. after the scene has loaded enough for the
-    /// upgrade handler to be constructed).
+    /// Reconciles each upgrade's model level with the count received up to the watermark —
+    /// e.g. after a crash before autosave. Raises missing levels and lowers undelivered ones
+    /// (the latter only when the server history covers the watermark). Idempotent; main thread.
     /// </summary>
     public static void ValidateAndRepairUpgrades()
     {
@@ -996,8 +820,7 @@ public static class ItemHandler
         var snapshot  = session.Items.AllItemsReceived;
         if (snapshot == null || snapshot.Count == 0) return;
 
-        // Count expected absolute levels per upgrade type from applied snapshot items.
-        // "1 item received" → level 0; "2 items received" → level 1, etc.
+        // Count per upgrade; level = count - 1.
         var expectedLevels = new Dictionary<string, int>();
         for (int i = 0; i <= watermark && i < snapshot.Count; i++)
         {
@@ -1006,10 +829,7 @@ public static class ItemHandler
             expectedLevels[name] = expectedLevels.GetValueOrDefault(name) + 1;
         }
 
-        // Seed every AP-known upgrade at count 0, not just the ones the server has delivered.
-        // Without this the loop below only ever sees upgrades the player HAS received, so an
-        // upgrade they hold that the watermark does not account for is never examined at all —
-        // exactly the case worth surfacing. Level for count 0 is -1, i.e. "should not have it".
+        // Seed every upgrade at 0 so one held but never received is still examined.
         foreach (var d in ItemTable.All)
         {
             var n = GetUpgradeName(d.Id);
@@ -1018,9 +838,7 @@ public static class ItemHandler
 
         if (expectedLevels.Count == 0) return;
 
-        // Lowering a level is only safe when the counts above are complete. If the server's
-        // history is shorter than the watermark says we applied, every expected level comes out
-        // too low, and correcting downward would strip upgrades the player really received.
+        // A history shorter than the watermark undercounts, and lowering would strip real upgrades.
         bool historyCoversWatermark = snapshot.Count > watermark;
 
         foreach (var kvp in expectedLevels)
@@ -1032,25 +850,17 @@ public static class ItemHandler
                                       .FirstOrDefault(d => d.name == upgradeName);
             if (upgradeDef == null) continue;
 
-            // Shared read path, so the null-model diagnostic covers this too. An earlier
-            // version read _model inline here and the diagnostic sat in GetRealModelLevel,
-            // which validation never called — the warning could not fire no matter the cause.
             int currentLevel = GetRealModelLevel(upgradeDef);
 
-            // Always log the comparison — this is the first thing to look at when a player
-            // reports a missing upgrade tier (e.g. "crafted Extra Tank II but only have one
-            // extra tank"): expected = items received via AP, actual = SR2 save state.
+            // Always logged — the first thing to check when a player reports a missing tier.
             Logger.Info(
                 $"[AP] Upgrade validation: '{upgradeName}' items received={kvp.Value} " +
                 $"(expected level {targetLevel}), SR2 model level={currentLevel}");
 
             if (currentLevel > targetLevel)
             {
-                // Game state is AHEAD of the watermark: the player holds a tier the AP server
-                // never delivered. On an AP-bound save there is no legitimate source for that
-                // any more — the Fabricator suppresses its vanilla grant whenever the save is
-                // bound, connected or not (FabricatorPatch.IsEnabled) — so it is a debug-panel
-                // grant or a mod bug, and the server's count is the truth. Lower it to match.
+                // Ahead of the server. A bound save has no legitimate source for that (the
+                // Fabricator's vanilla grant is suppressed), so the server's count wins.
                 if (!historyCoversWatermark)
                 {
                     Logger.Warning(
@@ -1082,9 +892,7 @@ public static class ItemHandler
 
             if (currentLevel == targetLevel)
             {
-                // SR2 save is correct — still record the level so the tracked cache is
-                // repopulated after ResetUpgradeTracking() (disconnect) even when no
-                // repair is needed. UpgradeObtainedQueryPatch reads this cache.
+                // Correct, but still refill the tracked cache after a disconnect cleared it.
                 _upgradeLevels[upgradeName] = currentLevel;
                 continue;
             }
@@ -1092,11 +900,8 @@ public static class ItemHandler
             Logger.Info(
                 $"[AP] Upgrade repair: '{upgradeName}' SR2 level={currentLevel} < expected={targetLevel} — correcting");
 
-            // Read back immediately. If this reports targetLevel the write landed and the
-            // problem is persistence (the level is lost before the next load); if it still
-            // reports the old value the write is not reaching the model we read from.
-            // The read-back is the verdict — WriteModelLevel returns false when SetUpgradeLevel
-            // throws, which can happen from a UI listener after the model already advanced.
+            // The read-back is the verdict: SetUpgradeLevel can throw from a UI listener after
+            // the model already advanced.
             bool wrote   = WriteModelLevel(upgradeDef, targetLevel);
             int readBack = GetRealModelLevel(upgradeDef);
             if (readBack >= targetLevel)
@@ -1117,9 +922,6 @@ public static class ItemHandler
 
     private static bool ApplyUpgrade(Data.ItemInfo item, ApItemInfo? apItem, int itemIndex)
     {
-        // ActorUpgradeHandler is not a MonoBehaviour — GetComponent always returns null.
-        // Instead we use UpgradeHandler, which is populated by ActorUpgradeHandlerCtorPatch
-        // the first time the player's upgrade handler is constructed.
         if (UpgradeHandler == null)
         {
             Logger.Warning("[AP] ActorUpgradeHandler not yet cached — requeuing upgrade");
@@ -1138,15 +940,8 @@ public static class ItemHandler
             return true; // asset issue — retrying won't help
         }
 
-        // ApplyUpgrade takes an ABSOLUTE level (not a delta).
-        // Valid range: -1 (locked) to LevelCount-1 (fully upgraded).
-        // Read current level directly from the model (always matches game save state).
-        // Fall back to _upgradeLevels for rapid successive calls within the same frame
-        // before ApplyUpgrade has had a chance to update the model.
-        //
-        // IsApplyingItem is set true here so UpgradeModelGetLevelPatch (which overrides
-        // GetUpgradeLevel to return the AP checks-sent level for display) is suppressed
-        // for this read — we need the actual persisted model level to compute targetLevel.
+        // Levels are absolute: -1 (locked) to LevelCount-1. The cache covers several grants in
+        // one frame before the model catches up. IsApplyingItem bypasses UpgradeModelGetLevelPatch.
         IsApplyingItem = true;
         int modelLevel   = UpgradeHandler._model?.GetUpgradeLevel(upgradeDef) ?? -1;
         IsApplyingItem = false;
@@ -1162,19 +957,13 @@ public static class ItemHandler
             return true;
         }
 
-        // Judge the write by reading the model back, not by whether it threw. SetUpgradeLevel can
-        // throw from a UI listener (the vacpack AdapterView is not initialized until the player
-        // opens the upgrade screen) AFTER the model has already advanced — that is a success.
-        // WriteModelLevel swallows the exception and returns false, so its result alone cannot
-        // tell the two cases apart.
+        // Judge by read-back: SetUpgradeLevel can throw from an uninitialized UI listener AFTER
+        // the model advanced, which is a success.
         bool wrote     = WriteModelLevel(upgradeDef, targetLevel);
         int levelAfter = GetRealModelLevel(upgradeDef);
         if (levelAfter < targetLevel)
         {
-            // Not requeued: a write that fails once will most likely fail again, and requeuing
-            // would retry (and warn) every frame. The watermark advances with this item, so
-            // scheduling validation retries the write exactly once — ValidateAndRepairUpgrades
-            // counts this item as received and repairs the shortfall on the next frame.
+            // Not requeued (would retry every frame). Validation counts this item and retries once.
             Logger.Warning(
                 $"[AP] Upgrade write did not land for '{upgradeName}' " +
                 $"(wanted {targetLevel}, model reports {levelAfter}) — scheduling upgrade validation to retry");
@@ -1186,60 +975,55 @@ public static class ItemHandler
                 $"[AP] SetUpgradeLevel threw (UI prefab not ready?) but model DID advance to {levelAfter} — " +
                 "upgrade applied successfully. UI will refresh when the upgrade screen is opened.");
 
-        _upgradeLevels[upgradeName] = targetLevel; // update immediately; patch callback may fire late or not at all
+        _upgradeLevels[upgradeName] = targetLevel; // the change callback may fire late or not at all
         Logger.Info($"[AP] Applied upgrade: {upgradeName} → level {targetLevel}/{maxLevel}");
         Notify($"Received: {item.Name}");
         return true;
     }
 
-    // Simple 1:1 grants: AP item ID → GadgetDefinition.name (from DumpGadgets).
-    // Asset names marked (?) need in-game verification via DumpGadgets.
-    // Verified against apworld items.py (2026-04-12).
+    // AP item ID → GadgetDefinition.name. All confirmed via DumpGadgets.
     private static readonly Dictionary<long, string> SimpleGadgets = new()
     {
-        // Zone Teleporters — one per region (confirmed via DumpGadgets)
+        // Zone Teleporters
         [ItemTable.TeleporterEmberValley]      = "TeleporterZoneGorge",
         [ItemTable.TeleporterStarlightStrand]  = "TeleporterZoneStrand",
         [ItemTable.TeleporterPowderfallBluffs] = "TeleporterZoneBluffs",
         [ItemTable.TeleporterGreyLabyrinth]    = "TeleporterZoneLabyrinth",
 
-        // Home Teleporters (confirmed via DumpGadgets)
+        // Home Teleporters
         [ItemTable.HomeTeleporterBlue]   = "TeleporterHomeBlue",
         [ItemTable.HomeTeleporterGreen]  = "TeleporterHomeGreen",
         [ItemTable.HomeTeleporterRed]    = "TeleporterHomeRed",
         [ItemTable.HomeTeleporterYellow] = "TeleporterHomeYellow",
 
-        // Warp Depots (confirmed via DumpGadgets)
+        // Warp Depots
         [ItemTable.WarpDepotGrey]   = "WarpDepotGrey",
         [ItemTable.WarpDepotBerry]  = "WarpDepotBerry",    // orange-coloured variant
         [ItemTable.WarpDepotViolet] = "WarpDepotViolet",
         [ItemTable.WarpDepotSnowy]  = "WarpDepotSnowy",
 
-        // Functional gadgets — all names confirmed against docs/dumps/1.2/Gadget.txt
+        // Functional gadgets
         [ItemTable.MarketLink]         = "MarketLink",
         [ItemTable.SuperHydroTurret]   = "SuperHydroTurret",
         [ItemTable.PortableScareSlime] = "PortableScareSlime",
         [ItemTable.GordoSnareAdvanced] = "GordoSnareAdvanced",
         [ItemTable.MedStation]         = "MedStation",
-        [ItemTable.DreamLanternT2]     = "DreamLanternT2",     // confirmed via DumpGadgets
+        [ItemTable.DreamLanternT2]     = "DreamLanternT2",
 
-        // Movement / utility gadgets (confirmed via DumpGadgets)
+        // Movement / utility gadgets
         [ItemTable.DashPad]            = "DashPad",
         [ItemTable.SpringPad]          = "SpringPad",
         [ItemTable.PortableWaterTap]   = "PortableWaterTap",
 
-        // Utility gadgets, always in the pool (docs/dumps/1.3/gadgets.txt). Refinery Link's
-        // vanilla source, Mochi's intro call, is suppressed in every seed — see
-        // ConversationActiveTrackerPatch.AlwaysApGiftAssets.
+        // Always in the pool. Refinery Link's vanilla source (Mochi's intro call) is always
+        // suppressed — see ConversationActiveTrackerPatch.AlwaysApGiftAssets.
         [ItemTable.RefineryLink]       = "RefineryLink",
         [ItemTable.PortableFabricator] = "PortableFabricator",
 
-        // Labyrinth goal gadget (confirmed via DumpGadgets).
-        // Received ×3 for prismacore/slimepedia goals; duplicates skip via the
-        // HasBlueprint guard in GrantSingleGadget.
+        // ×3 for prismacore/slimepedia goals; duplicates hit GrantSingleGadget's guard.
         [ItemTable.DisruptionDetector] = "PrismaDisruptionDetector",
 
-        // Radiant Projector Blueprint (Special Access — grants via AddBlueprint, not AddItem)
+        // Radiant Projector Blueprint
         [ItemTable.RadiantProjectorBlueprint] = "EnergyBeamNode",
     };
 
@@ -1270,26 +1054,6 @@ public static class ItemHandler
         [Data.ItemTable.Palette_Burgundy] = "VacPalette_Burgundy",
     };
 
-    /// <summary>
-    /// Unlocks a vac palette through <c>PaletteDirector.SetOwned</c>.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// <c>SetOwned</c> is CallerCount(0). That is a caution flag even for a plain call — CLAUDE.md
-    /// records a CallerCount(0) property getter that hard-crashed the process when called. This
-    /// one carries CachedScanResults with a real xref range, which that getter did not, and the
-    /// result is verified through <c>IsOwned</c> (CallerCount(1)) rather than trusted.
-    /// </para>
-    /// <para>
-    /// Idempotent: owning and unlocking are each skipped when already done, so replaying the item
-    /// on reconnect or into a fresh save is harmless. That is why palettes are not ephemeral-guarded
-    /// like Filler.
-    /// </para>
-    /// <para>
-    /// The apworld never places a palette that is also a shop check in the same seed, so granting
-    /// one here cannot make a Polestar check unbuyable.
-    /// </para>
-    /// </remarks>
 #if DEBUG
     /// <summary>Debug: grants the first vac palette the player does not yet own.</summary>
     internal static void DebugGrantNextPalette()
@@ -1309,10 +1073,8 @@ public static class ItemHandler
     }
 
     /// <summary>
-    /// Debug: re-runs the grant on every palette already owned, unlocking any pedia entry that is
-    /// still locked. Repairs palettes granted by the first version of ApplyPalette, which set
-    /// ownership but never unlocked the entry — those sit owned-and-invisible, and "grant next
-    /// unowned" skips them because they are owned.
+    /// Debug: re-grants every owned palette, repairing ones left owned-but-locked by the first
+    /// ApplyPalette.
     /// </summary>
     internal static void DebugRepairOwnedPalettes()
     {
@@ -1350,12 +1112,20 @@ public static class ItemHandler
     }
 #endif
 
+    /// <summary>
+    /// Owns the palette and unlocks its pedia entry — both are needed: the vac style screen lists
+    /// unlocked pedia entries, so ownership alone shows nothing.
+    /// </summary>
+    /// <remarks>
+    /// <c>SetOwned</c> is CallerCount(0), so the result is verified through <c>IsOwned</c>.
+    /// Idempotent, so not ephemeral-guarded. The apworld never places a palette that is also a
+    /// shop check, so this cannot make a Polestar check unbuyable.
+    /// </remarks>
     private static bool ApplyPalette(Data.ItemInfo item, ApItemInfo? apItem, int itemIndex)
     {
         var director = SceneContext.Instance?.PaletteDirector;
         if (director == null)
         {
-            // Scene still loading — requeue, exactly as ApplyGadget does.
             if (apItem != null) Plugin.Instance.ApClient.RequeueItem(apItem, itemIndex);
             return false;
         }
@@ -1381,17 +1151,8 @@ public static class ItemHandler
             return false;
         }
 
-        // Ownership alone does nothing visible. Vac styles are chosen from the Slimepedia's
-        // palette screen (PediaPaletteCategoryScreen), which lists unlocked PEDIA ENTRIES — a
-        // palette that is owned but whose entry is still locked never appears, so it can be
-        // neither seen nor equipped. The first version of this called SetOwned only; IsOwned
-        // flipped to true and the palette stayed invisible. A shop purchase does both, which is
-        // why palettes bought at Polestar always showed up.
-        //
-        // Both steps run every time rather than returning early once owned, so a palette left
-        // owned-but-locked by that first version is repaired on its next replay instead of being
-        // skipped forever. Unlock returns false for an entry already unlocked, so this stays
-        // idempotent.
+        // Ownership alone is invisible — the palette screen lists unlocked pedia entries. Both
+        // steps always run, so an owned-but-locked palette is repaired on replay.
         bool changed = false;
         try
         {
@@ -1431,13 +1192,10 @@ public static class ItemHandler
         var gadgetDirector = SceneContext.Instance.GadgetDirector;
         if (gadgetDirector == null)
         {
-            // GadgetDirector is unavailable (scene loading) — requeue for retry.
             if (apItem != null) Plugin.Instance.ApClient.RequeueItem(apItem, itemIndex);
             return false;
         }
 
-        // Simple 1:1 gadget grant (covers zone teleporters, home teleporters, warp depots,
-        // functional gadgets, and the Radiant Projector Blueprint via SimpleGadgets lookup)
         if (SimpleGadgets.TryGetValue(item.Id, out var gadgetName))
         {
             GrantSingleGadget(gadgetDirector, gadgetName);
@@ -1450,22 +1208,9 @@ public static class ItemHandler
     }
 
     /// <summary>
-    /// Looks up a GadgetDefinition by asset name, unlocks its blueprint, and adds one unit
-    /// to the player's usable gadget inventory.
+    /// Unlocks the gadget's blueprint (<c>AddBlueprint(def, false)</c>, no pedia popup) and adds
+    /// one unit (<c>AddItem</c> — not <c>OnGadgetPickedUp</c>, which is unreliable outside pick-up).
     /// </summary>
-    /// <remarks>
-    /// <para>
-    /// <c>AddBlueprint(def, false)</c> — unlocks the gadget type in the Fabricator/Gadget menu
-    /// (second param suppresses the Pedia unlock notification).
-    /// </para>
-    /// <para>
-    /// <c>AddItem(def, 1)</c> — adds one usable unit to inventory. <c>GadgetDefinition</c>
-    /// extends <c>IdentifiableType</c>, so it is accepted directly by the overload.
-    /// This replaces the previous <c>OnGadgetPickedUp</c> call, which is a world-event
-    /// callback (CallerCount=1) and does not reliably add to inventory when called outside
-    /// the normal pick-up flow.
-    /// </para>
-    /// </remarks>
     private static void GrantSingleGadget(GadgetDirector director, string gadgetName)
     {
         var gadgetDef = Resources.FindObjectsOfTypeAll<GadgetDefinition>()
@@ -1476,26 +1221,16 @@ public static class ItemHandler
             return;
         }
 
-        // Idempotency guard: if the player already possesses the blueprint the grant was
-        // already applied in a previous session (persisted in the SR2 save) or earlier in
-        // this replay. Skipping AddItem prevents duplicate units being added to the player's
-        // inventory when items are re-queued (e.g., RequestFullReplay on a new game from an
-        // existing AP slot).
-        //
-        // HasBlueprint (possession — the set AddBlueprint writes), NOT IsBlueprintUnlocked
-        // (availability — a separate set only populated by vanilla unlock events that never
-        // fire in AP mode). The old IsBlueprintUnlocked guard returned false even after a
-        // successful grant, letting retry loops re-run AddBlueprint/AddItem indefinitely.
+        // Already granted (earlier session or replay) — don't add a duplicate unit.
+        // HasBlueprint, not IsBlueprintUnlocked (see EnsureGadgetBlueprint).
         if (director.HasBlueprint(gadgetDef))
         {
             Logger.Info($"[AP] Gadget '{gadgetName}' blueprint already owned — skipping");
             return;
         }
 
-        // AddBlueprint and AddItem can throw when their internal analytics event constructors
-        // try to read the player's location component before it is initialised (e.g. during
-        // scene load).  The actual blueprint/inventory update runs BEFORE the analytics call,
-        // so we catch, verify via HasBlueprint, and suppress the cosmetic crash.
+        // Both can throw from an analytics ctor during scene load, AFTER the real update —
+        // so catch and verify rather than treat a throw as failure.
         try
         {
             director.AddBlueprint(gadgetDef, false);
@@ -1525,25 +1260,18 @@ public static class ItemHandler
         Logger.Info($"[AP] Granted gadget: {gadgetName}");
     }
 
-    /// <returns>
-    /// <c>true</c> if the item was applied (watermark should advance);
-    /// <c>false</c> if it was requeued (do NOT advance watermark).
-    /// </returns>
     private static bool ApplyFiller(Data.ItemInfo item, ApItemInfo? apItem, int itemIndex)
     {
         Logger.Info($"[AP] Applying filler: {item.Name} (id={item.Id}, idx={itemIndex})");
 
-        // Newbucks — grant directly to player wallet
         if (item.Id is ItemTable.Newbucks250 or ItemTable.Newbucks500 or ItemTable.Newbucks1000)
             return ApplyNewbucks(item, apItem, itemIndex);
 
-        // Slime Ring — spawns common slimes in a ring around the player.
-        // Uses trap rate-limiting internally; propagate its success/failure to the caller
-        // so the watermark is not advanced when Slime Ring is deferred.
+        // Rate-limited like a trap, so it can return false.
         if (item.Id == ItemTable.SlimeRing)
             return TrapHandler.ApplySlimeRingTrap(apItem, itemIndex);
 
-        // Plort/craft caches — deposit a random assortment of 10 items into the refinery
+        // Caches — 10 random picks from the pool into the refinery
         var pool = item.Id switch
         {
             ItemTable.CommonPlortCache            => CommonPlorts,
@@ -1565,10 +1293,8 @@ public static class ItemHandler
     }
 
     /// <summary>
-    /// Ranch plot randomization items (plot unlocks / building plans / upgrades).
-    /// Receipt has no immediate world effect — RanchPlotHandler derives all gate state
-    /// from the AP server snapshot, so this only invalidates its cached counts (or, for
-    /// sessionless F9 grants, bumps the debug counter) and notifies the player.
+    /// Ranch plot items have no world effect: RanchPlotHandler derives gate state from the
+    /// server snapshot, so this only invalidates its counts (or bumps the debug counter).
     /// </summary>
     private static bool ApplyRanchPlot(Data.ItemInfo item, ApItemInfo? apItem, int itemIndex)
     {
@@ -1582,13 +1308,10 @@ public static class ItemHandler
         return true;
     }
 
-    // Quantum Drone Station modules refused by a capped refinery park here; a slow ticker
-    // promotes one back into the item queue every few seconds until the store accepts it.
+    // Drone Station modules refused by a full store; requeued one at a time every 3 s.
     private static readonly List<(ApItemInfo apItem, int itemIndex)> _heldDroneModules = new();
     private static float _nextHeldDroneRetry;
 
-    /// <summary>Called every frame from <c>Plugin.Update</c>; retries at most one held
-    /// drone module every 3 seconds through the normal apply path.</summary>
     public static void TickHeldDroneModules()
     {
         if (_heldDroneModules.Count == 0) return;
@@ -1600,18 +1323,14 @@ public static class ItemHandler
         Plugin.Instance.ApClient.RequeueItem(apItem, itemIndex);
     }
 
-    /// <summary>Called on disconnect — held modules are re-queued on reconnect from the
-    /// persisted deferred-item set, so keeping stale entries would double-grant.</summary>
+    /// <summary>On disconnect — reconnect requeues them from the deferred set, so keeping them would double-grant.</summary>
     public static void ClearHeldDroneModules() => _heldDroneModules.Clear();
 
     private static bool ApplyUseful(Data.ItemInfo item, ApItemInfo? apItem, int itemIndex)
     {
         Logger.Info($"[AP] Applying useful: {item.Name} (id={item.Id}, idx={itemIndex})");
 
-        // Quantum Drone Station — every copy grants the DroneStation gadget blueprint
-        // (its only vanilla source is a treasure pod, which AP replaces with a location
-        // check) and then tries to add one placeable station unit to the player's
-        // inventory. EnsureGadgetBlueprint is idempotent, so copies 2+ only add the unit.
+        // Quantum Drone Station — every copy ensures the blueprint, then adds one station unit.
         if (item.Id == ItemTable.QuantumDroneStation)
         {
             var director = SceneContext.Instance?.GadgetDirector;
@@ -1622,16 +1341,12 @@ public static class ItemHandler
             }
             if (!EnsureGadgetBlueprint(DroneStationGadgetName))
             {
-                // Blueprint not confirmable yet (gadget assets still loading) — retry the
-                // whole grant so the blueprint and the module unit arrive together.
+                // Assets still loading — retry the whole grant.
                 if (apItem != null) Plugin.Instance.ApClient.RequeueItem(apItem, itemIndex);
                 return false;
             }
-            // Which IdentifiableType actually represents a station the player can place.
-            // Best candidate first: the station gadget itself. 'ComponentAcqDrone' is the
-            // ghostly-drone WORLD COLLECTIBLE, not a storable item — the game reports
-            // GetOwnableCountLimit == 0 for it, so every AddItem is refused permanently
-            // (player log 2026-07-25 showed the old code retrying it forever).
+            // Candidate types for a placeable station. 'ComponentAcqDrone' is the ghostly-drone
+            // world collectible with an ownable limit of 0, so it is never stored.
             string[] candidates = { DroneStationGadgetName, "ComponentAcqDrone" };
             bool storableButFull = false;
 
@@ -1662,8 +1377,7 @@ public static class ItemHandler
                     $"[AP] Quantum Drone Station: '{typeName}' refused " +
                     $"(ownable limit={limit}, space available={space})");
 
-                // limit > 0 means the game WILL store this type, there's just no room
-                // right now — that is worth retrying once the player frees space.
+                // Storable but full — worth retrying once the player frees space.
                 if (limit > 0) storableButFull = true;
             }
 
@@ -1675,9 +1389,7 @@ public static class ItemHandler
                 return false;
             }
 
-            // No storable station type. Do NOT hold the item: an ownable limit of 0 is a
-            // permanent refusal, and retrying spins the queue every few seconds forever.
-            // The blueprint (granted above) is the meaningful part of this item.
+            // Limit 0 is permanent — don't hold. The blueprint is the meaningful part anyway.
             Logger.Warning(
                 "[AP] Quantum Drone Station: no storable station type — blueprint granted only. " +
                 "If stations are still capped in-game, the count is governed by something " +
@@ -1689,9 +1401,7 @@ public static class ItemHandler
         if (item.Id == ItemTable.WeatherChange)
             return TrapHandler.Schedule(item.Id, apItem, itemIndex);
 
-        // Market Recovery — recomputes the declarative market saturation target from the
-        // total count of recovery items received (the snapshot already includes this one).
-        // Requeued when the market objects aren't ready yet (scene loading).
+        // Market Recovery — recomputes saturation from the total received (snapshot includes this one).
         if (item.Id is ItemTable.MarketRecovery20 or ItemTable.MarketRecovery10)
         {
             if (!Patches.EconomyPatches.PlortMarketModePatch.ApplyRecovery())
@@ -1707,8 +1417,7 @@ public static class ItemHandler
         return true;
     }
 
-    // Map ItemTable ID → UpgradeComponent asset name.
-    // All names confirmed via upgrade_components.txt dump (2026-04-13).
+    // ItemTable ID → UpgradeComponent asset name (confirmed via upgrade_components.txt dump).
     private static readonly Dictionary<long, string> _upgradeComponentNames = new()
     {
         { ItemTable.ArchiveKeyComponent,  "ArchiveKeyComponent"      },  // ArchiveKey[lvl0]
@@ -1800,13 +1509,11 @@ public static class ItemHandler
             return false;
         }
 
-        // Pre-fetch all IdentifiableType assets once to avoid repeated FindObjectsOfTypeAll calls.
         var allIdents = Resources.FindObjectsOfTypeAll<IdentifiableType>();
 
         int totalAdded = 0;
         for (int i = 0; i < count; i++)
         {
-            // Each pick is independent — yields a random assortment rather than all-one-type.
             var typeName = pool[_rng.Next(pool.Length)];
             var identType = allIdents.FirstOrDefault(t => t.name == typeName);
             if (identType == null)
@@ -1823,10 +1530,6 @@ public static class ItemHandler
         return true;
     }
 
-    /// <returns>
-    /// <c>true</c> if the trap fired (watermark should advance);
-    /// <c>false</c> if it was requeued for later (scene/player not ready — do NOT advance watermark).
-    /// </returns>
     private static bool ApplyTrap(Data.ItemInfo item, ApItemInfo? apItem, int itemIndex)
     {
         return TrapHandler.Schedule(item.Id, apItem, itemIndex);
@@ -1840,16 +1543,9 @@ public static class ItemHandler
     // Debug-only helpers — not part of the normal AP item flow
     // -------------------------------------------------------------------------
 
-    /// <summary>
-    /// Grants the Radiant Projector gadget blueprint and one unit to the player's inventory.
-    /// The GadgetDefinition asset name "RadiantProjector" follows the established naming
-    /// pattern — verify via Dump Gadget Names if this logs "not found".
-    /// </summary>
-    // Confirmed GadgetDefinition asset name for the Radiant Projector — update once known.
-    // If this logs "not found", check the BepInEx log immediately below for all loaded gadget
-    // names containing "radiant", "puzzle", or "projector" to identify the correct name.
-    private const string RadiantProjectorGadgetName = "EnergyBeamNode"; // confirmed via DumpGadgets — "RadiantProjector" does not exist
+    private const string RadiantProjectorGadgetName = "EnergyBeamNode"; // confirmed via DumpGadgets
 
+    /// <summary>Unlocks the Radiant Projector blueprint.</summary>
     public static void DebugGrantRadiantProjector()
     {
         var director = SceneContext.Instance?.GadgetDirector;
@@ -1868,19 +1564,12 @@ public static class ItemHandler
             return;
         }
 
-        // Only unlock the blueprint — the player crafts units from the Fabricator as normal.
-        // This matches what Viktor's communication does in-game, and ensures the unlock persists.
-        // AddItem is intentionally NOT called here; pre-crafted unit counts don't persist for
-        // this gadget type (the Fabricator crafting system tracks the inventory, not AddItem).
+        // Blueprint only, as Viktor's call does — AddItem'd units don't persist for this gadget.
         director.AddBlueprint(def, false);
         Logger.Info($"[AP-Debug] Unlocked blueprint: '{def.name}' — craft units in the Fabricator");
     }
 
-    /// <summary>
-    /// Debug-only: grants the Radiant Projector blueprint AND immediately adds one pre-crafted
-    /// unit to the player's inventory — skips the Fabricator step so the beam puzzle can be
-    /// tested without gathering crafting materials.
-    /// </summary>
+    /// <summary>Blueprint plus one unit, to test beam puzzles without crafting.</summary>
     public static void DebugGrantRadiantProjectorUnit()
     {
         var director = SceneContext.Instance?.GadgetDirector;
@@ -1905,9 +1594,8 @@ public static class ItemHandler
     }
 
     /// <summary>
-    /// Places <paramref name="count"/> of the named food type directly into the player's vacpack.
-    /// Fills the first unlocked slot that is empty or already contains the same type.
-    /// IdentifiableType asset names — use Dump IdentifiableTypes (Misc page) to discover them.
+    /// Puts <paramref name="count"/> of an IdentifiableType into vacpack slots that are empty or
+    /// already hold it. Find names with Dump IdentifiableTypes (Misc page).
     /// </summary>
     public static void DebugGrantFoodToVacpack(string typeName, int count = 20)
     {
@@ -1943,10 +1631,8 @@ public static class ItemHandler
             var slot = slots[i];
             if (slot == null || !slot.IsUnlocked) continue;
 
-            // Skip slots already occupied by a different type
             if (slot.Id != null && slot.Count > 0 && slot.Id.name != typeName) continue;
 
-            // Assign type if the slot is empty
             if (slot.Id == null || slot.Count == 0)
                 slot.Id = identType;
 
@@ -1972,10 +1658,7 @@ public static class ItemHandler
 #endif
 }
 
-/// <summary>
-/// Schedules and ticks active trap effects.
-/// <c>Tick()</c> must be called every frame from <c>ApUpdateBehaviour.Update()</c>.
-/// </summary>
+/// <summary>Schedules and ticks trap effects. <c>Tick()</c> runs every frame.</summary>
 public static class TrapHandler
 {
     private static readonly System.Random _rng = new();
@@ -1984,45 +1667,31 @@ public static class TrapHandler
     // Runtime region-gate tracking (for auto mode / vanilla gate opens)
     // -------------------------------------------------------------------------
 
-    // Region item names (e.g. "Ember Valley Access") that have been observed going DOWN
-    // during this session. Populated by RegionGatePatch.Postfix so the teleport trap can
-    // check accessibility without relying on AP save data (which is never written in auto mode).
+    // Region items whose gate was seen opening this session (auto mode writes no save data).
     private static readonly HashSet<string> _runtimeOpenRegions = new();
 
-    // SceneGroup.ReferenceId strings for every zone the player has been in this session.
-    // If the player is physically in a zone, that zone is reachable by definition.
-    // Used as a fallback when gate events haven't fired (previous session, gadget teleporters, etc.)
+    // Zones visited this session — reachable by definition. Fallback when no gate event fired.
     private static readonly HashSet<string> _visitedSceneGroupRefs = new();
     private static string? _lastSeenGroupRef = null;
 
     /// <summary>
-    /// The player's current <c>SceneGroup.ReferenceId</c>, as of the last <see cref="TrackCurrentZone"/>
-    /// call this frame. Read this instead of doing your own
-    /// <c>SceneContext.Instance.Player.GetComponent&lt;TeleportablePlayer&gt;()</c> — several
-    /// per-frame patches each did their own, paying for the same IL2CPP round trip three times
-    /// over just to notice a zone change that happens a handful of times per session.
+    /// The player's current <c>SceneGroup.ReferenceId</c>, updated each frame. Use this rather
+    /// than your own <c>GetComponent&lt;TeleportablePlayer&gt;()</c> per frame.
     /// </summary>
     public static string? CurrentZoneRef => _lastSeenGroupRef;
 
-    /// <summary>
-    /// Called by <c>RegionGatePatch.Postfix</c> whenever a tracked region gate opens (DOWN).
-    /// Records the region as accessible for this session.
-    /// </summary>
+    /// <summary>Called by <c>RegionGatePatch</c> when a region gate opens.</summary>
     public static void MarkRegionOpen(string regionItemName)
         => _runtimeOpenRegions.Add(regionItemName);
 
     /// <summary>
-    /// True if this region's gate was observed opening during THIS session. In-memory only —
-    /// a false answer means "not seen", not "closed", so callers must fall back to reading the
-    /// switch state rather than treating it as authoritative.
+    /// True if the gate was seen opening this session. False means "not seen", not "closed" —
+    /// fall back to the switch state.
     /// </summary>
     public static bool IsRegionOpenThisSession(string regionItemName)
         => _runtimeOpenRegions.Contains(regionItemName);
 
-    /// <summary>
-    /// Clears all per-group deferred trap queues.  Called on disconnect to prevent traps
-    /// that were waiting for a cooldown from firing unexpectedly in the next session.
-    /// </summary>
+    /// <summary>Clears deferred traps on disconnect so they don't fire in the next session.</summary>
     public static void ClearDeferred()
     {
         int total = 0;
@@ -2031,22 +1700,16 @@ public static class TrapHandler
             Logger.Info($"[AP] TrapHandler: cleared {total} deferred trap(s) on disconnect");
     }
 
-    /// <summary>
-    /// Called every frame from <c>ApUpdateBehaviour.Update()</c>. Records the player's current
-    /// zone so that teleport trap eligibility can be inferred from visited zones.
-    /// </summary>
+    /// <summary>Per-frame; records zone visits (the teleport trap's destination pool).</summary>
     public static void TrackCurrentZone(string? sceneGroupRef)
     {
         if (sceneGroupRef == null || sceneGroupRef == _lastSeenGroupRef) return;
         string? previousZone = _lastSeenGroupRef;
         _lastSeenGroupRef = sceneGroupRef;
-        // Enforce gate checks before recording the visit. If the transition is
-        // unauthorized, skip recording so the zone isn't added to the teleport pool.
+        // An unauthorized entry is not a visit.
         bool enforced = GateReturnEnforcer.OnZoneChanged(sceneGroupRef, previousZone);
         if (enforced) return;
         _visitedSceneGroupRefs.Add(sceneGroupRef);
-        // Persist first visits so the teleport trap knows which zones are safe to send
-        // the player to across sessions, not just within the current play session.
         Plugin.Instance.SaveManager.MarkZoneVisited(sceneGroupRef);
 #if DEBUG
         Logger.Info($"[AP] TrapHandler: zone visit recorded — '{sceneGroupRef}'");
@@ -2058,23 +1721,17 @@ public static class TrapHandler
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// Each trap belongs to exactly one group.  Groups are independent: a cooldown in one
-    /// group does NOT delay traps in another.  Within a group, traps fire at most once per
-    /// <see cref="GroupMinInterval"/> seconds, and share one deferred queue.
+    /// Independent rate-limit groups: each has its own cooldown (<see cref="GroupMinInterval"/>)
+    /// and deferred queue.
     /// </summary>
     private enum TrapGroup
     {
         Spawn    = 0,  // Tarr Spawn, Slime Ring — lightweight spawns; rapid fire OK
-        // TODO: TrapGroup.Weather is a slight misnomer — it rate-limits both Weather Change
-        // (useful filler) and Tarr Rain (trap). Consider splitting into separate groups or
-        // renaming if more non-trap items end up sharing rate-limit buckets.
-        Weather  = 1,  // Weather Change (useful filler), Tarr Rain (trap) — prolonged effects; needs breathing room
+        Weather  = 1,  // Weather Change (useful, not a trap), Tarr Rain — prolonged effects
         Teleport = 2,  // Teleport — disorienting but recoverable; moderate gap
     }
 
-    // Scene-readiness tracking: set when Player first becomes non-null after a load.
-    // Traps are deferred until the global grace period has elapsed AND their group
-    // cooldown has expired.
+    // Set when Player first becomes non-null after a load; starts the grace period.
     private static bool  _sceneWasReady   = false;
     private static float _sceneReadySince = -1f;
 
@@ -2082,16 +1739,12 @@ public static class TrapHandler
     private const float SceneGracePeriod = 10f;
 
     /// <summary>
-    /// Milliseconds to hold traps after the player's most recent location check, so a trap
-    /// rewarded by that very check cannot interrupt the interaction that sent it
-    /// (map node activation, gordo pop, treasure pod opening, …).
+    /// Hold traps this long after a check, so a trap rewarded by it cannot interrupt the
+    /// interaction that sent it.
     /// </summary>
     private const int CheckInteractionGraceMs = 2000;
 
-    /// <summary>
-    /// Per-group minimum interval (seconds) between consecutive fires within that group.
-    /// Index matches <see cref="TrapGroup"/> ordinal.
-    /// </summary>
+    /// <summary>Per-group minimum seconds between fires, indexed by <see cref="TrapGroup"/>.</summary>
     private static readonly float[] GroupMinInterval =
     {
         1f,   // Spawn   — Tarr Spawn, Slime Ring
@@ -2099,23 +1752,14 @@ public static class TrapHandler
         5f,   // Teleport
     };
 
-    /// <summary>
-    /// Per-group last-fire timestamp (Unity Time.time).  -1 = never fired this session.
-    /// Index matches <see cref="TrapGroup"/> ordinal.
-    /// </summary>
+    /// <summary>Per-group last fire (Time.time); -1 = never.</summary>
     private static readonly float[] _lastGroupFiredAt = { -1f, -1f, -1f };
 
     /// <summary>
-    /// Per-group deferred pools.  Rate-limited traps park here; <see cref="Tick"/> promotes
-    /// one entry per group per frame once the grace period and group cooldown have passed.
-    /// Index matches <see cref="TrapGroup"/> ordinal.
-    ///
-    /// A List rather than a Queue because promotion picks a RANDOM entry, not the oldest:
-    /// the AP server delivers a released multiworld's items grouped by type, so FIFO drainage
-    /// played every Slime Ring, then every Vac Fill, then every Vac Spew in long uniform runs.
-    /// Random selection interleaves them. Safe with respect to the save watermark — traps are
-    /// ephemeral items tracked individually by index in <c>_ephemeralSet</c>, and anything
-    /// still parked here is in <c>_deferredSet</c> and re-queued on the next connect.
+    /// Per-group parked traps; <see cref="Tick"/> promotes one per group once allowed.
+    /// Promotion picks at random, not FIFO: a release delivers items grouped by type, and FIFO
+    /// played them in long uniform runs. Order doesn't matter to the watermark — traps are
+    /// tracked by index.
     /// </summary>
     private static readonly List<(ApItemInfo apItem, int itemIndex)>[] _deferredByGroup =
     {
@@ -2124,14 +1768,9 @@ public static class TrapHandler
         new(), // Teleport
     };
 
-    /// <summary>RNG for deferred-trap promotion order.  Seeded from the clock — cosmetic only.</summary>
     private static readonly System.Random _deferredRng = new();
 
-    /// <summary>
-    /// Returns true when it is safe to fire a trap in <paramref name="group"/>
-    /// (scene loaded, global grace period passed, group-specific cooldown expired).
-    /// Returns false and optionally logs the reason when the trap should be deferred.
-    /// </summary>
+    /// <summary>True when the scene is ready and no grace period or group cooldown applies.</summary>
     private static bool IsTrapAllowed(TrapGroup group, string trapName)
     {
         if (_sceneReadySince < 0f) return false; // scene not ready yet
@@ -2176,14 +1815,9 @@ public static class TrapHandler
     }
 
     /// <summary>
-    /// True while the post-check hold window is active. A trap that is the reward of the
-    /// player's OWN check arrives ~100-300 ms after the interaction that sent it; firing
-    /// immediately (especially the Teleport Trap) interrupts the still-running interaction —
-    /// a map node was left visually unactivated when its trap teleported the player
-    /// mid-activation (player-reported). Checked both when a trap first applies
-    /// (<see cref="IsTrapAllowed"/>) and before promoting deferred traps in <see cref="Tick"/> —
-    /// promoting during the grace just bounces the trap back to the deferred queue every
-    /// frame, spamming the log.
+    /// True within <see cref="CheckInteractionGraceMs"/> of a check. A trap from the player's own
+    /// check arrives ~100-300 ms later and could interrupt it (a teleport once left a map node
+    /// unactivated). Also gates promotion in <see cref="Tick"/>, which would otherwise bounce.
     /// </summary>
     private static bool InCheckInteractionGrace()
     {
@@ -2204,8 +1838,7 @@ public static class TrapHandler
     // The WeatherDirectors we applied the state to — cached on activation.
     private static WeatherDirector[]? _cachedDirectors = null;
 
-    // The IWeatherPattern instance passed to RunPatternState per director — cached for StopPatternState on expiry.
-    // Null for Tarr Rain (which uses RunState directly and doesn't need registry stop).
+    // Per-director pattern for StopPatternState on expiry. Null for Tarr Rain (uses RunState).
     private static IWeatherPattern[]? _cachedPatterns = null;
 
     // SpawnActorActivity.ActorType values overridden by the Slime Rain trap; restored on weather reset.
@@ -2216,43 +1849,34 @@ public static class TrapHandler
     // Public API
     // -------------------------------------------------------------------------
 
-    /// <summary>Called every frame from ApUpdateBehaviour to tick timed trap effects and track scene state.</summary>
+    /// <summary>Per-frame: scene readiness, weather expiry, deferred promotion.</summary>
     public static void Tick()
     {
-        // Scene-readiness tracking for trap rate limiting.
-        // The scene is "ready" once the Player object exists in the SceneContext.
         bool sceneReady = SceneContext.Instance?.Player != null;
         if (!sceneReady)
         {
-            // Reset when leaving a loaded scene (e.g. returning to main menu)
             _sceneWasReady   = false;
             _sceneReadySince = -1f;
         }
         else if (!_sceneWasReady)
         {
-            // First frame the scene became ready — start the grace period clock
             _sceneWasReady   = true;
             _sceneReadySince = UnityEngine.Time.time;
             Logger.Info(
                 $"[AP] TrapHandler: scene ready — trap grace period begins ({SceneGracePeriod}s)");
 
-            // If a weather trap is active, apply it to any directors that just loaded.
+            // Carry an active weather trap into the newly loaded zone.
             if (_activeWeatherState != null && _weatherResetAt >= 0f && UnityEngine.Time.time < _weatherResetAt)
                 ReapplyWeatherToNewZone();
         }
 
-        // Weather-trap expiry.
         if (_weatherResetAt >= 0f && UnityEngine.Time.time >= _weatherResetAt)
         {
             ResetWeather();
             _weatherResetAt = -1f;
         }
 
-        // Deferred trap promotion: each group is checked independently.
-        // When a group's cooldown has cleared, one deferred entry is moved back to the main
-        // item queue.  Groups do NOT block each other — a Weather trap in cooldown does not
-        // delay a pending Spawn trap.  Only one trap per group is promoted per Tick() so that
-        // consecutive traps within a group remain separated by GroupMinInterval[g].
+        // Promote at most one trap per ready group per frame, keeping each group's spacing.
         if (_sceneReadySince >= 0f)
         {
             float now     = UnityEngine.Time.time;
@@ -2267,8 +1891,6 @@ public static class TrapHandler
                     bool cooldownOk = _lastGroupFiredAt[g] < 0f
                                    || now >= _lastGroupFiredAt[g] + GroupMinInterval[g];
                     if (!cooldownOk) continue;
-                    // Pick a random parked trap rather than the oldest so that a released
-                    // multiworld's type-grouped item stream comes out interleaved.
                     int pick = _deferredRng.Next(q.Count);
                     var (trapApItem, trapIndex) = q[pick];
                     q.RemoveAt(pick);
@@ -2281,13 +1903,7 @@ public static class TrapHandler
         }
     }
 
-    /// <summary>
-    /// Applies a trap by item ID.
-    /// </summary>
-    /// <returns>
-    /// <c>true</c> if the trap fired and the watermark should advance;
-    /// <c>false</c> if it was requeued (scene/player not ready — caller must NOT advance watermark).
-    /// </returns>
+    /// <summary>Applies a trap. Returns false when requeued (watermark must not advance).</summary>
     public static bool Schedule(long trapItemId, ApItemInfo? apItem, int itemIndex)
     {
         // Suppress disruptive traps once the goal is complete.
@@ -2318,17 +1934,9 @@ public static class TrapHandler
         }
     }
 
-    // Helper: park the item for a later retry, then return false so the watermark does NOT advance.
-    //
-    // Rate-limited traps pass their TrapGroup; the item is pushed into that group's deferred
-    // queue.  Tick() promotes one deferred trap per group per frame once both the global grace
-    // period and the group cooldown have cleared.  This replaces the old pattern of calling
-    // RequeueItem() for rate-limited traps, which caused a per-frame dequeue/requeue cycle
-    // (~2400 iterations for a 40 s cooldown at 60 fps and thousands of log lines per trap).
-    //
-    // Non-rate-limit failures (scene not ready, missing assets, etc.) still go straight back
-    // to _itemQueue via RequeueItem() for a quick retry on the next Update frame.
-    // Pass deferGroup=null for those cases.
+    // Parks the item and returns false. Rate-limited traps pass their group and wait in its
+    // deferred queue (requeuing them spun every frame for the whole cooldown); other failures
+    // (scene not ready, etc.) pass null and requeue for the next frame.
     private static bool Requeue(ApItemInfo? apItem, int itemIndex, string reason,
                                 TrapGroup? deferGroup = null)
     {
@@ -2338,9 +1946,7 @@ public static class TrapHandler
             {
                 var q = _deferredByGroup[(int)deferGroup.Value];
                 q.Add((apItem, itemIndex));
-                // Persist the deferred index so a disconnect before the trap fires doesn't
-                // lose it permanently (the watermark may advance past this index before Tick()
-                // promotes it; without persistence the trap would be silently skipped on reconnect).
+                // Persisted: the watermark can pass it before it fires.
                 Plugin.Instance.SaveManager.AddDeferredItem(itemIndex);
                 Logger.Info(
                     $"[AP] Trap deferred ({deferGroup.Value} group, queue depth: {q.Count})");
@@ -2363,10 +1969,9 @@ public static class TrapHandler
     // Slime Ring trap — spawns a burst of common slimes around the player
     // -------------------------------------------------------------------------
 
-    // Slime pools by region — only slimes native to accessible areas are spawned.
-    // Region assignments match the apworld logic (worlds/slime_rancher_2/locations.py).
+    // Slime pools by region (matching the apworld's locations.py); only accessible ones spawn.
 
-    // Always available — native to Rainbow Fields
+    // Rainbow Fields — always available
     private static readonly string[] _slimesFields =
     {
         "Pink", "Tabby", "Cotton", "Phosphor", "Tangle", "Dervish", "Yolky", "Gold", "Lucky",
@@ -2405,7 +2010,6 @@ public static class TrapHandler
         if (playerGo == null)
             return Requeue(apItem, itemIndex, "no Player in scene");
 
-        // Build candidate pool from accessible regions only.
         bool hasEV = IsRegionGateOpen("Ember Valley Access");
         bool hasSS = IsRegionGateOpen("Starlight Strand Access");
 
@@ -2413,15 +2017,11 @@ public static class TrapHandler
         if (hasEV)                        candidateNames.AddRange(_slimesEmberValley);
         if (hasSS)                        candidateNames.AddRange(_slimesStarlightStrand);
         if (IsRegionGateOpen("Powderfall Bluffs Access")) candidateNames.AddRange(_slimesPowderfallBluffs);
-        // Grey Labyrinth slimes: only if the player has physically visited the Labyrinth.
-        // hasEV/hasSS is necessary but not sufficient — the beam puzzles still need solving to
-        // enter. Check both the persisted HasVisitedZone (previous sessions) and the in-memory
-        // set (current session), matching the same dual-check used by TeleportTrap.
+        // Labyrinth only once visited — EV/SS access alone doesn't mean the beam puzzles are solved.
         if (Plugin.Instance.SaveManager.HasVisitedZone("SceneGroup.Labyrinth")
             || _visitedSceneGroupRefs.Contains("SceneGroup.Labyrinth"))
             candidateNames.AddRange(_slimesGreyLabyrinth);
 
-        // Resolve IdentifiableType assets, keeping only those with valid prefabs.
         var allTypes = Resources.FindObjectsOfTypeAll<IdentifiableType>();
         var slimeTypes = new System.Collections.Generic.List<IdentifiableType>();
         foreach (var name in candidateNames)
@@ -2455,12 +2055,8 @@ public static class TrapHandler
         var origin = playerGo.transform.position;
         int spawned = 0;
 
-        // Use SpawnActorActivity.Spawn() rather than raw Object.Instantiate.
-        // Object.Instantiate skips the game's actor registry and AI/state-machine
-        // initialization, causing NullReferenceExceptions in IdentifiableActor.RegistryUpdate.
-        // SpawnActorActivity.Spawn() is the same path the weather system (Slime Rain) uses
-        // and produces fully-initialized actors.
-        // Must use CreateInstance (ScriptableObject subclass) — new SpawnActorActivity() logs a warning.
+        // SpawnActorActivity.Spawn (Slime Rain's path), not Object.Instantiate — that skips the
+        // actor registry and AI init. CreateInstance because it is a ScriptableObject.
         var activity = ScriptableObject.CreateInstance<SpawnActorActivity>();
 
         for (int i = 0; i < count; i++)
@@ -2468,7 +2064,6 @@ public static class TrapHandler
             var slimeType = slimeTypes[_rng.Next(slimeTypes.Count)];
             activity.ActorType = slimeType;
 
-            // Scatter in a ring around the player, dropping from slightly above.
             float angle  = (float)(_rng.NextDouble() * System.Math.PI * 2.0);
             float radius = 2f + (float)(_rng.NextDouble() * 2f);    // 2–4 m radius
             float height = 3f + (float)(_rng.NextDouble() * 2f);    // 3–5 m above
@@ -2525,16 +2120,13 @@ public static class TrapHandler
         var origin = playerGo.transform.position;
         int spawned = 0;
 
-        // Use SpawnActorActivity.Spawn() — the same code path the weather system uses
-        // for Slime Rain / Tarr Rain. Raw Object.Instantiate skips Tarr's AI and state
-        // machine initialization, producing a broken entity that does not aggro.
-        // Must use CreateInstance — new SpawnActorActivity() logs a Unity warning.
+        // See ApplySlimeRingTrap — Instantiate'd Tarr never aggro.
         var activity = ScriptableObject.CreateInstance<SpawnActorActivity>();
         activity.ActorType = tarrType;
 
         for (int i = 0; i < count; i++)
         {
-            // Spawn close to the player (2–4 m away) at head height so they immediately aggro.
+            // 2–4 m away at head height, so they aggro immediately.
             float angle    = (float)(_rng.NextDouble() * System.Math.PI * 2.0);
             float radius   = 2f + (float)(_rng.NextDouble() * 2f);
             var   spawnPos = origin + new Vector3(
@@ -2556,10 +2148,7 @@ public static class TrapHandler
     // Vacpack Spew trap
     // -------------------------------------------------------------------------
 
-    /// <summary>
-    /// Expels all contents of the player's vacpack as physical world objects, then clears
-    /// every slot.  Uses the Spawn group cooldown (fast re-fire OK — no sustained effect).
-    /// </summary>
+    /// <summary>Expels the whole vacpack into the world, then clears every slot.</summary>
     private static bool ApplyVacExpelTrap(ApItemInfo? apItem, int itemIndex)
     {
         if (!IsTrapAllowed(TrapGroup.Spawn, "VacExpel"))
@@ -2650,8 +2239,6 @@ public static class TrapHandler
         if (found == null || found.Count == 0)
             return Requeue(apItem, itemIndex, "no WeatherDirector in scene");
 
-        // Find all WeatherStateDefinition assets — these are the game's actual weather states
-        // (Rain, Thunderstorm, Pollen, SlimeRain, etc.) and implement IWeatherState.
         var allStates = Resources.FindObjectsOfTypeAll<WeatherStateDefinition>();
         if (allStates == null || allStates.Count == 0)
         {
@@ -2659,7 +2246,7 @@ public static class TrapHandler
             return true; // asset issue; don't retry
         }
 
-        // Log available states on first trap fire (helpful for diagnosing StateName values).
+        // Logged to diagnose StateName values.
         var sb = new System.Text.StringBuilder();
         for (int i = 0; i < allStates.Count; i++)
         {
@@ -2668,11 +2255,8 @@ public static class TrapHandler
         }
         Logger.Info($"[AP] WeatherChange: {allStates.Count} state(s) available: {sb}");
 
-        // Only pick Heavy-tier states (MapTier 3: Thunder Heavy, Rain Heavy, Pollen Heavy, Wind Heavy).
-        // Wind Heavy is safe via the registry path (RunPatternState passes proper ZoneWeatherParameters
-        // internally). It is only unsafe when called via director.RunState(state, null) — see fallback guard.
-        // Snow is excluded — zone-specific, not available everywhere.
-        // Flat patterns (Slime Rain, MapTier 0) are excluded to keep only true Heavy variants.
+        // Heavy tier only (MapTier 3: Thunder/Rain/Pollen/Wind Heavy). Snow is zone-specific, so
+        // excluded. Wind Heavy is fine via the registry, but see the RunState fallback below.
         var eligible = new System.Collections.Generic.List<WeatherStateDefinition>();
         for (int i = 0; i < allStates.Count; i++)
         {
@@ -2690,8 +2274,7 @@ public static class TrapHandler
             return true; // filtering issue; don't retry
         }
 
-        // Deduplicate by StateName — some states have multiple asset instances (one per zone).
-        // Without deduplication, duplicated states dominate the random pick.
+        // Dedupe by StateName — per-zone copies would otherwise dominate the pick.
         var seenNames = new System.Collections.Generic.HashSet<string>(System.StringComparer.Ordinal);
         var unique    = new System.Collections.Generic.List<WeatherStateDefinition>(eligible.Count);
         for (int i = 0; i < eligible.Count; i++)
@@ -2707,7 +2290,6 @@ public static class TrapHandler
         StopActiveWeatherTrap();
         _activeWeatherState = chosen;
 
-        // Cache directors and one IWeatherPattern instance per director for later StopPatternState.
         _cachedDirectors = new WeatherDirector[found.Count];
         _cachedPatterns  = new IWeatherPattern[found.Count];
         for (int i = 0; i < found.Count; i++) _cachedDirectors[i] = found[i];
@@ -2719,17 +2301,14 @@ public static class TrapHandler
 #endif
         _weatherResetAt = UnityEngine.Time.time + durationSeconds;
 
-        // On each director: stop all currently running states, then start ours via the registry
-        // so the map weather overlay updates.  The pattern is looked up per-director from
-        // ZoneWeatherConfig.Patterns so it is always zone-appropriate (e.g. "Rain Pattern Gorge"
-        // for Rumbling Gorge, not "Rain Pattern Fields").  Falls back to RunState if the pattern
-        // is not found for this zone.
+        // Per director: stop what's running, then start ours through the registry (so the map
+        // overlay updates) with the zone's own pattern. RunState is the fallback.
         for (int di = 0; di < _cachedDirectors.Length; di++)
         {
             var director = _cachedDirectors[di];
             if (director == null) continue;
 
-            // Snapshot current states to avoid modifying the list while iterating it.
+            // Snapshot — StopState mutates the list.
             var running = director._runningStates;
             if (running != null && running.Count > 0)
             {
@@ -2753,8 +2332,7 @@ public static class TrapHandler
             }
             else
             {
-                // Wind Heavy crashes when RunState is called with null ZoneWeatherParameters.
-                // Only fall back to the direct path for non-Wind states.
+                // Wind Heavy crashes RunState with null ZoneWeatherParameters.
                 Logger.Warning($"[AP] WeatherChange: director[{di}] fallback (registry={registry != null}, zone={zone != null}, pattern={zonePatternDef != null})");
                 if (chosenName.IndexOf("Wind", System.StringComparison.OrdinalIgnoreCase) < 0)
                     director.RunState(chosenState, null, immediate: false);
@@ -2774,56 +2352,30 @@ public static class TrapHandler
     // Teleport trap
     // -------------------------------------------------------------------------
 
-    // Confirmed zone SceneGroup ReferenceIds (from DumpSceneGroups, 2026-04-13):
-    //   SceneGroup.ConservatoryFields = Home ranch
-    //   SceneGroup.LuminousStrand     = Starlight Strand
-    //   SceneGroup.RumblingGorge      = Ember Valley
-    //   SceneGroup.PowderfallBluffs   = Powderfall Bluffs
-    //
-    // Entrance node IDs — format: "Teleporter{DestZone}To{SourceZone}Main"
-    //   (the node the player ARRIVES at in the destination zone)
-    //   TeleporterStrandToFieldsMain      confirmed (Strand dump)
-    //   TeleporterLabyrinthToStrandMain   confirmed (Labyrinth dump) — Labyrinth entrance via Strand side
-    //   TeleporterGorgeToFieldsMain       confirmed (EV dump)
-    //   TeleporterLabyrinthToGorgeMain    confirmed (Labyrinth dump) — Labyrinth entrance via Gorge side
-    //   TeleporterBluffsToGorgeMain       confirmed (PB dump) — PB connects to Gorge, not Fields
-    //   Home ranch uses Teleport_ResetPlayer; no node ID required.
-    //
-    // Gadget nodes (TeleporterGrey.*, TeleporterOneWayGadget*) appear in the node dict but are
-    // player-placed/one-way gadgets — not used for the trap.
+    // Zone SceneGroups: ConservatoryFields = home ranch, LuminousStrand = Starlight Strand,
+    // RumblingGorge = Ember Valley. Arrival nodes are "Teleporter{Dest}To{Source}Main" (all
+    // confirmed by dump); the home ranch uses Teleport_ResetPlayer instead.
 
     private readonly struct TrapTeleportDest
     {
         public readonly string NodeId;         // arrival node ID, or "" = use Teleport_ResetPlayer
-        public readonly string SceneGroupRef;  // SceneGroup.ReferenceId of target zone
+        public readonly string SceneGroupRef;
 
-        // Eligibility is "the player has visited this zone", not "its region gate is unlocked":
-        // a visit is only recorded when the entry was authorized (GateReturnEnforcer suppresses
-        // it otherwise), and in vanilla region mode no region is ever recorded as unlocked.
         public TrapTeleportDest(string nodeId, string sceneGroupRef)
         { NodeId = nodeId; SceneGroupRef = sceneGroupRef; }
     }
 
     private static readonly TrapTeleportDest[] _trapDestinations =
     {
-        // Home ranch — always accessible
         new("",                                 "SceneGroup.ConservatoryFields"),
-        // Starlight Strand — direct portal from Fields
-        new("TeleporterStrandToFieldsMain",     "SceneGroup.LuminousStrand"),    // confirmed
-        // Grey Labyrinth via Strand entrance
-        new("TeleporterLabyrinthToStrandMain",  "SceneGroup.Labyrinth"),         // confirmed
-        // Ember Valley (Rumbling Gorge) — direct portal from Fields
-        new("TeleporterGorgeToFieldsMain",      "SceneGroup.RumblingGorge"),     // confirmed
-        // Grey Labyrinth via Gorge entrance
-        new("TeleporterLabyrinthToGorgeMain",   "SceneGroup.Labyrinth"),         // confirmed
-        // Powderfall Bluffs — accessed via Gorge
-        new("TeleporterBluffsToGorgeMain",      "SceneGroup.PowderfallBluffs"),  // confirmed
+        new("TeleporterStrandToFieldsMain",     "SceneGroup.LuminousStrand"),
+        new("TeleporterLabyrinthToStrandMain",  "SceneGroup.Labyrinth"),         // Strand-side entrance
+        new("TeleporterGorgeToFieldsMain",      "SceneGroup.RumblingGorge"),
+        new("TeleporterLabyrinthToGorgeMain",   "SceneGroup.Labyrinth"),         // Gorge-side entrance
+        new("TeleporterBluffsToGorgeMain",      "SceneGroup.PowderfallBluffs"),  // PB connects to Gorge
     };
 
-    // Region access item name → SceneGroup.ReferenceId of the zone it opens.
-    // Used for visited-zone inference: physically having been in a zone proves it is
-    // reachable, even when the gate opened in a previous session in vanilla mode
-    // (where UnlockRegion is never called and _runtimeOpenRegions resets each session).
+    // Region item → zone, for visited-zone inference (vanilla mode never records an unlock).
     private static readonly System.Collections.Generic.Dictionary<string, string> _regionToSceneGroupRef = new()
     {
         ["Ember Valley Access"]      = "SceneGroup.RumblingGorge",
@@ -2831,10 +2383,7 @@ public static class TrapHandler
         ["Powderfall Bluffs Access"] = "SceneGroup.PowderfallBluffs",
     };
 
-    /// <summary>
-    /// Returns true if the named region gate (by AP item name, e.g. "Ember Valley Access") is
-    /// considered open. Checks in order: AP save, runtime gate-open events, visited zone inference.
-    /// </summary>
+    /// <summary>Region open per the AP save, a gate event this session, or a past visit.</summary>
     private static bool IsRegionGateOpen(string regionItemName)
         => Plugin.Instance.SaveManager.IsRegionUnlocked(regionItemName)
         || _runtimeOpenRegions.Contains(regionItemName)
@@ -2843,10 +2392,8 @@ public static class TrapHandler
                 || _visitedSceneGroupRefs.Contains(sgRef)));
 
     /// <summary>
-    /// Teleports the player to a random accessible zone entrance.
-    /// Eligible destinations are zones the player has visited (this or any earlier session).
-    /// Uses <c>TeleportToDestinationImpl</c> for zone entrances and
-    /// <c>Teleport_ResetPlayer</c> for the home ranch.
+    /// Teleports the player to a random visited zone. Visited, not unlocked: a visit is only
+    /// recorded for an authorized entry, and vanilla region mode records no unlocks.
     /// </summary>
     private static bool ApplyTeleportTrap(ApItemInfo? apItem, int itemIndex)
     {
@@ -2874,15 +2421,7 @@ public static class TrapHandler
 #endif
         foreach (var dest in _trapDestinations)
         {
-            // A destination is eligible only if the player has physically visited that zone
-            // in this or any previous session. This prevents the trap from sending the player
-            // to a zone they've never entered, where region-gate buttons haven't been
-            // activated and could block their return path.
-            //
-            // Visited status is checked in two places so it works both with and without an
-            // active AP session:
-            //   • SaveManager.HasVisitedZone — persisted across sessions (primary source)
-            //   • _visitedSceneGroupRefs     — in-memory for the current session (fallback)
+            // Never-entered zones could strand the player behind unpressed gate buttons.
             bool visited = Plugin.Instance.SaveManager.HasVisitedZone(dest.SceneGroupRef)
                         || _visitedSceneGroupRefs.Contains(dest.SceneGroupRef);
             if (!visited)
@@ -2912,10 +2451,9 @@ public static class TrapHandler
         if (eligible.Count == 0)
         {
             Logger.Warning("[AP] TeleportTrap: no eligible destinations — skipped");
-            return true; // no destinations available; don't retry (player likely in menu)
+            return true; // don't retry
         }
 
-        // Prefer a different zone than the current one.
         var nonCurrent = eligible.FindAll(e => e.sg != currentGroup);
         var candidates = nonCurrent.Count > 0 ? nonCurrent : eligible;
         var chosen     = candidates[_rng.Next(candidates.Count)];
@@ -2946,7 +2484,6 @@ public static class TrapHandler
         if (!IsTrapAllowed(TrapGroup.Weather, "TarrRain"))
             return Requeue(apItem, itemIndex, "trap rate-limited", TrapGroup.Weather);
 
-        // Find the Slime Rain WeatherStateDefinition.
         var allStates = Resources.FindObjectsOfTypeAll<WeatherStateDefinition>();
         WeatherStateDefinition? slimeRainDef = null;
         for (int i = 0; i < allStates.Count; i++)
@@ -2965,16 +2502,14 @@ public static class TrapHandler
             return ApplySlimeRingTrap(apItem, itemIndex);
         }
 
-        // Find the directors before touching anything, so a requeue leaves no state to undo.
+        // Before touching anything, so a requeue leaves no state to undo.
         var found = Resources.FindObjectsOfTypeAll<WeatherDirector>();
         if (found == null || found.Count == 0)
             return Requeue(apItem, itemIndex, "no WeatherDirector in scene");
 
-        // Must run before the override below: a Tarr Rain still active would otherwise have its
-        // Tarr override recorded as the "original" spawn type and never be restored.
+        // Before the override: a live Tarr Rain's Tarr would be saved as the "original".
         StopActiveWeatherTrap();
 
-        // Find Tarr IdentifiableType to use as the override.
         var allIdents = Resources.FindObjectsOfTypeAll<IdentifiableType>();
         IdentifiableType? tarrType = null;
         for (int i = 0; i < allIdents.Count; i++)
@@ -2992,8 +2527,7 @@ public static class TrapHandler
         }
         else
         {
-            // Walk the weather state's activities and override any SpawnActorActivity to Tarr.
-            // Save the originals so ResetWeather() can restore them.
+            // Swap every spawn activity to Tarr; ResetWeather restores the originals.
             _savedSlimeRainActorTypes = new System.Collections.Generic.Dictionary<SpawnActorActivity, IdentifiableType>();
             var activities = slimeRainDef.Activities;
             for (int i = 0; i < activities.Count; i++)
@@ -3012,7 +2546,6 @@ public static class TrapHandler
                 Logger.Warning("[AP] SlimeRainTrap: no SpawnActorActivity found in Slime Rain weather — Tarr override has no effect");
         }
 
-        // Apply the weather to all directors (same logic as ApplyWeatherChange).
         _activeWeatherState = slimeRainDef;
         _cachedDirectors    = new WeatherDirector[found.Count];
         _cachedPatterns     = null; // Tarr Rain uses RunState directly; no registry stop needed
@@ -3046,9 +2579,7 @@ public static class TrapHandler
         return true;
     }
 
-    // Returns the WeatherPatternDefinition from the zone's own config that contains
-    // the given state (matched by StateName).  Uses ZoneWeatherConfig.Patterns so the pattern
-    // is always zone-appropriate rather than a mis-matched pattern from another zone.
+    // The zone's own pattern containing the state (by StateName), or null.
     private static WeatherPatternDefinition? FindPatternForZone(
         WeatherRegistry registry, ZoneDefinition zone, string stateName)
     {
@@ -3057,19 +2588,19 @@ public static class TrapHandler
         for (int ci = 0; ci < configs.Count; ci++)
         {
             var config = configs[ci];
-            if (config?.Zone?.Pointer != zone?.Pointer) continue; // wrong zone
+            if (config?.Zone?.Pointer != zone?.Pointer) continue;
             var patterns = config!.Patterns;
             if (patterns == null) break;
             for (int pi = 0; pi < patterns.Count; pi++)
             {
                 if (WeatherPatternContainsState(patterns[pi], stateName)) return patterns[pi];
             }
-            break; // found the zone config but state not in any of its patterns
+            break;
         }
         return null;
     }
 
-    // Returns true if the pattern's transition graph contains a state with the given StateName.
+    // True if any transition in the pattern touches the state.
     private static bool WeatherPatternContainsState(WeatherPatternDefinition? pat, string stateName)
     {
         if (pat == null) return false;
@@ -3100,16 +2631,10 @@ public static class TrapHandler
     }
 
     /// <summary>
-    /// Ends a weather trap that is still running before another one starts.
+    /// Ends a live weather trap before the next starts. The group cooldown (30 s) is shorter
+    /// than either effect, so overlap is routine; without this the first pattern never stops and
+    /// natural Slime Rain could keep spawning Tarr all session.
     /// </summary>
-    /// <remarks>
-    /// The Weather group cooldown (30 s) is shorter than either effect (Tarr Rain 60 s, Weather
-    /// Change 180 s), so a second weather trap routinely fires while the first is live. Starting
-    /// over the top of it used to overwrite the tracked state without stopping it: the first
-    /// trap's registry pattern was never stopped, and a second Tarr Rain recorded the
-    /// already-overridden Tarr as the "original" spawn type — so after reset, natural Slime Rain
-    /// spawned Tarr for the rest of the session (the asset is shared and never reloaded).
-    /// </remarks>
     private static void StopActiveWeatherTrap()
     {
         if (_activeWeatherState == null && _savedSlimeRainActorTypes == null) return;
@@ -3126,12 +2651,7 @@ public static class TrapHandler
         _savedSlimeRainActorTypes = null;
     }
 
-    /// <summary>
-    /// Called when a new zone loads while a weather trap is active.
-    /// Refreshes <see cref="_cachedDirectors"/> and <see cref="_cachedPatterns"/> to include
-    /// any directors that weren't loaded when the trap originally fired, then starts the active
-    /// weather state on any newly-discovered directors.
-    /// </summary>
+    /// <summary>Extends an active weather trap to directors that loaded after it fired.</summary>
     private static void ReapplyWeatherToNewZone()
     {
         if (_activeWeatherState == null || _weatherResetAt < 0f) return;
@@ -3139,7 +2659,6 @@ public static class TrapHandler
         var found = Resources.FindObjectsOfTypeAll<WeatherDirector>();
         if (found == null || found.Count == 0) return;
 
-        // Build an updated director+pattern cache.
         var newDirectors = new WeatherDirector[found.Count];
         var newPatterns  = new IWeatherPattern[found.Count];
         for (int i = 0; i < found.Count; i++) newDirectors[i] = found[i];
@@ -3152,14 +2671,12 @@ public static class TrapHandler
             var director = newDirectors[di];
             if (director == null) continue;
 
-            // Check if this director was already in the previous cache (already running our state).
             bool alreadyTracked = false;
             if (_cachedDirectors != null)
             {
                 for (int ci = 0; ci < _cachedDirectors.Length; ci++)
                     if (_cachedDirectors[ci] != null && _cachedDirectors[ci].Pointer == director.Pointer)
                     {
-                        // Preserve its cached pattern so ResetWeather can stop it cleanly.
                         newPatterns[di] = _cachedPatterns?[ci]!;
                         alreadyTracked  = true;
                         break;
@@ -3167,7 +2684,6 @@ public static class TrapHandler
             }
             if (alreadyTracked) continue;
 
-            // New director — stop whatever it's running and apply our weather.
             var running = director._runningStates;
             if (running != null && running.Count > 0)
             {
@@ -3236,7 +2752,6 @@ public static class TrapHandler
         _activeWeatherState = null;
         _cachedPatterns     = null;
 
-        // Restore any SpawnActorActivity overrides made by the Slime Rain trap.
         RestoreSlimeRainActorTypes();
 
         Logger.Info($"[AP] WeatherChange: stopped '{label}', natural weather cycle resumed");

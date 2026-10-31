@@ -6,53 +6,21 @@ using UnityEngine;
 namespace SlimeRancher2AP.Patches.LocationPatches;
 
 /// <summary>
-/// Scales Gold and Lucky slime spawn frequency based on the
-/// <c>gold_lucky_spawn_rate_multiplier</c> slot data option.
-///
-/// <para>
-/// SR2 uses a weight-based system for rare slime spawns: each <c>DirectedActorSpawner</c>
-/// contains <c>SpawnConstraint</c> entries, each of which has a <c>SlimeSet</c> with
-/// <c>Members</c>. Each member has a <c>Weight</c> value — the probability of that slime
-/// spawning relative to the total weight of all members in the set.
-/// Gold and Lucky slimes have very small weights (typically 1–5) compared to common slimes
-/// (50–200+), making them rare.
-/// </para>
-///
-/// <para>
-/// The multiplier scales all Gold and Lucky member weights upward:
-/// <list type="bullet">
-///   <item><term>1 (default)</term><description>Vanilla weights — no change.</description></item>
-///   <item><term>2</term><description>Gold/Lucky weights doubled — roughly 2× more frequent.</description></item>
-///   <item><term>10</term><description>Gold/Lucky weights ×10 — significantly more common.</description></item>
-///   <item><term>50</term><description>Gold/Lucky weights ×50 — very high chance on any eligible spawner.</description></item>
-/// </list>
-/// Original weights are cached on first application so disconnect–reconnect with a different
-/// multiplier always scales from the unmodified vanilla baseline.
-/// </para>
-///
-/// <para>
-/// <b>Timing:</b> <c>DirectedActorSpawner</c> instances are scene-scoped.
-/// <c>TryApplyIfNeeded()</c> is called every Update frame and scales all unscaled spawners
-/// the first frame they are findable after connection.
-/// The <c>Start()</c> Postfix handles new spawners that appear during zone transitions
-/// after the connection is already established.
-/// </para>
+/// <c>gold_lucky_spawn_rate_multiplier</c>: multiplies Gold/Lucky <c>SlimeSet.Member.Weight</c>
+/// (relative within the set; vanilla ~1–5 against 50–200+ for commons) on each zone's spawners.
+/// Vanilla weights are cached, so a reconnect never multiplies twice.
 /// </summary>
 internal static class GoldLuckySpawnRatePatch
 {
     private static bool _applied = false;
 
-    // Original weights keyed by (instanceId, constraintIndex, memberIndex).
-    // Cached on first scaling so we always multiply from vanilla values,
-    // never from an already-scaled value (prevents double-scaling on reconnect).
+    // Vanilla weights by (instanceId, constraintIndex, memberIndex).
     private static readonly Dictionary<(int, int, int), float> _origWeights = new();
 
-    // Last-known zone ref used to detect zone transitions so we can scale spawners in
-    // new scenes without patching DirectedActorSpawner.Start() (which crashed after the
-    // 5/13 game update changed its native prologue).
+    // Zone changes stand in for DirectedActorSpawner.Start, which can't be patched since 5/13.
     private static string? _lastZoneRef = null;
 
-    // Bounded retry window after each zone change — see the comment in TryApplyIfNeeded.
+    // Bounded retry window after each zone change.
     private const  float RetrySeconds       = 1f;
     private const  float RetryWindowSeconds = 60f;
     private static float _nextRetry  = 0f;
@@ -60,50 +28,33 @@ internal static class GoldLuckySpawnRatePatch
 
     private static readonly string[] TargetKeywords = { "Gold", "Lucky" };
 
-    /// <summary>
-    /// Called every Update frame from <see cref="Plugin"/>.
-    /// Finds all loaded <c>DirectedActorSpawner</c> instances and applies the multiplier
-    /// to any Gold or Lucky <c>SlimeSet.Member</c> that has not yet been scaled.
-    /// Sets <c>_applied = true</c> once all spawners have been processed for this session.
-    /// </summary>
+    /// <summary>Per-frame; scales each new zone's Gold/Lucky members.</summary>
     internal static void TryApplyIfNeeded()
     {
         if (!Plugin.Instance.ModEnabled) return;
 
-        // Detect zone transitions and reset so new scene's spawners get their weights scaled.
-        // This replaces the removed DirectedActorSpawner.Start() Postfix (which crashed after
-        // the 5/13 game update changed Start()'s native prologue).
-        // Reads the zone the Update loop already resolved rather than repeating GetComponent.
         string? currentZone = SlimeRancher2AP.Archipelago.TrapHandler.CurrentZoneRef;
 
         if (currentZone != _lastZoneRef)
         {
             _lastZoneRef  = currentZone;
-            _applied      = false; // new zone → new spawner instances → re-scan
+            _applied      = false;
             _retryUntil   = Time.unscaledTime + RetryWindowSeconds;
             _nextRetry    = 0f;
         }
 
         if (_applied) return;
 
-        // Throttled retry.
-        //
-        // This used to run FindObjectsOfTypeAll<DirectedActorSpawner> on EVERY frame until it
-        // found something to scale — and in a zone with no Gold/Lucky spawners at all (the
-        // ranch, where players spend most of their time) "something to scale" never happens, so
-        // it scanned forever. Profiling put it at 0.249 ms/frame, the single most expensive
-        // thing in the mod.
-        //
-        // Spawners stream in after the zone does, so a one-shot attempt would miss late
-        // arrivals; instead retry once a second for a bounded window after each zone change,
-        // then stop until the next one.
+        // Spawners stream in after the zone, so retry once a second — but only for a bounded
+        // window: many zones (the ranch) have nothing to scale, and an unbounded scan was the
+        // mod's most expensive per-frame cost.
         float now = Time.unscaledTime;
-        if (now > _retryUntil) return;      // window closed — nothing more to find here
+        if (now > _retryUntil) return;
         if (now < _nextRetry) return;
         _nextRetry = now + RetrySeconds;
 
         var slotData = Plugin.Instance.ApClient?.SlotData;
-        if (slotData == null) return; // not connected yet
+        if (slotData == null) return;
 
         int multiplier = slotData.GoldLuckySpawnRateMultiplier;
         if (multiplier <= 1) { _applied = true; return; }
@@ -139,7 +90,7 @@ internal static class GoldLuckySpawnRatePatch
 
                     var key = (id, ci, mi);
                     if (!_origWeights.ContainsKey(key))
-                        _origWeights[key] = member.Weight; // cache vanilla value
+                        _origWeights[key] = member.Weight;
 
                     member.Weight = _origWeights[key] * multiplier;
                     scaled++;
@@ -154,15 +105,10 @@ internal static class GoldLuckySpawnRatePatch
                 $"Gold/Lucky member(s) across {spawners.Count} spawner(s)");
             _applied = true;
         }
-        // If scaled == 0 this zone has no Gold/Lucky spawners loaded (yet). Leave _applied false
-        // so the throttled retry keeps looking until the window closes — many zones legitimately
-        // never scale anything, which is exactly why the retry must be bounded.
+        // Nothing scaled: keep retrying until the window closes.
     }
 
-    /// <summary>
-    /// Called on disconnect so a reconnect with a different multiplier re-applies correctly.
-    /// Restores original weights for any still-alive spawner instances before clearing state.
-    /// </summary>
+    /// <summary>On disconnect: restores vanilla weights on live spawners.</summary>
     internal static void OnDisconnected()
     {
         if (_origWeights.Count > 0)
@@ -195,6 +141,6 @@ internal static class GoldLuckySpawnRatePatch
 
         _origWeights.Clear();
         _applied = false;
-        _lastZoneRef = null; // force zone re-check on reconnect
+        _lastZoneRef = null;
     }
 }

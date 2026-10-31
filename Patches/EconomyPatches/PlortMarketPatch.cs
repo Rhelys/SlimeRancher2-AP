@@ -5,43 +5,31 @@ using UnityEngine;
 namespace SlimeRancher2AP.Patches.EconomyPatches;
 
 /// <summary>
-/// Implements the <c>plort_market_mode</c> slot data option.
-///
-/// <para>
-/// When enabled ("5_items" or "10_items"), the market starts fully saturated (minimum
-/// prices for all plort types) and natural saturation recovery is zeroed so prices only
-/// improve when the player receives Market Recovery items from the AP pool.
-/// </para>
-///
-/// <para>
-/// <b>Saturation is declarative, not event-driven:</b> the target saturation is always
-/// computed as <c>FullSaturation × (1 − fraction × recoveryItemsReceived)</c>, where the
-/// count comes from the session's <c>AllItemsReceived</c> snapshot. This makes the state
-/// idempotent across reconnects — Market Recovery items are one-shot ephemerals that never
-/// re-apply on replay, so an event-driven "subtract on receipt" design would permanently
-/// wipe recovery progress the first time the player reconnected (the original stashed
-/// implementation had exactly that bug).
-/// </para>
+/// <c>plort_market_mode</c>: the market starts fully saturated, natural recovery is off, and
+/// prices improve only with Market Recovery items.
 /// </summary>
+/// <remarks>
+/// Declarative: saturation is always <c>FullSaturation × (1 − fraction × received)</c> from the
+/// server snapshot. Recovery items are ephemeral and never replay, so subtracting on receipt
+/// would lose progress on reconnect.
+/// </remarks>
 internal static class PlortMarketModePatch
 {
     private static float  _origSaturationRecovery = -1f;
-    // Daily price noise amplitudes, zeroed while the mode is active. ResetPrices computes
-    // price = f(saturation) + noise(day seed) — with the amplitudes untouched, fully
-    // saturated prices sat a random offset above the floor and re-rolled every midnight
-    // even though saturation never moved. Nullable: cached the first time we modify them.
+    // Daily price noise, zeroed while active so prices are a pure function of saturation.
+    // Null until first modified.
     private static float? _origMarketNoise;
     private static float? _origIndivNoise;
     private static bool   _appliedThisSession     = false;
 
-    /// <summary>Called from the main-thread post-connect callback after SlotData is available.</summary>
+    /// <summary>After connect, main thread.</summary>
     internal static void OnSlotDataReceived()
     {
         _appliedThisSession = false;
         TryApplyIfNeeded();
     }
 
-    /// <summary>Fraction of FullSaturation each Market Recovery item restores, from the mode key.</summary>
+    /// <summary>Fraction of FullSaturation each recovery item restores.</summary>
     private static float RecoveryFraction(string mode) => mode switch
     {
         "5_items"  => 0.20f,
@@ -49,10 +37,6 @@ internal static class PlortMarketModePatch
         _          => 0f,
     };
 
-    /// <summary>
-    /// Counts Market Recovery items in the session's received-items snapshot.
-    /// Recomputed on demand so saturation state survives reconnects and replays.
-    /// </summary>
     private static int CountRecoveryItemsReceived()
     {
         var items = Plugin.Instance.ApClient.Session?.Items?.AllItemsReceived;
@@ -66,30 +50,24 @@ internal static class PlortMarketModePatch
         return n;
     }
 
-    /// <summary>
-    /// Called every Update frame. No-ops once applied for this session or if the option is
-    /// disabled. Waits for the Player object so the world model's saved saturations have been
-    /// restored — writing earlier would be overwritten by the save-load restore.
-    /// </summary>
+    /// <summary>Per-frame until applied. Waits for the Player, or the save restore overwrites it.</summary>
     internal static void TryApplyIfNeeded()
     {
         if (_appliedThisSession) return;
         if (!Plugin.Instance.ModEnabled) return;
 
         var slotData = Plugin.Instance.ApClient?.SlotData;
-        if (slotData == null) return; // not connected yet — retry next frame
+        if (slotData == null) return;
 
         var mode = slotData.PlortMarketMode;
         if (mode == "disabled")
         {
-            // Mode off for THIS session — but a previous session in the same process may have
-            // zeroed recovery/noise on the persistent settings asset. Put them back.
+            // Undo a previous session's changes to the persistent settings.
             RestoreMarketSettings();
             _appliedThisSession = true;
             return;
         }
 
-        // Wait for the scene to be fully interactive (save restore complete).
         if (SceneContext.Instance?.Player == null) return;
 
         var director = SceneContext.Instance?.PlortEconomyDirector;
@@ -101,33 +79,24 @@ internal static class PlortMarketModePatch
         var settings = director._settings;
         if (settings == null) return;
 
-        // Cache originals so they can be restored on disconnect / mode change.
         if (_origSaturationRecovery < 0f)
             _origSaturationRecovery = settings.SaturationRecovery;
         _origMarketNoise ??= settings.MarketNoiseAmplitude;
         _origIndivNoise  ??= settings.IndivNoiseAmplitude;
 
-        // Zero natural recovery — prices only improve via Market Recovery items.
         settings.SaturationRecovery = 0f;
-        // Zero the daily price noise — prices become a pure deterministic function of
-        // saturation: they start at the true floor and only move on Market Recovery items,
-        // with no random offset at generation and no midnight re-roll drift.
         settings.MarketNoiseAmplitude = 0f;
         settings.IndivNoiseAmplitude  = 0f;
 
         if (!ApplySaturationFromItemCount(mode))
-            return; // plort table unavailable — retry next frame
+            return; // retry
 
         _appliedThisSession = true;
-        // Prices are otherwise only recomputed from saturation at the game's midnight tick —
-        // on a fresh file the market would display unsaturated prices all of day one.
+        // Otherwise prices only update at midnight.
         ForcePriceRefresh("initial saturation");
     }
 
-    /// <summary>
-    /// Sets every plort's saturation to the declarative target derived from the number of
-    /// Market Recovery items received. Returns false when the market objects aren't ready.
-    /// </summary>
+    /// <summary>Sets every plort to the target saturation; false if the market isn't ready.</summary>
     private static bool ApplySaturationFromItemCount(string mode, bool quiet = false)
     {
         var director   = SceneContext.Instance?.PlortEconomyDirector;
@@ -156,18 +125,13 @@ internal static class PlortMarketModePatch
     }
 
     /// <summary>
-    /// Called when a Market Recovery item arrives through the item pipeline. Recomputes the
-    /// declarative saturation target (the snapshot already includes the new item) and
-    /// refreshes prices immediately — the player should see the improvement on receipt,
-    /// not at the next in-game midnight.
-    /// Returns false when the market isn't ready yet — caller requeues the item.
+    /// On a recovery item: re-applies the target and refreshes prices now. False = requeue.
     /// </summary>
     internal static bool ApplyRecovery()
     {
         var mode = Plugin.Instance.ApClient?.SlotData?.PlortMarketMode ?? "disabled";
         if (mode == "disabled")
         {
-            // Items exist but the mode is off (mismatched seed/mod state) — acknowledge only.
             Logger.Info("[AP-Market] Market Recovery received but plort_market_mode is disabled — no effect.");
             return true;
         }
@@ -176,31 +140,20 @@ internal static class PlortMarketModePatch
         return true;
     }
 
-    /// <summary>
-    /// Re-asserts the mod-governed saturation after a plort sale. While the mode is active
-    /// the mod is the SOLE authority over market saturation — the native RegisterSold body
-    /// has just increased the sold plort's saturation (selling normally depresses prices),
-    /// so the declarative target is rewritten and prices refreshed. The player still gets
-    /// paid at the pre-sale price; the sale simply no longer moves the market.
-    /// </summary>
+    /// <summary>After a sale, undoes the saturation it added — sales never move the market here.</summary>
     internal static void ReassertSaturationAfterSale()
     {
         var mode = Plugin.Instance.ApClient?.SlotData?.PlortMarketMode ?? "disabled";
         if (mode == "disabled") return;
-        if (!_appliedThisSession) return; // initial apply pending — it will set everything anyway
+        if (!_appliedThisSession) return; // the initial apply will cover it
 
         if (ApplySaturationFromItemCount(mode, quiet: true))
             ForcePriceRefresh("sale override", quiet: true);
     }
 
     /// <summary>
-    /// Forces the game to recompute displayed plort prices from the current saturation NOW,
-    /// instead of waiting for the midnight tick. Uses the game's own
-    /// <c>PlortEconomyDirector.ResetPrices</c> (price ← saturation + day-seeded noise), so
-    /// the resulting floor/values are exactly what heavy selling would produce in vanilla.
-    /// Called several times because the recompute smooths from the previous value
-    /// (PrevValue/CurrValue) — with a fixed day seed the target is stable, so repeated calls
-    /// converge and become no-ops once settled.
+    /// Recomputes prices now via the game's own <c>ResetPrices</c>. Repeated because each call
+    /// only smooths toward the target; extra calls converge to no-ops.
     /// </summary>
     private static void ForcePriceRefresh(string reason, bool quiet = false)
     {
@@ -225,12 +178,8 @@ internal static class PlortMarketModePatch
     }
 
     /// <summary>
-    /// Called on disconnect. Restores the vanilla saturation recovery rate and price noise
-    /// amplitudes on the persistent settings ScriptableObject — located via Resources so this
-    /// works even when disconnecting from the main menu (where
-    /// SceneContext.PlortEconomyDirector is null; the original implementation skipped the
-    /// restore there and then discarded the cached value, leaving the modified values in
-    /// place for the rest of the process).
+    /// On disconnect: restores the persistent settings, found via Resources so it works from the
+    /// main menu too.
     /// </summary>
     internal static void OnDisconnected()
     {
@@ -265,14 +214,11 @@ internal static class PlortMarketModePatch
             _origMarketNoise        = null;
             _origIndivNoise         = null;
         }
-        // If nothing was found (asset unloaded?), keep the cached originals so a later call can retry.
+        // Nothing found: keep the originals for a later retry.
     }
 
 #if DEBUG
-    /// <summary>
-    /// Debug helper — saturates all plorts to their FullSaturation cap regardless of session
-    /// state. Safe to call from the debug panel without an active AP session.
-    /// </summary>
+    /// <summary>Debug: fully saturates the market, no session needed.</summary>
     internal static bool DebugForceSaturate()
     {
         var director   = SceneContext.Instance?.PlortEconomyDirector;
@@ -293,11 +239,7 @@ internal static class PlortMarketModePatch
         return true;
     }
 
-    /// <summary>
-    /// Debug helper — manually subtracts one recovery step (fraction × FullSaturation) from
-    /// every plort's current saturation, clamped to 0. Event-driven on purpose: it exercises
-    /// the price response without needing an AP session or received items.
-    /// </summary>
+    /// <summary>Debug: subtracts one recovery step from every plort, no session needed.</summary>
     internal static bool DebugApplyRecoveryStep(float fraction)
     {
         var director   = SceneContext.Instance?.PlortEconomyDirector;
@@ -321,13 +263,7 @@ internal static class PlortMarketModePatch
 #endif
 }
 
-/// <summary>
-/// While <c>plort_market_mode</c> is active the mod is the sole authority over market
-/// saturation. The native <c>RegisterSold</c> body increases the sold plort's saturation
-/// (selling normally depresses its price) — this Postfix rewrites the declarative saturation
-/// target immediately afterwards so player sales never move the market. Coexists with the
-/// first-sale location check Postfix in <c>LocationPatches.PlortMarketPatch</c>.
-/// </summary>
+/// <summary>See <see cref="PlortMarketModePatch.ReassertSaturationAfterSale"/>.</summary>
 [HarmonyPatch(typeof(PlortEconomyDirector), nameof(PlortEconomyDirector.RegisterSold))]
 internal static class PlortMarketModeSaleOverridePatch
 {

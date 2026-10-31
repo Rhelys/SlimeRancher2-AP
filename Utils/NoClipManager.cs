@@ -8,37 +8,19 @@ using UnityEngine.InputSystem;
 namespace SlimeRancher2AP.Utils;
 
 /// <summary>
-/// Debug-only no-clip mode. While active:
-/// <list type="bullet">
-///   <item>Capsule collisions are disabled — player passes through all geometry.</item>
-///   <item>Movement and grounding solving are disabled — no floor snapping or wall sliding.</item>
-///   <item>Gravity is bypassed — player floats freely.</item>
-///   <item><see cref="Tick"/> reads Space (up) and Left Ctrl (down) each frame and injects
-///   vertical velocity via <see cref="KinematicCharacterMotor.BaseVelocity"/>.</item>
-///   <item>Hold Left Shift for <see cref="SpeedBoostMultiplier"/>× speed on all axes.
-///   Horizontal boost works by raising <c>MaxGroundedMoveSpeed</c>/<c>MaxAirMoveSpeed</c> on the
-///   character parameters — this routes through the KCC's own speed cap and avoids compounding.</item>
-/// </list>
-/// Horizontal WASD movement continues through the normal KCC input path.
-/// Toggle via the debug panel (F9 → Misc page) or call <see cref="Toggle"/>.
+/// Debug no-clip: no collisions, grounding or gravity. Space/Left Ctrl fly up/down; Left Shift
+/// boosts all axes. WASD still goes through the normal input path. Toggled from F9.
 /// </summary>
 public static class NoClipManager
 {
     public static bool IsActive { get; private set; }
 
-    /// <summary>Vertical movement speed in world units per second while noclip is active (no sprint).</summary>
+    /// <summary>Vertical speed, units/s.</summary>
     private const float VerticalSpeed = 15f;
 
-    /// <summary>
-    /// Multiplier applied to speed when Left Shift is held.
-    /// Vertical: <see cref="VerticalSpeed"/> × this value.
-    /// Horizontal: <c>MaxGroundedMoveSpeed</c> and <c>MaxAirMoveSpeed</c> on
-    /// <see cref="CharacterControllerParameters"/> are temporarily raised by this factor,
-    /// letting the KCC's own velocity cap enforce the limit each frame without compounding.
-    /// </summary>
+    /// <summary>Left Shift speed multiplier.</summary>
     private const float SpeedBoostMultiplier = 5f;
 
-    // Original parameter values saved on Enable() and restored on Disable().
     private static float _origGroundSpeed;
     private static float _origAirSpeed;
 
@@ -58,8 +40,7 @@ public static class NoClipManager
             return;
         }
 
-        // Save original horizontal speed caps before touching them.
-        // The public properties are getter-only in the IL2CPP interop; use the backing fields.
+        // Backing fields — the interop properties are getter-only.
         _origGroundSpeed = cc._parameters._maxGroundedMoveSpeed;
         _origAirSpeed    = cc._parameters._maxAirMoveSpeed;
 
@@ -68,7 +49,6 @@ public static class NoClipManager
         motor.SetGroundSolvingActivation(false);
         cc.BypassGravity = true;
 
-        // Clear any existing vertical velocity so the player doesn't launch upward.
         var v = motor.BaseVelocity;
         motor.BaseVelocity = new Vector3(v.x, 0f, v.z);
 
@@ -89,13 +69,11 @@ public static class NoClipManager
                 motor.SetMovementCollisionsSolvingActivation(true);
                 motor.SetGroundSolvingActivation(true);
 
-                // Clear vertical velocity — otherwise the player may continue flying after
-                // re-enabling gravity until the motor's own drag bleeds it off.
+                // Or the player keeps flying until drag bleeds it off.
                 var v = motor.BaseVelocity;
                 motor.BaseVelocity = new Vector3(v.x, 0f, v.z);
             }
 
-            // Always restore the speed parameters, even if Shift wasn't held at disable time.
             cc._parameters._maxGroundedMoveSpeed = _origGroundSpeed;
             cc._parameters._maxAirMoveSpeed      = _origAirSpeed;
             cc.BypassGravity = false;
@@ -110,11 +88,7 @@ public static class NoClipManager
         if (IsActive) Disable(); else Enable();
     }
 
-    /// <summary>
-    /// Called from <see cref="SlimeRancher2AP.ApUpdateBehaviour.Update"/> every frame.
-    /// Reads vertical keyboard input, drives <see cref="KinematicCharacterMotor.BaseVelocity"/>.y,
-    /// and adjusts horizontal speed caps for the sprint modifier.
-    /// </summary>
+    /// <summary>Per-frame: vertical input and the sprint boost.</summary>
     public static void Tick()
     {
         if (!IsActive) return;
@@ -134,15 +108,12 @@ public static class NoClipManager
             if (kb.leftShiftKey.isPressed) sprint  = true;
         }
 
-        // Horizontal boost: raise the KCC speed cap while Shift is held.
-        // Using the cap (rather than scaling BaseVelocity directly) avoids the
-        // compounding problem where scaling last frame's already-scaled velocity
-        // causes exponential acceleration.
+        // Horizontal: raise the speed cap — scaling the velocity would compound each frame.
         float boost = sprint ? SpeedBoostMultiplier : 1f;
         cc._parameters._maxGroundedMoveSpeed = _origGroundSpeed * boost;
         cc._parameters._maxAirMoveSpeed      = _origAirSpeed    * boost;
 
-        // Vertical: we own this axis entirely — write it directly.
+        // Vertical: ours entirely.
         var v = motor.BaseVelocity;
         motor.BaseVelocity = new Vector3(v.x, vert * VerticalSpeed * boost, v.z);
     }

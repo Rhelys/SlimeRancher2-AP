@@ -1,21 +1,9 @@
 namespace SlimeRancher2AP.Archipelago;
 
 /// <summary>
-/// Tracks Prisma Shards for the <c>prisma_shard_hunt</c> goal and answers the one question the
-/// gate needs: may the player start the Prismacore encounter yet?
-///
-/// <para>
-/// The hunt is the ordinary <c>prismacore</c> goal with an entry requirement bolted on. Victory
-/// is still detected by <c>CoreRoomControllerPatch</c> on <c>POST_FIGHT</c> — collecting shards
-/// does not win, it only unlocks the fight.
-/// </para>
-///
-/// <para>
-/// Counts come from the AP server snapshot (<c>Session.Items.AllItemsReceived</c>), never from
-/// replay/apply state, matching <see cref="RanchPlotHandler"/>. The count is cached and
-/// invalidated on receipt rather than recomputed per frame, because the gate is consulted from
-/// a Harmony prefix on conversation display.
-/// </para>
+/// Prisma Shards for <c>prisma_shard_hunt</c>: may the Prismacore fight start yet? (Shards only
+/// unlock the fight; winning it is the goal.) Counted from the server snapshot, cached and
+/// invalidated on receipt.
 /// </summary>
 public static class PrismaShardHandler
 {
@@ -23,17 +11,9 @@ public static class PrismaShardHandler
     private static bool _dirty = true;
 
 #if DEBUG
-    /// <summary>
-    /// Shards granted by the debug panel, added on top of the server count.
-    /// </summary>
-    /// <remarks>
-    /// The real count is read from the AP server snapshot, which a local debug grant cannot
-    /// add to — so without this the debug button recounts the same snapshot and appears to do
-    /// nothing. Debug builds only; never affects a real session's total.
-    /// </remarks>
+    /// <summary>Debug-panel shards, added on top — a local grant can't add to the snapshot.</summary>
     private static int _debugGranted;
 
-    /// <summary>Adds one debug shard and invalidates the cache.</summary>
     public static void DebugGrant()
     {
         _debugGranted++;
@@ -41,10 +21,8 @@ public static class PrismaShardHandler
     }
 #endif
 
-    /// <summary>Invalidates the cached count. Called when a shard is applied.</summary>
     public static void MarkDirty() => _dirty = true;
 
-    /// <summary>Clears all state. Called on disconnect.</summary>
     public static void Reset()
     {
         _cached = 0;
@@ -54,15 +32,12 @@ public static class PrismaShardHandler
 #endif
     }
 
-    /// <summary>True when the active goal is the shard hunt.</summary>
     public static bool IsHuntGoal
         => Plugin.Instance.ApClient.SlotData?.Goal == "prisma_shard_hunt";
 
-    /// <summary>Shards required to unlock the encounter, from slot data.</summary>
     public static int Required
         => Plugin.Instance.ApClient.SlotData?.PrismaShardsRequired ?? 0;
 
-    /// <summary>Shards received so far.</summary>
     public static int Collected
     {
         get
@@ -88,10 +63,7 @@ public static class PrismaShardHandler
         }
     }
 
-    /// <summary>
-    /// True when the Prismacore encounter may be started. Always true unless the shard hunt is
-    /// the active goal — every other goal leaves the encounter alone.
-    /// </summary>
+    /// <summary>True when the fight may start — always, outside the shard hunt.</summary>
     public static bool IsEncounterUnlocked
     {
         get

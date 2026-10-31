@@ -5,31 +5,10 @@ using UnityEngine;
 namespace SlimeRancher2AP.Archipelago;
 
 /// <summary>
-/// Satisfies the vanilla prerequisites for the Prismacore encounter, rather than bypassing them.
-///
-/// <para>
-/// The <c>prisma_shard_hunt</c> goal replaces the normal unlock path (deposit 20 Prisma Plorts for
-/// the Nullifier blueprint, then activate every Harmonizer) with collecting Prisma Shards. Simply
-/// forcing the fight conversation past those checks would leave the world in a state vanilla
-/// never produces — hologram offline, bells un-rung — and risks an unwinnable encounter. So this
-/// puts the world into the state the vanilla fight expects and lets the game's own checks pass.
-/// </para>
-///
-/// <para>
-/// <b>What the Harmonizers actually are.</b> Not any Prisma/Stabilizer component: they are
-/// <c>WorldStateInvisibleSwitch</c> objects named <c>labySwitchBell</c>. Established from a live
-/// log — activating one emitted
-/// <c>[AP-Gate] InvisibleSwitch DOWN: name='labySwitchBell' scene='zoneLabyrinthCorePath'</c>.
-/// A conversation-conditions dump had already ruled out serialized query trees (the
-/// <c>GigiCore_*</c> conversations carry no conditions at all), and a name-based GameObject scan
-/// missed the bells entirely.
-/// </para>
-///
-/// <para>
-/// <b>Nullifier naming.</b> The gadget asset is called <c>Harmonizer</c> but displays as
-/// "Nullifier" (pedia dump: <c>entry='Harmonizer' title='Nullifier'</c>). It is the wall-dispelling
-/// gadget, unrelated to the Harmonizer bells despite the shared word.
-/// </para>
+/// For <c>prisma_shard_hunt</c>: once the shards are in, satisfies the vanilla Prismacore
+/// prerequisites (Nullifier blueprint, all Harmonizer bells rung) rather than bypassing them,
+/// which risks an unwinnable fight. Beware the names: the gadget asset "Harmonizer" is the
+/// in-game Nullifier, while the in-game Harmonizers are the <c>labySwitchBell</c> switches.
 /// </summary>
 public static class PrismacoreFulfiller
 {
@@ -65,14 +44,9 @@ public static class PrismacoreFulfiller
     }
 
     /// <summary>
-    /// Wakes the poll after a scene change, without re-granting the blueprint.
+    /// Wakes the poll on scene change — the Labyrinth streams, so a later scene can hold a bell
+    /// earlier passes couldn't reach.
     /// </summary>
-    /// <remarks>
-    /// Going dormant is what stops the poll running forever once the bells are down, but the
-    /// Labyrinth streams: a scene loaded later can bring in a bell that was never reachable
-    /// during the earlier passes. Re-arming on scene change keeps that covered while still
-    /// letting the poll fall silent the rest of the time.
-    /// </remarks>
     public static void Rearm()
     {
         _idlePasses = 0;
@@ -81,19 +55,9 @@ public static class PrismacoreFulfiller
     }
 
     /// <summary>
-    /// Called every frame from <c>ApUpdateBehaviour.Update()</c>. Satisfies the encounter
-    /// prerequisites once the shard requirement is met.
+    /// Per-frame poll, not a one-shot on the last shard — that usually lands with no Labyrinth
+    /// loaded. Cheap until the shards are in, then backs off once idle.
     /// </summary>
-    /// <remarks>
-    /// Condition-driven rather than fired once on the final shard: shards arrive from anywhere
-    /// in the multiworld, so the last one commonly lands while no Labyrinth scene is loaded and
-    /// there would be nothing to ring. Polling instead means the bells are rung whenever the
-    /// player is somewhere they exist.
-    ///
-    /// Cost is guarded: the expensive <c>FindObjectsOfTypeAll</c> only runs after the goal and
-    /// shard checks pass (a cached int comparison), and the interval backs off to
-    /// <see cref="IdleSeconds"/> once a pass finds nothing left to do.
-    /// </remarks>
     public static void Tick()
     {
         if (!Plugin.Instance.ModEnabled) return;
@@ -121,9 +85,7 @@ public static class PrismacoreFulfiller
         }
         else if (++_idlePasses >= IdlePassesBeforeDormant)
         {
-            // Everything reachable is satisfied. Stop polling rather than logging
-            // "rang 0, N already down" forever; a scene change re-arms via Rearm().
-            _dormant = true;
+            _dormant = true;   // until Rearm()
             Logger.Info("[AP-Prismacore] Prerequisites satisfied — poll dormant until the next scene change.");
             return;
         }
@@ -131,10 +93,7 @@ public static class PrismacoreFulfiller
         _nextPoll = now + (didWork ? ActiveSeconds : IdleSeconds);
     }
 
-    /// <summary>
-    /// Grants the Nullifier blueprint, the reward normally gated behind depositing 20 Prisma
-    /// Plorts. Returns true if the blueprint was granted.
-    /// </summary>
+    /// <summary>Grants the Nullifier blueprint (vanilla: 20 Prisma Plorts).</summary>
     public static bool GrantNullifierBlueprint()
     {
         try
@@ -142,8 +101,7 @@ public static class PrismacoreFulfiller
             var director = SceneContext.Instance?.GadgetDirector;
             if (director == null)
             {
-                // Expected while a save is still loading — the poll simply retries. Not a
-                // warning: it fired twice on every single load and read like a fault.
+                // Normal while loading.
 #if DEBUG
                 Utils.DebugTrace.Once("[AP-Prismacore] GadgetDirector not ready yet — will retry");
 #endif
@@ -169,14 +127,7 @@ public static class PrismacoreFulfiller
         }
     }
 
-    /// <summary>
-    /// Drives every currently-loaded Harmonizer bell to DOWN. Returns the number rung.
-    /// </summary>
-    /// <remarks>
-    /// Only bells in loaded scenes can be reached — SR2 streams the Labyrinth, so this may need
-    /// to run more than once, or from a poll, to cover all of them. The count is logged so a
-    /// caller can tell how many were actually reachable.
-    /// </remarks>
+    /// <summary>Rings every loaded Harmonizer bell; returns the number rung.</summary>
     public static int RingAllBells()
     {
         int rung = 0, alreadyDown = 0;
@@ -191,7 +142,7 @@ public static class PrismacoreFulfiller
                 if (nm.IndexOf(BellSwitchName, System.StringComparison.OrdinalIgnoreCase) < 0)
                     continue;
 
-                // Skip bells already down so the game does not re-fire their open effects.
+                // Don't re-fire a rung bell's effects.
                 try
                 {
                     var model = sw._model;
@@ -205,8 +156,7 @@ public static class PrismacoreFulfiller
 
                 try
                 {
-                    // immediate:false — take the animated path a real activation takes,
-                    // so any open effects hanging off the transition still run.
+                    // immediate:false — the path a real activation takes.
                     sw.SetStateForAll(SwitchHandler.State.DOWN, false);
                     rung++;
                 }

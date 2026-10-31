@@ -2,10 +2,7 @@
 // (Archipelago, Patches.*, Utils) can call Logger.Info() without a using directive.
 namespace SlimeRancher2AP;
 
-/// <summary>
-/// Timestamped wrapper around BepInEx logging.
-/// All calls prepend <c>[HH:mm:ss.fff]</c> so log analysis can correlate events by time.
-/// </summary>
+/// <summary>BepInEx logging with a <c>[HH:mm:ss.fff]</c> prefix.</summary>
 public static class Logger
 {
     private static string Ts => System.DateTime.Now.ToString("HH:mm:ss.fff");

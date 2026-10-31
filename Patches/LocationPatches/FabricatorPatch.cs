@@ -8,57 +8,27 @@ using SlimeRancher2AP.Patches.PlayerPatches;
 namespace SlimeRancher2AP.Patches.LocationPatches;
 
 /// <summary>
-/// Fires location checks when the player crafts a Vacpack upgrade at the Fabricator,
-/// and suppresses the direct upgrade grant so the item arrives via Archipelago instead.
+/// A Fabricator craft sends the upgrade's next unsent craft check; the cost is spent but the
+/// vanilla grant is blocked (<c>FabricatorUpgradeBlockPatch</c>) — the upgrade arrives via AP.
+/// Patched under its interop name, being an explicit interface implementation.
 /// </summary>
-/// <remarks>
-/// <para>
-/// Patched method: <c>PlayerUpgradeFabricatableItem.FabricateAndSpendCost(int count)</c>
-/// (IL2CPP interop name used because it is an explicit interface implementation).
-/// </para>
-/// <para>
-/// The Prefix sets <see cref="IsCrafting"/> before the original runs. This signals
-/// <c>FabricatorUpgradeBlockPatch</c> (in ActorUpgradeHandlerPatch.cs) to skip
-/// <c>UpgradeModel.IncrementUpgradeLevel</c> — the method the Fabricator actually calls to
-/// apply the upgrade. The crafting cost is still spent; the upgrade arrives via Archipelago.
-/// </para>
-/// <para>
-/// Multiple sequential location IDs exist for the same upgrade type (e.g. four HealthCapacity
-/// crafts). We use <c>LocationTable.GetFabricatorCrafts(upgradeName)</c> — which returns them
-/// in ascending ID order — and send the first ID not yet in the save manager's checked set.
-/// Because <c>SendCheck</c> calls <c>MarkChecked</c> internally, a loop for bulk crafts
-/// (count &gt; 1) naturally advances to the next unchecked entry each iteration.
-/// </para>
-/// </remarks>
 [HarmonyPatch(typeof(PlayerUpgradeFabricatableItem),
     "MonomiPark_SlimeRancher_UI_Fabricator_IFabricatableItem_FabricateAndSpendCost")]
 internal static class FabricatorPatch
 {
     /// <summary>
-    /// True when the fabricator is in AP mode. All fabricator-related patches check this
-    /// before modifying behaviour.
+    /// The switch every fabricator patch consults. Never gate on <c>randomize_fabricator</c> —
+    /// crafts are checks in both modes, so gating on it would make them unsendable.
     /// </summary>
-    /// <remarks>
-    /// Deliberately does NOT consult <c>randomize_fabricator</c>. Craft locations are AP
-    /// checks in both modes — the option controls only what they CONTAIN (a shuffled item, or
-    /// the upgrade that craft grants in the vanilla game, locked there by the apworld). Gating
-    /// on it would leave every craft in a non-randomized seed unsendable, and so unobtainable.
-    /// </remarks>
     internal static bool IsEnabled =>
         Plugin.Instance.ModEnabled
         && Plugin.Instance.SaveManager.IsSaveBound;
 
-    /// <summary>
-    /// True while <c>FabricateAndSpendCost</c> is executing with AP mode active.
-    /// </summary>
     internal static bool IsCrafting { get; private set; }
 
     /// <summary>
-    /// The <c>UpgradeDefinition.name</c> of the upgrade currently being fabricated, or
-    /// <c>null</c> when no craft is in progress. Set in <see cref="Prefix"/> and cleared at
-    /// the end of <see cref="Postfix"/> (after <c>SendCheck</c> marks the location as checked).
-    /// Read by <see cref="FabricatorCurrentLevelPatch"/> to count the in-flight craft
-    /// optimistically, so the display updates within the same frame as the craft.
+    /// The upgrade being crafted, cleared only after its check is sent — so the level patches
+    /// can count the in-flight craft and the display updates the same frame.
     /// </summary>
     internal static string? CraftingUpgradeName { get; private set; }
 
@@ -68,7 +38,7 @@ internal static class FabricatorPatch
         {
             IsCrafting = true;
             CraftingUpgradeName = __instance.UpgradeDefinition?.name;
-            FabricatorUpgradeBlockPatch.WasCraftBlocked = false; // reset for this new craft
+            FabricatorUpgradeBlockPatch.WasCraftBlocked = false;
         }
     }
 
@@ -76,13 +46,11 @@ internal static class FabricatorPatch
                                 int count,
                                 FabricationBlockedReason __result)
     {
-        IsCrafting = false;  // always reset first, before any early return
+        IsCrafting = false;
 
         if (__result != FabricationBlockedReason.NONE)
         {
-            // Log it. A blocked craft spends nothing and sends nothing, so to the player it
-            // looks like the Fabricator slot simply does not respond — which is exactly how
-            // this was reported, with no trace in the log to work from.
+            // Log it — otherwise the slot just looks unresponsive.
             if (IsEnabled)
                 Logger.Info(
                     $"[AP] Fabricator: craft of '{__instance.UpgradeDefinition?.name ?? "?"}' " +
@@ -103,7 +71,7 @@ internal static class FabricatorPatch
             return;
         }
 
-        // Send one check per unit crafted (count is almost always 1, but handle bulk)
+        // SendCheck marks as it goes, so each iteration takes the next unsent craft.
         for (int i = 0; i < count; i++)
         {
             var next = crafts.FirstOrDefault(l => !Plugin.Instance.SaveManager.IsChecked(l.Id));
@@ -115,35 +83,15 @@ internal static class FabricatorPatch
             Plugin.Instance.ApClient.SendCheck(next.Id);
         }
 
-        // Clear AFTER SendCheck so that any synchronous display refresh that fires during or
-        // immediately after SendCheck still sees CraftingUpgradeName as set and the checked
-        // count as already incremented.
+        // Only after SendCheck, for synchronous display refreshes.
         CraftingUpgradeName = null;
     }
 }
 
 /// <summary>
-/// Overrides <c>PlayerUpgradeFabricatableItem.CurrentUpgradeLevel</c> in AP mode to return the
-/// number of AP checks sent for this upgrade type rather than the actual <c>UpgradeModel</c>
-/// level.
+/// The grid's progress dots show crafts sent, not the model level — a craft whose item went to
+/// another player never advances the model. Non-virtual, safe.
 /// </summary>
-/// <remarks>
-/// <para>
-/// <c>CurrentUpgradeLevel</c> drives the filled-dot progress indicator in the Fabricator grid
-/// (left panel). The right-side detail panel (cost and recipe) goes through
-/// <c>NextUpgradeLevelDefinition</c> instead — patched separately in
-/// <see cref="FabricatorNextLevelDefinitionPatch"/>.
-/// </para>
-/// <para>
-/// In AP mode the player may send checks at the Fabricator for items that go to other players,
-/// so the <c>UpgradeModel</c> level never advances for those upgrades.  Without this patch the
-/// Fabricator always shows tier-0 cost (level −1 + 1 = 0) even when tier 1 or higher is next
-/// to craft, breaking the material-progression gate.
-/// </para>
-/// <para>
-/// <c>CurrentUpgradeLevel</c> is non-virtual, so this patch is safe on IL2CPP.
-/// </para>
-/// </remarks>
 [HarmonyPatch(typeof(PlayerUpgradeFabricatableItem), "get_CurrentUpgradeLevel")]
 internal static class FabricatorCurrentLevelPatch
 {
@@ -156,45 +104,22 @@ internal static class FabricatorCurrentLevelPatch
         if (string.IsNullOrEmpty(upgradeName)) return true;
 
         var crafts = LocationTable.GetFabricatorCrafts(upgradeName);
-        if (crafts.Count == 0) return true; // not tracked — vanilla behaviour
+        if (crafts.Count == 0) return true; // not an AP upgrade
 
-        // Number of checks sent (persisted) plus any in-flight craft.
-        // The Fabricator refreshes its display synchronously inside FabricateAndSpendCost,
-        // before our Postfix has called SendCheck/MarkChecked. We compensate by counting the
-        // current craft optimistically: CraftingUpgradeName is set in the Prefix and cleared
-        // only after SendCheck, so the display always sees the updated level.
-        //
-        //   0 sent, 0 in-flight → CurrentUpgradeLevel = -1 → NextLevel = 0 → tier-0 cost ✓
-        //   0 sent, 1 in-flight → CurrentUpgradeLevel =  0 → NextLevel = 1 → tier-1 cost ✓
-        //   1 sent, 0 in-flight → CurrentUpgradeLevel =  0 → NextLevel = 1 → tier-1 cost ✓
+        // Sent checks plus the in-flight craft: the display refreshes inside the craft, before
+        // our Postfix sends its check.
         int checkedCount = crafts.Count(l => Plugin.Instance.SaveManager.IsChecked(l.Id));
         if (FabricatorPatch.CraftingUpgradeName == upgradeName)
-            checkedCount++;   // count the craft that is currently in-flight
+            checkedCount++;
         __result = checkedCount - 1;
         return false;
     }
 }
 
 /// <summary>
-/// Overrides <c>PlayerUpgradeFabricatableItem.NextUpgradeLevelDefinition</c> in AP mode to
-/// return the <c>UpgradeLevelDefinition</c> for the tier that corresponds to the number of
-/// AP checks already sent (plus any in-flight craft).
+/// The detail panel's next tier, counted as in <see cref="FabricatorCurrentLevelPatch"/>. (Its
+/// cost and recipe getters read the level natively — see <c>UpgradeModelGetLevelPatch</c>.)
 /// </summary>
-/// <remarks>
-/// <para>
-/// The right-side detail panel in the Fabricator (crafting requirements and material cost)
-/// calls <c>NextUpgradeLevelDefinition</c> directly rather than reading
-/// <c>CurrentUpgradeLevel</c>. Because the native <c>PurchaseCost</c> and <c>Recipe</c>
-/// getters are virtual and invoke the native IL2CPP method body, they bypass any patch on
-/// <c>get_CurrentUpgradeLevel</c> entirely.
-/// </para>
-/// <para>
-/// <c>NextUpgradeLevelDefinition</c> is non-virtual, so Harmony can place a detour safely.
-/// The override returns <c>UpgradeDefinition.GetUpgradeLevel(checkedCount)</c> where
-/// <c>checkedCount</c> is computed identically to <see cref="FabricatorCurrentLevelPatch"/>
-/// (persisted checks + 1 if a craft is currently in-flight).
-/// </para>
-/// </remarks>
 [HarmonyPatch(typeof(PlayerUpgradeFabricatableItem), "get_NextUpgradeLevelDefinition")]
 internal static class FabricatorNextLevelDefinitionPatch
 {
@@ -211,14 +136,14 @@ internal static class FabricatorNextLevelDefinitionPatch
         if (string.IsNullOrEmpty(upgradeName)) return true;
 
         var crafts = LocationTable.GetFabricatorCrafts(upgradeName);
-        if (crafts.Count == 0) return true; // not tracked — vanilla behaviour
+        if (crafts.Count == 0) return true;
 
         int checkedCount = crafts.Count(l => Plugin.Instance.SaveManager.IsChecked(l.Id));
         if (FabricatorPatch.CraftingUpgradeName == upgradeName)
-            checkedCount++; // count the craft that is currently in-flight
+            checkedCount++;
 
-        // checkedCount == index of the NEXT tier to craft (0-based)
-        if (checkedCount >= upgradeDef.LevelCount) return true; // all tiers done — let vanilla handle
+        // = index of the next tier
+        if (checkedCount >= upgradeDef.LevelCount) return true; // all done
 
         __result = upgradeDef.GetUpgradeLevel(checkedCount);
         return false;

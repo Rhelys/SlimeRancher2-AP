@@ -9,45 +9,10 @@ using UnityEngine;
 namespace SlimeRancher2AP.Archipelago;
 
 /// <summary>
-/// Detects when the configured goal condition is met and notifies the AP server.
-/// <list type="bullet">
-///   <item><term>labyrinth_open</term><description>
-///     Event-based: both Grey Labyrinth beam gates must open, reported through OnSwitchOpened()
-///     by InvisibleSwitchPatch (EnergyBeamReceiver "energyBeamReceiver" →
-///     WorldStateInvisibleSwitch). Keys: "zoneStrandLabyrinthGate:energyBeamReceiver" and
-///     "zoneGorgeGateTransfer:energyBeamReceiver". Opened gates are persisted, so the two can
-///     open in different sessions.
-///   </description></item>
-///   <item><term>newbucks</term><description>
-///     Polled via Tick() — compares the persisted <c>ApSaveManager.NewbucksEarned</c> counter
-///     (accumulated by NewbucksEarnings in PlayerStateCurrencyPatch.cs, from both PlayerState
-///     and Quantum Cloud payouts; the game's own AmountEverCollected is never updated) against
-///     slot data "newbucks_goal_amount".
-///   </description></item>
-///   <item><term>prismacore / prisma_shard_hunt</term><description>
-///     Event-based: CoreRoomController.UpdateState Postfix fires OnCoreRoomStateChanged(POST_FIGHT)
-///     when the boss fight completes and the Prismacore is stabilized. For prisma_shard_hunt the
-///     shards only unlock the fight (PrismacoreGatePatch); winning it is still the goal.
-///   </description></item>
-///   <item><term>slimepedia</term><description>
-///     Polled via Tick() — every entry the AP location table tracks must be unlocked, in each
-///     category enabled by the randomize_slimepedia* options, minus entries excluded by seed
-///     options. Never the game's AllUnlocked(): see <see cref="IsCategoryUnlockedForAp"/>.
-///   </description></item>
-///   <item><term>plort_seller</term><description>
-///     Polled via Tick() — per-type sold counters (accumulated by PlortMarketPatch via
-///     PlortEconomyDirector.RegisterSold, persisted in ApSaveManager) must all reach the
-///     per-seed target (slot data "plort_goal_amount"). Scope: all 25 plort types minus
-///     RNG/weather exclusions.
-///   </description></item>
-/// </list>
-/// <para>
-/// Detection runs whenever an AP save is bound and trusted, connected or not. Reaching the goal
-/// is persisted (<c>ApSaveManager.GoalReached</c>) and reported to the server immediately when
-/// connected, otherwise by <see cref="Initialize"/> on the next connect — so a goal met offline,
-/// including the one-shot Prismacore event, is never lost.
-/// </para>
-/// Call Initialize() after AP connect, Tick() each frame, and the On* event methods from patches.
+/// Goal detection. Polled goals (newbucks, slimepedia, plort_seller) run in Tick(); event goals
+/// (labyrinth_open, prismacore) come from patches via the On* methods. Runs on a bound, trusted save
+/// even offline: the goal is persisted and reported now or by <see cref="Initialize"/> on the
+/// next connect.
 /// </summary>
 public static class GoalHandler
 {
@@ -55,16 +20,9 @@ public static class GoalHandler
     // Labyrinth switch tracking
     // -------------------------------------------------------------------------
 
-    // Keys are "scene:switchName". BOTH portals must open for the goal to fire.
-    //
-    // Both gates use: EnergyBeamReceiver (name='energyBeamReceiver') → WorldStateInvisibleSwitch.SetStateForAll(DOWN)
-    // Detected via InvisibleSwitchPatch → OnSwitchOpened. Opened keys are persisted in
-    // ApSaveManager (LabyrinthGatesOpened), not held here.
-    //
-    // NOTE: The old LabyrinthSwitchStrand = "zoneStrand_Area4:ruinSwitch" was incorrect —
-    //   "ruinSwitch" is a different WorldStatePrimarySwitch in the zone, not the labyrinth gate.
-    private const string LabyrinthSwitchStrand = "zoneStrandLabyrinthGate:energyBeamReceiver";  // confirmed
-    private const string LabyrinthSwitchValley = "zoneGorgeGateTransfer:energyBeamReceiver";   // confirmed
+    // "scene:switchName" of the two beam gates; both must open. Persisted in ApSaveManager.
+    private const string LabyrinthSwitchStrand = "zoneStrandLabyrinthGate:energyBeamReceiver";
+    private const string LabyrinthSwitchValley = "zoneGorgeGateTransfer:energyBeamReceiver";
 
     // -------------------------------------------------------------------------
     // Polling throttle (~60-frame cadence ≈ once per second)
@@ -79,21 +37,13 @@ public static class GoalHandler
 
     private static bool _goalAchieved = false;
 
-    /// <summary>
-    /// True once the goal has been met — this session, or on any earlier one for the bound save
-    /// (persisted), so goal-gated behaviour such as trap and popup suppression survives reloads.
-    /// </summary>
+    /// <summary>True once the goal is met, this session or earlier (persisted).</summary>
     public static bool IsGoalComplete => _goalAchieved || Plugin.Instance.SaveManager.GoalReached;
 
     /// <summary>
-    /// True when goal progress should be tracked: an AP save is bound and trusted and its slot
-    /// data is known. Deliberately does not require a live connection — see the class remarks.
+    /// Bound, trusted save with slot data — no connection required. Costly (crosses IL2CPP),
+    /// so callers test it last.
     /// </summary>
-    /// <remarks>
-    /// Same trust rule as <c>ArchipelagoClient.SendCheck</c>: a save that is not associated with
-    /// this slot must not record the goal. Evaluated last by callers because it reads the
-    /// current save name across the IL2CPP boundary.
-    /// </remarks>
     private static bool CanTrackGoal()
         => Plugin.Instance.ModEnabled
         && Plugin.Instance.SaveManager.IsSaveBound
@@ -104,10 +54,7 @@ public static class GoalHandler
     private static int                _newbucksGoalAmount     = -1;
     private static CurrencyDefinition? _newbucksDef           = null;
 
-    // Slimepedia goal: PediaRuntimeCategory names confirmed via DumpPedia().
-    // 'Slimes' (29 entries), 'Resources' (54 entries), 'Radiant Slimes' (22 entries).
-    // With ExcludeRngSlimes / ExcludeWeatherChecks, some entries are skipped — counts vary.
-    // Goal fires when all entries in every *enabled* category are unlocked.
+    // PediaRuntimeCategory names for the slimepedia goal.
     private const string SlimesCategoryName    = "Slimes";
     private const string ResourcesCategoryName = "Resources";
     private const string RadiantCategoryName   = "Radiant Slimes";
@@ -116,16 +63,12 @@ public static class GoalHandler
     // Lifecycle
     // -------------------------------------------------------------------------
 
-    /// <summary>
-    /// Called after a successful AP login. Caches goal parameters from slot data.
-    /// Must be called on the main thread.
-    /// </summary>
+    /// <summary>After login, main thread: reports an earlier goal and caches parameters.</summary>
     public static void Initialize()
     {
         Reset();
 
-        // A goal met while offline (or on an earlier connection) is reported now. Sending it
-        // again on every connect is harmless — the server treats it as idempotent.
+        // Resent on every connect; the server treats it as idempotent.
         if (Plugin.Instance.SaveManager.GoalReached)
         {
             Logger.Info("[AP] Goal was reached earlier — reporting it to the server.");
@@ -137,8 +80,7 @@ public static class GoalHandler
 
         _newbucksGoalAmount = (int)slotData.NewbucksGoalAmount;
 
-        // Pre-cache CurrencyDefinition so we don't search every tick.
-        // Resources are loaded lazily; if unavailable now they will be found on first Tick().
+        // Retried on Tick if not loaded yet.
         if (slotData.Goal == "newbucks")
             TryCacheNewbucksDef();
 
@@ -146,10 +88,10 @@ public static class GoalHandler
     }
 
     // -------------------------------------------------------------------------
-    // Polling (called from ApUpdateBehaviour.Update each frame)
+    // Polling
     // -------------------------------------------------------------------------
 
-    /// <summary>Clears per-session state. Called by Initialize and on disconnect.</summary>
+    /// <summary>Clears per-session state (Initialize and disconnect).</summary>
     public static void Reset()
     {
         _goalAchieved = false;
@@ -178,12 +120,7 @@ public static class GoalHandler
     // Event hooks (called by Harmony patches on the main thread)
     // -------------------------------------------------------------------------
 
-    /// <summary>
-    /// Called from RegionGatePatch (WorldStatePrimarySwitch) and InvisibleSwitchPatch
-    /// (WorldStateInvisibleSwitch) whenever either type of switch transitions to DOWN.
-    /// Key format is "scene:switchName". Safe to call repeatedly — HashSet deduplicates,
-    /// so the spam from a continuous beam-pulse receiver is harmless.
-    /// </summary>
+    /// <summary>Called whenever a world switch goes DOWN. Repeats are cheap and harmless.</summary>
     public static void OnSwitchOpened(string switchName, string sceneName)
     {
         if (IsGoalComplete) return;
@@ -192,8 +129,7 @@ public static class GoalHandler
         var key = $"{sceneName}:{switchName}";
         if (key != LabyrinthSwitchStrand && key != LabyrinthSwitchValley) return;
 
-        // The receiver pulses continuously while a beam hits it — skip the trust check (which
-        // crosses the IL2CPP boundary) once this gate is already recorded.
+        // The receiver pulses while lit — skip the costly trust check once recorded.
         var saveManager = Plugin.Instance.SaveManager;
         if (saveManager.IsLabyrinthGateOpened(key)) return;
         if (!CanTrackGoal()) return;
@@ -218,20 +154,18 @@ public static class GoalHandler
     }
 
     /// <summary>
-    /// Called from CoreRoomControllerPatch Postfix on every UpdateState call.
-    /// Handles the prismacore goal: fires when POST_FIGHT is set (boss fight complete, core stabilized).
-    /// PRE_FIGHT fires on scene load and is intentionally ignored — it does NOT indicate room entry.
+    /// From CoreRoomControllerPatch. POST_FIGHT (core stabilized) wins; PRE_FIGHT fires on every
+    /// scene load and means nothing.
     /// </summary>
     public static void OnCoreRoomStateChanged(CoreRoomController.CoreRoomState state)
     {
         if (IsGoalComplete) return;
-        if (state != CoreRoomController.CoreRoomState.POST_FIGHT) return; // PRE_FIGHT etc. — cheap exit before the trust check
+        if (state != CoreRoomController.CoreRoomState.POST_FIGHT) return;
         if (!CanTrackGoal()) return;
 
         var goal = Plugin.Instance.ApClient.SlotData?.Goal;
 
-        // prisma_shard_hunt is the same victory condition — the shards gate ENTRY to the fight,
-        // they are not the win themselves. Beating the boss is still what completes the goal.
+        // Shards only gate entry to the fight; winning it is still the goal.
         if ((goal == "prismacore" || goal == "prisma_shard_hunt")
             && state == CoreRoomController.CoreRoomState.POST_FIGHT)
         {
@@ -248,17 +182,12 @@ public static class GoalHandler
     {
         if (_newbucksGoalAmount < 0) return;
 
-        // Retry cache if it failed during Initialize() (e.g. Resources not loaded yet)
         if (_newbucksDef == null)
             TryCacheNewbucksDef();
         if (_newbucksDef == null) return;
 
-        // Read our own persisted counter — PlayerModel.AmountEverCollected is never updated
-        // by any SR2 code path (plort selling, etc.) and cannot be relied upon.
-        // NewbucksEarnings (PlayerStateCurrencyPatch.cs) accumulates every in-game payout into
-        // ApSaveManager.NewbucksEarned, which persists across sessions.
+        // Our own counter — the game never updates AmountEverCollected.
         long earned = Plugin.Instance.SaveManager.NewbucksEarned;
-        // Logger.Info($"[AP] Newbucks check: earned={earned:N0} / target={_newbucksGoalAmount:N0}");
         if (earned >= _newbucksGoalAmount)
         {
             Logger.Info(
@@ -278,7 +207,7 @@ public static class GoalHandler
         var rawCategories = pedia.Categories;
         if (rawCategories == null) return;
 
-        // IL2CPP IReadOnlyList<T> wrapper: wrap via Pointer for indexed access.
+        // Wrap by pointer for indexed access.
         var categories = new Il2CppList(rawCategories.Pointer);
 #if DEBUG
         SlimeRancher2AP.Utils.DebugTrace.Once($"CheckSlimepediaGoal — step 2: list count={categories.Count}");
@@ -290,10 +219,7 @@ public static class GoalHandler
         bool needResources = slotData?.RandomizeSlimepediaResources  ?? false;
         bool needRadiant   = slotData?.RandomizeSlimepediaRadiant    ?? false;
 
-        // Build per-category exclusion sets from active slot data options.
-        // PediaEntry.name values are Unity ScriptableObject asset names confirmed via LocationTable.
-        // The apworld removes the same entries from the location pool (_RNG_SLIMES_EXCLUDED /
-        // _WEATHER_CHECKS_EXCLUDED in __init__.py), including the radiant variants.
+        // Must match the apworld's pool exclusions (_RNG_SLIMES_EXCLUDED / _WEATHER_CHECKS_EXCLUDED).
         var slimesExcluded    = new HashSet<string>();
         var resourcesExcluded = new HashSet<string>();
         var radiantExcluded   = new HashSet<string>();
@@ -309,14 +235,10 @@ public static class GoalHandler
             radiantExcluded.Add("RadiantYolky");
         }
 
-        // The "Radiant Slimes" concept entry lives in the Slimes category but only unlocks
-        // after encountering a radiant slime, so it follows the radiant toggle — the same
-        // option that governs the 22 individual radiant entries.
+        // The radiant concept entry follows the radiant toggle, not the Slimes one.
         if (!needRadiant)
             slimesExcluded.Add("RadiantSlime");
 
-        // Post-game Sanctuary content is opt-in; without it, Sprinkles is not a check and
-        // must not be required by the goal.
         if (!(slotData?.RandomizeSanctuary ?? false))
             resourcesExcluded.Add("Sprinkles");
 
@@ -331,8 +253,7 @@ public static class GoalHandler
             radiantExcluded.Add("RadiantDervish");
         }
 
-        // Track completion per enabled category.
-        // Disabled categories start true so they don't block the goal.
+        // Disabled categories start complete.
         bool slimesUnlocked    = !needSlimes;
         bool resourcesUnlocked = !needResources;
         bool radiantUnlocked   = !needRadiant;
@@ -373,11 +294,8 @@ public static class GoalHandler
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// The plort types counted by the plort_seller goal: all 25 sellable types (the
-    /// 5 Grey Labyrinth plorts are in scope — GL locations are in the pool for this
-    /// goal), minus the RNG / weather exclusions when those options are on. Mirrors
-    /// the Plort Market check scope in PlortMarketPatch and the apworld's Goal
-    /// docstring.
+    /// The plort_seller scope: all 25 types (GL included) minus the RNG/weather exclusions —
+    /// the same scope as PlortMarketPatch and the apworld.
     /// </summary>
     public static List<string> PlortSellerScope()
     {
@@ -419,33 +337,11 @@ public static class GoalHandler
     }
 
     /// <summary>
-    /// Returns true when every Slimepedia entry AP has a location for in this category is
-    /// unlocked, skipping any whose <c>PediaEntry.name</c> is in <paramref name="excludeNames"/>.
+    /// True when every non-excluded entry AP has a location for in this category is unlocked.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// Deliberately does NOT use the native <c>PediaRuntimeCategory.AllUnlocked()</c>, which
-    /// this method previously called as a fast path when no exclusions were active. Two
-    /// problems with that:
-    /// </para>
-    /// <list type="number">
-    /// <item>It made the goal's meaning depend on an unrelated option — with any exclusion
-    ///   enabled the mod iterated entries itself, without one it deferred to the game, and
-    ///   the two do not necessarily agree.</item>
-    /// <item>Either way the goal required every entry the GAME puts in the category, which
-    ///   is a superset of what AP has locations for. Confirmed from docs/dumps/1.2/Pedia.txt:
-    ///   'Resources' contains <c>Sprinkles</c> (post-game Sanctuary content) and 'Slimes'
-    ///   contains the <c>RadiantSlime</c> concept entry — neither is an AP location, so a
-    ///   player could complete every check in their seed and still not trigger the goal
-    ///   (player-reported 2026-07-24). Categories can also grow at runtime via
-    ///   <c>PediaDirector.OnPediaEntriesRegistered</c> → <c>AddDynamicItem</c>, so the
-    ///   game-side contents are not even fixed for a given version.</item>
-    /// </list>
-    /// <para>
-    /// The AP location table is therefore the authority: the goal fires when the seed's own
-    /// Slimepedia checks are all unlocked, which is what "complete the Slimepedia" means to
-    /// the player looking at their tracker.
-    /// </para>
+    /// Never the game's <c>AllUnlocked()</c>: categories can hold entries with no AP location
+    /// and grow at runtime (<c>AddDynamicItem</c>), which once made the goal unreachable.
     /// </remarks>
     private static bool IsCategoryUnlockedForAp(PediaDirector pedia,
                                                  PediaRuntimeCategory cat,
@@ -461,17 +357,16 @@ public static class GoalHandler
             var entry = items[i];
             if (entry == null) continue;
             var name = entry.name;
-            if (!required.Contains(name)) continue;   // not an AP location (e.g. Sprinkles)
-            if (excludeNames.Contains(name)) continue; // excluded by seed options
+            if (!required.Contains(name)) continue;   // not an AP location
+            if (excludeNames.Contains(name)) continue;
             if (!pedia.IsUnlocked(entry)) return false;
         }
         return true;
     }
 
     /// <summary>
-    /// Logs, per enabled Slimepedia category, which AP-tracked entries are still locked —
-    /// and which entries the game lists that AP does not track. This is the answer to
-    /// "I've done every Slimepedia check, why hasn't my goal fired?".
+    /// Logs, per category, AP-tracked entries still locked and game entries AP doesn't track —
+    /// for "why hasn't my slimepedia goal fired?".
     /// </summary>
     public static void LogSlimepediaProgress()
     {
@@ -537,7 +432,6 @@ public static class GoalHandler
         if (def != null)
         {
             _newbucksDef = def;
-            // Goal target is only meaningful on the newbucks goal; do not imply one that is not set.
             Logger.Info(
                 $"[AP] Newbucks currency cached: name='{def.name}' PersistenceId={def.PersistenceId}" +
                 (_newbucksGoalAmount >= 0 ? $", goal target={_newbucksGoalAmount:N0}" : ""));
@@ -549,13 +443,9 @@ public static class GoalHandler
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// Marks the goal as achieved, persists it, and notifies the AP server if connected (otherwise
-    /// <see cref="Initialize"/> reports it on the next connect). Idempotent — safe to call multiple times.
+    /// Marks the goal achieved, persists it and reports it if connected. Idempotent. The debug
+    /// force-goal button persists it too.
     /// </summary>
-    /// <remarks>
-    /// Also reached from the debug panel's force-goal button, which therefore persists the goal
-    /// for the bound save just like a real completion.
-    /// </remarks>
     public static void NotifyGoalComplete()
     {
         if (IsGoalComplete) return;
@@ -574,10 +464,7 @@ public static class GoalHandler
     // Debug helpers (Debug builds only)
     // -------------------------------------------------------------------------
 
-    /// <summary>
-    /// Raises the persisted <c>NewbucksEarned</c> counter to the goal target so the next Force
-    /// Check will trigger.
-    /// </summary>
+    /// <summary>Raises <c>NewbucksEarned</c> to the target, for Force Check.</summary>
     public static void DebugSetLifetimeNewbucksToGoal()
     {
         var saveManager = Plugin.Instance.SaveManager;
@@ -587,7 +474,6 @@ public static class GoalHandler
             return;
         }
 
-        // Force-set the persisted earned counter to the goal amount so Force Check fires.
         long current = saveManager.NewbucksEarned;
         if (_newbucksGoalAmount > current)
         {
@@ -602,10 +488,7 @@ public static class GoalHandler
         }
     }
 
-    /// <summary>
-    /// Forces an immediate check of the current polled goal (newbucks / slimepedia),
-    /// bypassing the Tick interval. Useful for testing without waiting 60 frames.
-    /// </summary>
+    /// <summary>Checks the polled goal now, skipping the Tick interval.</summary>
     public static void DebugForceCheck()
     {
         var goal = Plugin.Instance.ApClient.SlotData?.Goal ?? "";
@@ -620,10 +503,7 @@ public static class GoalHandler
         }
     }
 
-    /// <summary>
-    /// Fills every in-scope plort type's sold counter to the goal target so the next
-    /// Force Check fires the plort_seller goal.
-    /// </summary>
+    /// <summary>Fills every in-scope plort counter to the target, for Force Check.</summary>
     public static void DebugSimPlortSales()
     {
         var saveManager = Plugin.Instance.SaveManager;
@@ -643,27 +523,21 @@ public static class GoalHandler
         Logger.Info($"[AP-Debug] All in-scope plort sale counters set to {target}");
     }
 
-    /// <summary>Simulates the Prismacore stabilizing. Calls OnCoreRoomStateChanged with POST_FIGHT directly.</summary>
+    /// <summary>Simulates the Prismacore stabilizing.</summary>
     public static void DebugSimPrismacore() =>
         OnCoreRoomStateChanged(CoreRoomController.CoreRoomState.POST_FIGHT);
 
-    /// <summary>
-    /// Simulates both Labyrinth gates opening for testing the labyrinth_open goal.
-    /// Fires OnSwitchOpened for both the Strand and Valley switches.
-    /// Only triggers if the current AP goal is "labyrinth_open".
-    /// </summary>
+    /// <summary>Simulates both Labyrinth gates opening (labyrinth_open goal only).</summary>
     public static void DebugSimLabyrinth()
     {
         Logger.Info("[AP-Debug] Simulating both Labyrinth gate opens");
 
-        // Strand beam gate
         {
             var key = LabyrinthSwitchStrand;
             var idx = key.IndexOf(':');
             if (idx >= 0) OnSwitchOpened(key[(idx + 1)..], key[..idx]);
         }
 
-        // Valley beam gate
         {
             var key = LabyrinthSwitchValley;
             var idx = key.IndexOf(':');

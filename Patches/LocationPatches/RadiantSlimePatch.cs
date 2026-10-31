@@ -6,34 +6,16 @@ using UnityEngine;
 
 namespace SlimeRancher2AP.Patches.LocationPatches;
 
-/// <summary>
-/// Debug-only flag set by the debug panel "Force Radiant Spawn ON" button.
-/// When <c>true</c>, <see cref="ForceRadiantSpawnPatch"/> overrides every
-/// <c>DrawFromRadiantShuffleBag</c> return value to <c>true</c>, making every
-/// eligible slime encounter radiant regardless of bag state.
-/// </summary>
+/// <summary>Debug panel "Force Radiant Spawn": every draw comes up radiant.</summary>
 internal static class RadiantDebugFlags
 {
     internal static bool ForceRadiantSpawn = false;
 }
 
 /// <summary>
-/// Postfix on <c>RadiantSlimeDirector.DrawFromRadiantShuffleBag</c>.
-/// Forces the return value to <c>true</c> (every slime encounter is radiant) when either:
-/// <list type="bullet">
-///   <item><see cref="RadiantDebugFlags.ForceRadiantSpawn"/> is set (debug panel toggle), or</item>
-///   <item><c>SlotData.AllRadiantSlimes</c> is <c>true</c> (apworld option).</item>
-/// </list>
-/// <para>
-/// This is a reliable alternative to <c>DEBUG_ForceRadiantSpawn</c> on the director,
-/// which appears to be an editor-only field that is not read by the shipping native code.
-/// </para>
-/// <para>
-/// In DEBUG builds also logs post-draw bag state (CurrentIndex, RadiantSpawnIndex, Size)
-/// by looking up the slime's bag in <c>RadiantSlimesModel.RadiantShuffleBags</c>.
-/// Note: <c>RadiantShuffleBag.Draw()</c> is called natively inside <c>GameAssembly.dll</c>
-/// and cannot be intercepted by Harmony — bag state must be observed here instead.
-/// </para>
+/// Makes every draw radiant for the debug flag or <c>AllRadiantSlimes</c> (the director's
+/// own DEBUG_ForceRadiantSpawn is ignored by shipping code). Debug builds also log the bag
+/// after each draw — <c>RadiantShuffleBag.Draw()</c> is native-to-native and can't be patched.
 /// </summary>
 [HarmonyPatch(typeof(RadiantSlimeDirector), "DrawFromRadiantShuffleBag")]
 internal static class ForceRadiantSpawnPatch
@@ -42,9 +24,6 @@ internal static class ForceRadiantSpawnPatch
         SceneGroup sceneGroup, RadiantSlimeDirector __instance)
     {
 #if DEBUG
-        // Log bag state by looking up the slime in RadiantShuffleBags.
-        // RadiantShuffleBag.Draw() is a native-to-native call inside GameAssembly.dll —
-        // a Harmony patch on the managed wrapper never fires. We observe post-draw state here.
         try
         {
             var bags = __instance._radiantSlimesModel?.RadiantShuffleBags; // direct field — property is CallerCount(0)
@@ -82,116 +61,59 @@ internal static class ForceRadiantSpawnPatch
 }
 
 /// <summary>
-/// Scales radiant slime spawn frequency based on the <c>radiant_spawn_rate_multiplier</c>
-/// slot data option.
-///
-/// <para>
-/// SR2 uses a <b>shuffle-bag</b> algorithm for radiant spawns: each eligible slime type has
-/// a configured <c>BagSize</c> in the shared <c>RadiantSlimeConfig</c> ScriptableObject asset.
-/// The director reads this size when creating a new live bag for a slime type on first
-/// encounter. A smaller bag means more frequent radiant spawns.
-/// </para>
-///
-/// <para>
-/// The multiplier divides all bag sizes:
-/// <list type="bullet">
-///   <item><term>1 (default)</term><description>Vanilla bag sizes — no change.</description></item>
-///   <item><term>2</term><description>Bags halved — radiant slimes appear ~2× as often.</description></item>
-///   <item><term>5</term><description>Bags ÷5 — radiant slimes appear ~5× as often.</description></item>
-///   <item><term>10</term><description>Bags ÷10 — radiant slimes appear ~10× as often.</description></item>
-///   <item><term>50</term><description>
-///     Bags ÷50 — for slimes with vanilla bag sizes below 100 (most common types),
-///     bags floor to 2, giving a radiant on the 1st or 2nd encounter of each type.
-///     Pink slimes (bag=2000) reach size 40 at this multiplier.
-///   </description></item>
-/// </list>
-/// Bag sizes are floored at 2 so a radiant is never guaranteed on every single spawn.
-/// </para>
-///
-/// <para>
-/// <b>Timing:</b> <c>RadiantSlimeDirector.Start()</c> fires during scene load, before the
-/// AP connection completes. <c>TryApplyIfNeeded()</c> is called every Update frame and
-/// applies the multiplier the first frame a director becomes findable after connection,
-/// using cached original bag sizes so disconnect-reconnect with a different multiplier
-/// always computes from the unmodified vanilla baseline.
-/// The <c>Start()</c> Postfix is kept as a secondary trigger for scene reloads that happen
-/// after connection is already established.
-/// </para>
+/// <c>radiant_spawn_rate_multiplier</c>: divides each slime's radiant shuffle-bag size (a radiant
+/// once per bag) in the persistent <c>RadiantSlimeConfig</c>, floored at 2. Vanilla sizes are
+/// cached so a reconnect never divides twice, and restored on disconnect.
 /// </summary>
 internal static class RadiantSlimeSpawnRatePatch
 {
-    // Set to true once the bag config has been scaled for the current session.
-    // Reset on disconnect so a reconnect with a different multiplier re-applies.
     private static bool _bagSizesScaled = false;
 
-    // Set to true once RadiantShuffleBags has been seeded with bags for all configured slimes.
-    // Separate from _bagSizesScaled because the director (and therefore the model) may not be
-    // available when config scaling first runs. Retried every Update until it succeeds.
-    // Reset on disconnect alongside _bagSizesScaled.
+    // Separate stage: needs a scene's director, which may not exist yet.
     private static bool _livebagsSeeded = false;
 
-    // Vanilla bag sizes indexed by position in _radiantShuffleBagSizes.
-    // Cached on first successful application so we always divide from the original,
-    // never from an already-scaled value (prevents double-scaling on reconnect).
+    // Vanilla sizes, by index in _radiantShuffleBagSizes.
     private static int[]? _origBagSizes = null;
 
-    // Last-known zone ref used to detect zone transitions so we can re-seed live bags
-    // for each new scene's RadiantSlimeDirector without patching RadiantSlimeDirector.Start().
+    // A zone change means a new director whose bags need seeding.
     private static string? _lastZoneRef = null;
 
-    // Throttle for the "director not ready" retry path — see TryApplyIfNeeded.
     private const  float RetrySeconds = 1f;
     private static float _nextRetry   = 0f;
 
     /// <summary>
-    /// Called every Update frame from <c>Plugin.cs</c>.
-    /// Runs in two stages that may succeed on different frames:
-    /// <list type="bullet">
-    ///   <item>Stage 1 (<c>_bagSizesScaled</c>): Scale <c>RadiantSlimeConfig</c> bag sizes —
-    ///   succeeds as soon as the ScriptableObject asset is in memory (immediately after AP
-    ///   connection, before any scene is loaded).</item>
-    ///   <item>Stage 2 (<c>_livebagsSeeded</c>): Pre-seed <c>RadiantSlimesModel.RadiantShuffleBags</c>
-    ///   with bags for every configured slime that does not yet have one — guarantees the
-    ///   native code picks up the multiplied size on the very first encounter rather than
-    ///   using an unobservable transient bag. Requires a live <c>RadiantSlimeDirector</c>
-    ///   (scene-scoped), so it retries each frame until one is found.</item>
-    /// </list>
+    /// Per-frame, two stages: (1) scale the config's bag sizes; (2) seed live bags for every
+    /// slime without one, so even the first encounter uses the scaled size. Stage 2 needs the
+    /// scene's director and redoes on every zone change.
     /// </summary>
     internal static void TryApplyIfNeeded()
     {
         if (!Plugin.Instance.ModEnabled) return;
 
-        // Detect zone transitions so we re-seed live bags for each new scene's director.
-        // This replaces the removed RadiantSlimeDirector.Start() Postfix (which crashed after
-        // the 5/13 game update changed Start()'s native prologue).
-        // Reads the zone the Update loop already resolved rather than repeating GetComponent.
+        // Zone changes stand in for RadiantSlimeDirector.Start, which can't be patched since 5/13.
         string? currentZone = SlimeRancher2AP.Archipelago.TrapHandler.CurrentZoneRef;
 
         if (currentZone != _lastZoneRef)
         {
             _lastZoneRef = currentZone;
-            // New zone → new RadiantSlimeDirector → must re-seed its live bags.
             if (_bagSizesScaled && _livebagsSeeded)
                 _livebagsSeeded = false;
         }
 
         if (_bagSizesScaled && _livebagsSeeded) return;
 
-        // Throttle the not-ready retry: everything below this point runs Resources scans, and
-        // until the director exists they would otherwise run every frame.
+        // Throttled — everything below scans Resources.
         float nowT = Time.unscaledTime;
         if (nowT < _nextRetry) return;
         _nextRetry = nowT + RetrySeconds;
 
         var slotData = Plugin.Instance.ApClient?.SlotData;
-        if (slotData == null) return; // not connected yet — retry on the next interval
+        if (slotData == null) return;
 
         var multiplier = slotData.RadiantSpawnRateMultiplier;
         if (multiplier <= 1)
         {
-            // Multiplier 1 for THIS session — but RadiantSlimeConfig is a ScriptableObject
-            // asset that persists across sessions in the same process; a previous session may
-            // have divided its bag sizes. Put the vanilla values back.
+            // Undo a previous session's scaling.
             RestoreOriginalBagSizes();
             _bagSizesScaled = true;
             _livebagsSeeded = true;
@@ -201,10 +123,8 @@ internal static class RadiantSlimeSpawnRatePatch
         // ── Stage 1: scale config bag sizes ───────────────────────────────────
         if (!_bagSizesScaled)
         {
-            // Target RadiantSlimeConfig directly — it is a ScriptableObject asset that is
-            // always resident in memory regardless of which scene is loaded.
             var configs = Resources.FindObjectsOfTypeAll<RadiantSlimeConfig>();
-            if (configs.Length == 0) return; // unexpected — retry next frame
+            if (configs.Length == 0) return;
 
             bool appliedAny = false;
             for (int c = 0; c < configs.Length; c++)
@@ -215,8 +135,6 @@ internal static class RadiantSlimeSpawnRatePatch
                 var bags = config._radiantShuffleBagSizes;
                 if (bags == null || bags.Length == 0) continue;
 
-                // Cache originals on first successful access so disconnect-reconnect with a
-                // different multiplier always divides from the unmodified vanilla values.
                 if (_origBagSizes == null)
                 {
                     _origBagSizes = new int[bags.Length];
@@ -242,22 +160,19 @@ internal static class RadiantSlimeSpawnRatePatch
             }
 
             if (appliedAny) _bagSizesScaled = true;
-            else return; // couldn't find config — retry
+            else return;
         }
 
         // ── Stage 2: pre-seed RadiantShuffleBags for all configured slimes ────
         if (!_livebagsSeeded)
         {
             var directors = Resources.FindObjectsOfTypeAll<RadiantSlimeDirector>();
-            if (directors.Count == 0) return; // scene not loaded yet — retry next frame
+            if (directors.Count == 0) return; // scene not loaded yet
 
             var director = directors[0];
             if (director == null) return;
 
-            // Use _radiantSlimesModel (direct field) rather than the RadiantSlimesModel property.
-            // The property getter has CallerCount(0) — no managed callers — which means its
-            // native method pointer may be unreliable, causing an AccessViolationException that
-            // bypasses managed try/catch and hard-crashes the process. Direct field access is safe.
+            // The field, never the CallerCount(0) property, which can hard-crash the process.
             var model = director._radiantSlimesModel;
             if (model == null) return;
 
@@ -274,15 +189,14 @@ internal static class RadiantSlimeSpawnRatePatch
                 var entry = configEntries[i];
                 if (entry == null || entry.Slime == null) continue;
 
-                // Check if this slime already has a bag (loaded from save)
+                // Bags loaded from the save are kept.
                 bool alreadyHasBag = false;
                 foreach (var kvp in liveBags)
                     if (kvp.Key?.name == entry.Slime.name) { alreadyHasBag = true; break; }
 
                 if (alreadyHasBag) continue;
 
-                // Create a fresh bag with the patched size and insert it into the live dict.
-                // CurrentIndex=0, RadiantSpawnIndex chosen randomly by the native ctor.
+                // The ctor picks the radiant index.
                 var newBag = new RadiantShuffleBag(entry.BagSize);
                 liveBags[entry.Slime] = newBag;
                 seeded++;
@@ -296,24 +210,20 @@ internal static class RadiantSlimeSpawnRatePatch
     }
 
     /// <summary>
-    /// Called on disconnect. Restores vanilla bag sizes to the persistent RadiantSlimeConfig
-    /// asset — without this the scaled sizes would carry into vanilla play or the next AP slot
-    /// for the rest of the process. Live bags already created with scaled sizes keep their
-    /// current size until drained (the config only governs newly created bags).
-    /// Must be called on the main thread (Disconnect is only invoked from main-thread paths).
+    /// On disconnect (main thread): restores vanilla sizes. Existing live bags keep theirs
+    /// until drained.
     /// </summary>
     internal static void OnDisconnected()
     {
         RestoreOriginalBagSizes();
         _bagSizesScaled = false;
         _livebagsSeeded = false;
-        _lastZoneRef = null; // force zone re-check on reconnect
+        _lastZoneRef = null;
     }
 
-    /// <summary>Writes the cached vanilla bag sizes back to every RadiantSlimeConfig. No-op if never scaled.</summary>
     private static void RestoreOriginalBagSizes()
     {
-        if (_origBagSizes == null) return; // originals never cached → nothing was ever modified
+        if (_origBagSizes == null) return; // never scaled
 
         var configs = Resources.FindObjectsOfTypeAll<RadiantSlimeConfig>();
         int restored = 0;

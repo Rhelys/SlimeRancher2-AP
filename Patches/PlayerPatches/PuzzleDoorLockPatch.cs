@@ -6,16 +6,9 @@ using SlimeRancher2AP.Utils;
 namespace SlimeRancher2AP.Patches.PlayerPatches;
 
 /// <summary>
-/// Postfix on PuzzleSlotLockable.ActivateOnUnlock — fires via the managed caller path when
-/// a Shadow Plort door (Grey Labyrinth) opens. Sends the AP location check.
-///
-/// Shadow plort doors have a managed caller that reaches ActivateOnUnlock, so this patch
-/// fires reliably for them. Other plort doors (PuzzleDoor type) and the PB region gate are
-/// called from native code and bypass this patch — those are handled by PlortDoorPoller
-/// (ShouldUnlock() polling from the Update loop).
-///
-/// Uses posKey (sceneName_X_Y_Z) for identification because multiple doors share the same
-/// objectName (e.g. "objLabyrinthPlortDoor01Small").
+/// Shadow plort doors (Grey Labyrinth) send their check on <c>ActivateOnUnlock</c>, which they
+/// reach through a managed caller. Other plort doors open from native code — see PlortDoorPoller.
+/// Identified by posKey; door names repeat.
 /// </summary>
 [HarmonyPatch(typeof(PuzzleSlotLockable), "ActivateOnUnlock")]
 internal static class PuzzleSlotLockableActivatePatch
@@ -36,11 +29,7 @@ internal static class PuzzleSlotLockableActivatePatch
         if (LocationTable.TryGetByObjectName(posKey, out var locInfo) && locInfo != null
             && locInfo.Type == LocationType.ShadowPlortDoor)
         {
-            // Suppression is UNCONDITIONAL and deliberately not gated by randomize_shadow_doors.
-            // Several of these doors are dispensers that hand out a blueprint / upgrade
-            // component / spawned items, and handing those out for free conflicts with the same
-            // items being randomized into the pool. The option decides only whether the door is
-            // an AP check; the vanilla reward is suppressed either way.
+            // Unconditional — randomize_shadow_doors gates only the check (see SlotData).
             SuppressVanillaReward(__instance);
 
             bool isCheck = string.Equals(
@@ -62,13 +51,8 @@ internal static class PuzzleSlotLockableActivatePatch
     }
 
     /// <summary>
-    /// Shadow plort doors carry a <c>TreasurePodRewarder</c> (<c>_rewardOnUnlock</c>) that
-    /// dispenses a vanilla reward (blueprint / upgrade component / spawned items) when the
-    /// door opens. The door IS the AP check, so — exactly like treasure pods
-    /// (TreasurePodPatch) — the vanilla grant is suppressed by nulling the reward fields
-    /// before the original ActivateOnUnlock runs; the open animation and FX still play,
-    /// and the AP server delivers the randomized item instead. (Player-reported: doors
-    /// were double-dipping, granting both the check and the vanilla reward.)
+    /// Nulls the door's <c>_rewardOnUnlock</c> rewarder fields, as for treasure pods; the door
+    /// still opens.
     /// </summary>
     private static void SuppressVanillaReward(PuzzleSlotLockable door)
     {
@@ -90,9 +74,9 @@ internal static class PuzzleSlotLockableActivatePatch
     }
 }
 
-// NOTE (2026-05-15, v0.4.4): PuzzleDoorLockPatch, PuzzleGateActivatorPatch,
-// PuzzleSlotLockableNotifyPatch, and PuzzleSlotLockableSendAnalyticsPatch were removed.
-// These classes (PuzzleDoorLock, PuzzleGateActivator, PuzzleSlotLockable) moved to the
-// root namespace in the 5/13/2026 game update and their native method prologues changed,
-// causing HarmonyX trampoline crashes. The labyrinth_open goal is fully detected by
-// InvisibleSwitchPatch (WorldStateInvisibleSwitch.SetStateForAll) in RegionGatePatch.cs.
+// Don't patch PuzzleDoorLock, PuzzleGateActivator, or PuzzleSlotLockable's Notify /
+// SendAnalytics: they crashed the trampoline after the 5/13/2026 update. Nor PlortDepositor:
+//   • ActivateOnFill — infinite recursion through the managed bridge.
+//   • PlortDepositorModel.Push — called natively during scene init; the trampoline fails.
+//   • OnTriggerEnter — trampoline crash on scene load since the 5/13/2026 update.
+// Plort doors other than the shadow doors, and the PB gate, are PlortDoorPoller's.

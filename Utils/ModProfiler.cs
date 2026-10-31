@@ -4,20 +4,8 @@ using System.Diagnostics;
 namespace SlimeRancher2AP.Utils;
 
 /// <summary>
-/// Measures how much main-thread time the mod itself costs, per named section, so frame-rate
-/// regressions can be attributed instead of guessed at.
-///
-/// <para>
-/// Motivated by a report of ~20 fps lost against a 144 fps baseline — about 1.1 ms per frame.
-/// At that scale the culprit is invisible by inspection: it is not one obviously slow call but
-/// whichever poll happens to run <c>Resources.FindObjectsOfTypeAll</c> most often, and frame-
-/// counted intervals make that rate scale with the frame rate itself.
-/// </para>
-///
-/// <para>
-/// Costs one <see cref="Stopwatch"/> timestamp pair per section per frame. Report from the debug
-/// panel (F9 → Misc → "Log Mod Frame Cost"); totals are cumulative until reset.
-/// </para>
+/// The mod's main-thread cost per named section, so a frame-rate regression can be attributed.
+/// One Stopwatch pair per section per frame. Report via F9 → "Log Mod Frame Cost".
 /// </summary>
 public static class ModProfiler
 {
@@ -32,17 +20,10 @@ public static class ModProfiler
     private static readonly Stopwatch _sw = Stopwatch.StartNew();
     private static long _frames;
 
-    /// <summary>
-    /// Set false to remove all measurement overhead. Defaults off; Debug builds and the
-    /// <c>Diagnostics/PerfLogSeconds</c> config entry turn it on.
-    /// </summary>
+    /// <summary>Off by default; on in Debug builds or via <c>Diagnostics/PerfLogSeconds</c>.</summary>
     public static bool Enabled = false;
 
-    /// <summary>
-    /// When &gt; 0, <see cref="BeginFrame"/> writes a report on this interval and resets the
-    /// counters, so each report covers one window rather than all time since launch. This is
-    /// the only way to get a report out of a Release build (no debug panel).
-    /// </summary>
+    /// <summary>When &gt; 0, report and reset on this interval (how Release builds report).</summary>
     public static float LogIntervalSeconds = 0f;
 
     private static float _nextAutoLog = 0f;
@@ -62,10 +43,7 @@ public static class ModProfiler
         Reset();
     }
 
-    /// <summary>
-    /// Times <paramref name="body"/> under <paramref name="name"/>. The delegate is invoked
-    /// directly (no allocation per call when a cached static lambda is passed).
-    /// </summary>
+    /// <summary>Times <paramref name="body"/>; pass a cached delegate to avoid allocating.</summary>
     public static void Time(string name, System.Action body)
     {
         if (!Enabled) { body(); return; }
@@ -83,7 +61,6 @@ public static class ModProfiler
         }
     }
 
-    /// <summary>Clears all accumulated measurements.</summary>
     public static void Reset()
     {
         _entries.Clear();
@@ -91,9 +68,8 @@ public static class ModProfiler
     }
 
     /// <summary>
-    /// Writes a per-section breakdown to the BepInEx log, sorted by total cost.
-    /// "avg/frame" is the number that matters: sum it and compare against the frame budget
-    /// (6.9 ms at 144 fps, 16.7 ms at 60 fps).
+    /// Logs sections by total cost. Compare summed "avg/frame" with the frame budget (6.9 ms at
+    /// 144 fps).
     /// </summary>
     public static void Report()
     {

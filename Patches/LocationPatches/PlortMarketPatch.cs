@@ -7,19 +7,13 @@ using SlimeRancher2AP.Data;
 namespace SlimeRancher2AP.Patches.LocationPatches;
 
 /// <summary>
-/// Fires a location check the first time each plort type is sold at the Plort Market.
-/// Patched method: <c>PlortEconomyDirector.RegisterSold(IdentifiableType id, int count, int price)</c>
-/// CallerCount=2 — called by the market sale pipeline each time plorts are deposited.
-/// The <c>IsChecked</c> guard ensures only the very first sale of each type sends a check.
+/// The first sale of each plort type sends its check; every sale feeds the plort_seller counter.
 /// </summary>
 [HarmonyPatch(typeof(PlortEconomyDirector), nameof(PlortEconomyDirector.RegisterSold))]
 internal static class PlortMarketPatch
 {
-    // IdentifiableType.name values for plorts the apworld removes from the location pool
-    // under exclude_rng_slimes / exclude_weather_checks (mirrors _RNG_SLIMES_EXCLUDED /
-    // _WEATHER_CHECKS_EXCLUDED in the apworld's __init__.py). Sending a check for one of
-    // these while the option is on would target a location ID that doesn't exist in the
-    // seed — the same class of bug fixed for Gordo/MapNode checks.
+    // Plorts the apworld drops from the pool under exclude_rng_slimes / exclude_weather_checks
+    // (its _RNG_SLIMES_EXCLUDED / _WEATHER_CHECKS_EXCLUDED) — their IDs aren't in the seed.
     private static readonly HashSet<string> RngExcludedPlorts =
         new() { "GoldPlort", "YolkyPlort" };
 
@@ -35,9 +29,7 @@ internal static class PlortMarketPatch
         var plortName = id?.name;
         if (string.IsNullOrEmpty(plortName)) return;
 
-        // plort_seller goal — accumulate the per-type sold counter regardless of whether
-        // Plort Market location checks are enabled (independent features). GoalHandler
-        // polls the persisted counters against the per-seed target.
+        // Counted whether or not market checks are on — independent features.
         if (slotData.Goal == "plort_seller" && count > 0)
             Plugin.Instance.SaveManager.AccumulatePlortSold(plortName!, count);
 
@@ -53,7 +45,7 @@ internal static class PlortMarketPatch
         Plugin.Instance.ApClient.SendCheck(info.Id);
     }
 
-    /// <summary>Exclusion sets shared with GoalHandler's plort_seller scope computation.</summary>
+    /// <summary>Shared with GoalHandler's plort_seller scope.</summary>
     internal static bool IsRngExcludedPlort(string plortName)     => RngExcludedPlorts.Contains(plortName);
     internal static bool IsWeatherExcludedPlort(string plortName) => WeatherExcludedPlorts.Contains(plortName);
 }

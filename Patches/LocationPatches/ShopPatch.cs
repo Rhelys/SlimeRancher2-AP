@@ -6,22 +6,10 @@ using SlimeRancher2AP.Data;
 namespace SlimeRancher2AP.Patches.LocationPatches;
 
 /// <summary>
-/// Shared state and lookups for the Polestar Provisions shop checks
-/// (<c>randomize_shop</c> apworld option).
+/// Shop check state and lookups (<c>randomize_shop</c>). Only the seed's subset of shop
+/// locations is active; everything else stays vanilla. Keyed by <c>AssetGuid</c>, not the
+/// unstable <c>ShopItemId</c>.
 /// </summary>
-/// <remarks>
-/// <para>
-/// The apworld defines all 84 shop locations but only creates a per-seed random subset —
-/// <see cref="GetActiveLocation"/> therefore requires the location to exist in the connected
-/// seed (<c>ArchipelagoClient.IsLocationInSeed</c>). Purchases of items outside the subset
-/// behave fully vanilla.
-/// </para>
-/// <para>
-/// Identity: <c>ShopRuntimeItem.AssetGuid</c> (stable addressables GUID). The game's own
-/// <c>ShopItemId</c> is NOT usable — it degrades to a GUID while the item's asset is
-/// unloaded, and some entries use hand-authored GUIDs even when loaded.
-/// </para>
-/// </remarks>
 internal static class ShopPatchState
 {
     internal static bool IsEnabled =>
@@ -30,18 +18,12 @@ internal static class ShopPatchState
         && (Plugin.Instance.ApClient.SlotData?.RandomizeShop ?? false);
 
     /// <summary>
-    /// The AP shop location whose purchase is currently executing inside
-    /// <c>ShopRuntimeItem.TryPurchase</c>, or null. Set by <see cref="ShopTryPurchasePatch"/>'s
-    /// Prefix and cleared in its Postfix; consumed by <see cref="AcquisitionSuppressPatch"/>
-    /// to skip the vanilla reward grant. The purchase pipeline is synchronous on the main
-    /// thread, so plain static state is safe.
+    /// The AP location being purchased inside <c>TryPurchase</c> (synchronous), so
+    /// <see cref="AcquisitionSuppressPatch"/> skips its vanilla reward.
     /// </summary>
     internal static LocationInfo? InFlightCheck;
 
-    /// <summary>
-    /// Maps a shop item to its AP location, or null when the option is off, the item is not
-    /// in the table, or the location does not exist in this seed.
-    /// </summary>
+    /// <summary>The item's AP location, or null if off, unknown, or not in this seed.</summary>
     internal static LocationInfo? GetActiveLocation(ShopRuntimeItem? item)
     {
         if (item == null || !IsEnabled) return null;
@@ -57,15 +39,10 @@ internal static class ShopPatchState
     internal static bool IsChecked(LocationInfo info)
         => Plugin.Instance.SaveManager.IsChecked(info.Id);
 
-    // Secondary identity: GadgetDefinition asset name → location. Used by the full-art
-    // patch, whose IFullArtAndIconSource may be the underlying asset rather than the
-    // ShopRuntimeItem (only the latter exposes AssetGuid).
+    // Asset name → location, for the full-art patch, whose source may be the asset (no AssetGuid).
     private static Dictionary<string, LocationInfo>? _byAssetName;
 
-    /// <summary>
-    /// Maps a shop item's asset name (LocationTable <c>EntryName</c>) to its AP location,
-    /// with the same option/seed gating as <see cref="GetActiveLocation"/>.
-    /// </summary>
+    /// <summary>As <see cref="GetActiveLocation"/>, by asset name.</summary>
     internal static LocationInfo? GetActiveLocationByAssetName(string? assetName)
     {
         if (string.IsNullOrEmpty(assetName) || !IsEnabled) return null;
@@ -80,40 +57,27 @@ internal static class ShopPatchState
 }
 
 /// <summary>
-/// Turns the first purchase of an AP-selected shop item into a location check.
-/// Patched method: <c>ShopRuntimeItem.TryPurchase(int count, string spawnHandlerId,
-/// Guid uiSessionId)</c> — CallerCount(1), called by the purchase popup confirm.
+/// The first purchase of an AP shop item sends its check: the vanilla purchase runs (cost
+/// spent, purchase recorded) but its reward is suppressed. Later purchases are refused.
 /// </summary>
-/// <remarks>
-/// The vanilla purchase is allowed to run (Newbucks are spent and the purchase is recorded
-/// in the persisted <c>ShopDataPurchaseSet</c>) but the reward grant is suppressed by
-/// <see cref="AcquisitionSuppressPatch"/> while <see cref="ShopPatchState.InFlightCheck"/>
-/// is set. Once the location is checked, further purchases of that slot are blocked
-/// entirely (single-purchase rule) and the slot displays as sold out
-/// (<c>ShopUiPatch</c> in UiPatches).
-/// </remarks>
 [HarmonyPatch(typeof(ShopRuntimeItem), nameof(ShopRuntimeItem.TryPurchase))]
 internal static class ShopTryPurchasePatch
 {
     private static bool Prefix(ShopRuntimeItem __instance, ref bool __result)
     {
         var info = ShopPatchState.GetActiveLocation(__instance);
-        if (info == null) return true; // vanilla item or option off
+        if (info == null) return true;
 
         if (ShopPatchState.IsChecked(info))
         {
-            // Check already sent — enforce single purchase by failing the transaction
-            // before any cost is spent.
+            // Already sent — fail before any cost is spent.
             Logger.Info($"[AP] Shop: '{info.Name}' already checked — purchase blocked");
             __result = false;
             return false;
         }
 
-        // Locked behind a Progressive Shop Catalog wave. ShopCatalogListPatch normally keeps
-        // these out of the list entirely, so reaching here means something bound the item
-        // anyway — a stale pooled row, or a list read the filter does not cover. Refuse rather
-        // than trust the hiding: sending a check the seed's logic says is unreachable is worse
-        // than an odd-looking failed purchase.
+        // Catalog-locked. Normally hidden by ShopCatalogListPatch, but refuse anyway — sending
+        // an unreachable check is worse than an odd failed purchase.
         if (!Archipelago.ShopCatalogHandler.IsUnlocked(info.Id))
         {
             Logger.Info(
@@ -137,16 +101,13 @@ internal static class ShopTryPurchasePatch
         Logger.Info($"[AP] Shop: first purchase of '{info.EntryName}' → check {info.Id} ({info.Name})");
         Plugin.Instance.ApClient.SendCheck(info.Id);
 
-        // Mark the runtime slot sold out; ShopUiPatch re-asserts it on every rebind.
         try { __instance._isSoldOut = true; } catch { /* cosmetic only */ }
 
-        // The vanilla button refresh already ran inside TryPurchase, before the check above
-        // existed, so redraw now or the overlay waits for the next rebind.
+        // The vanilla refresh ran before the check existed.
         UiPatches.ShopUiHelper.RefreshAfterPurchase(__instance);
     }
 
-    // If the original throws, the Postfix never runs — clear the flag here or every
-    // later Acquire_SpawnOrStore call (treasure pods, other shop items) stays suppressed.
+    // On a throw the Postfix never runs — clear the flag, or every later reward stays suppressed.
     private static System.Exception? Finalizer(System.Exception? __exception)
     {
         if (__exception != null) ShopPatchState.InFlightCheck = null;
@@ -155,11 +116,8 @@ internal static class ShopTryPurchasePatch
 }
 
 /// <summary>
-/// Suppresses the vanilla reward while an AP shop check purchase is in flight.
-/// Patched method: <c>AcquisitionUtility.Acquire_SpawnOrStore(IAcquirable item,
-/// AcquireParameters parameters, SpawnItemDelegate spawnItemFunc)</c> — CallerCount(5),
-/// the single funnel for all shop reward types (gadget blueprints, variants, spawned
-/// items, currency, bundles).
+/// Suppresses the reward of an in-flight AP purchase. <c>Acquire_SpawnOrStore</c> is the single
+/// funnel for every shop reward type.
 /// </summary>
 [HarmonyPatch(typeof(AcquisitionUtility), nameof(AcquisitionUtility.Acquire_SpawnOrStore))]
 internal static class AcquisitionSuppressPatch
@@ -169,8 +127,7 @@ internal static class AcquisitionSuppressPatch
         var info = ShopPatchState.InFlightCheck;
         if (info == null) return true;
 
-        // Report success so TryPurchase completes (cost spent, purchase recorded) —
-        // the AP item at this location arrives via the multiworld instead.
+        // Report success so TryPurchase completes.
         Logger.Info($"[AP] Shop: vanilla reward suppressed for '{info.EntryName}' (AP check)");
         __result = true;
         return false;

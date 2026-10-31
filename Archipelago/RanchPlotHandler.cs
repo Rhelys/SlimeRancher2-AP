@@ -8,33 +8,18 @@ using UnityEngine;
 namespace SlimeRancher2AP.Archipelago;
 
 /// <summary>
-/// Ranch plot randomization — three independently-toggled tiers of AP items
-/// (see the apworld options <c>randomize_plots</c> / <c>randomize_plot_buildings</c> /
-/// <c>randomize_plot_upgrades</c>):
+/// Ranch plot randomization, three independent tiers:
 /// <list type="number">
-/// <item><b>Plot spots</b> — an EMPTY plot can only be built on while the number of built
-///   plots in its ranch area is below the received "Ranch Plot" item count for that area.
-///   Enforced by blocking the plot UI from opening (RanchPlotInteractPatch) plus a
-///   belt-and-braces block on <c>LandPlotLocation.Replace</c>. Demolishing frees a slot
-///   naturally, since built plots are counted live.</item>
-/// <item><b>Building types</b> — the six <c>PlotPatchPurchaseItemModel</c> menu entries are
-///   removed from the build menu until their "... Plans" item arrives.</item>
-/// <item><b>Upgrades</b> — the 21 <c>PlotUpgradePurchaseItemModel</c> menu assets likewise.
-///   Keyed by ASSET NAME, not <c>LandPlot.Upgrade</c>: WALLS and FEEDER exist once per
-///   building (corral 'Walls Upgrade' vs coop 'CoopWalls Upgrade').</item>
+/// <item><b>Plot spots</b> — an empty plot is buildable while its area's built count is below
+///   its received "Ranch Plot" count. Blocked at the plot UI (RanchPlotInteractPatch), with a
+///   backstop on <c>LandPlotLocation.Replace</c>. Built plots are counted live, so demolishing
+///   frees a slot.</item>
+/// <item><b>Buildings</b> — each build-menu entry is hidden until its "Plans" item arrives.</item>
+/// <item><b>Upgrades</b> — likewise. WALLS and FEEDER exist per building (corral/coop).</item>
 /// </list>
-/// <para>
-/// Item counts are always derived from the AP server snapshot
-/// (<c>Session.Items.AllItemsReceived</c>), NEVER from replay/apply state — Useful-class
-/// items are ephemeral-guarded and skipped on replay, so a locally tracked count would
-/// desync on reconnect. The snapshot recount is cached and invalidated on item receipt.
-/// </para>
-/// <para>
-/// Tiers 2/3 are enforced by filtering the menu's DATA SOURCE — locked purchase models
-/// are removed from the <c>PlotPurchaseCategory.items</c> lists and restored when their
-/// item arrives (<see cref="Tick"/>). See the comment on that section for why the
-/// delegate-wrapping approaches (IsAvailable / IsHidden) were abandoned.
-/// </para>
+/// Counts always come from the server snapshot, cached and invalidated on receipt — never local
+/// apply state, which desyncs on reconnect. Tiers 2/3 filter the menu's data source (see that
+/// section).
 /// </summary>
 public static class RanchPlotHandler
 {
@@ -113,11 +98,7 @@ public static class RanchPlotHandler
         ["PlortCollectorIncerator Upgrade"] = ItemTable.IncineratorUpgradePlortCollector,
     };
 
-    /// <summary>
-    /// Resolves an upgrade purchase to its AP item for the hard-enforcement patch on
-    /// <c>LandPlotUIRoot.Upgrade</c>, which only sees the enum + the plot being upgraded.
-    /// WALLS and FEEDER are per-building; everything else maps 1:1.
-    /// </summary>
+    /// <summary>An upgrade's AP item; WALLS and FEEDER depend on the building.</summary>
     public static long? UpgradeItemFor(LandPlot.Upgrade upgrade, LandPlot.Id building) => upgrade switch
     {
         LandPlot.Upgrade.WALLS  => building == LandPlot.Id.COOP ? ItemTable.CoopUpgradeWalls  : ItemTable.CorralUpgradeWalls,
@@ -143,10 +124,8 @@ public static class RanchPlotHandler
     };
 
     /// <summary>
-    /// Vanilla Newbucks price of building each plot type (docs/dumps/1.2/plot.txt). Used to
-    /// refund the player when the Replace backstop blocks a build — the game charges
-    /// BEFORE LandPlotLocation.Replace runs, so a block would otherwise eat the money
-    /// (player-reported).
+    /// Vanilla build price, refunded when the Replace backstop blocks a build — the game has
+    /// already charged by then.
     /// </summary>
     public static int VanillaBuildCost(LandPlot.Id building) => building switch
     {
@@ -159,7 +138,7 @@ public static class RanchPlotHandler
         _ => 0,
     };
 
-    /// <summary>Refunds Newbucks without counting toward the newbucks goal accumulator.</summary>
+    /// <summary>Refunds Newbucks without counting toward the newbucks goal.</summary>
     public static void RefundNewbucks(int amount, string reason)
     {
         if (amount <= 0) return;
@@ -203,15 +182,12 @@ public static class RanchPlotHandler
     private static readonly Dictionary<long, int> _debugCounts  = new(); // F9 grants, no session
     private static bool _dirty = true;
 
-    /// <summary>Invalidate the cached snapshot counts (item received / connected).</summary>
     public static void MarkDirty() => _dirty = true;
 
-    /// <summary>Debug-panel grant without an AP session (ItemHandler.ApplyById path).</summary>
     public static void AddDebugCount(long itemId)
         => _debugCounts[itemId] = _debugCounts.GetValueOrDefault(itemId) + 1;
 
-    /// <summary>Called on disconnect — clears all cached state and restores the vanilla
-    /// plot menu item lists.</summary>
+    /// <summary>On disconnect: clears state and restores the vanilla menus.</summary>
     public static void Reset()
     {
         _serverCounts.Clear();
@@ -233,7 +209,7 @@ public static class RanchPlotHandler
         if (!_dirty) return;
 
         var snapshot = Plugin.Instance.ApClient.Session?.Items?.AllItemsReceived;
-        if (snapshot == null) return; // keep _dirty — retry once a session exists
+        if (snapshot == null) return; // retry once a session exists
 
         _serverCounts.Clear();
         for (int i = 0; i < snapshot.Count; i++)
@@ -251,10 +227,8 @@ public static class RanchPlotHandler
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// True when building on <paramref name="plot"/> (an EMPTY plot) is currently allowed.
-    /// When blocked, <paramref name="blockMessage"/> explains the shortfall for the HUD.
-    /// Unknown region cells are never blocked (fail open — a future game update adding a
-    /// ranch area must not brick building there).
+    /// True when the empty plot may be built on; otherwise <paramref name="blockMessage"/> says
+    /// why. Unknown areas fail open, so a new ranch area isn't bricked.
     /// </summary>
     public static bool CanBuildOnPlot(LandPlot plot, out string blockMessage)
     {
@@ -276,11 +250,7 @@ public static class RanchPlotHandler
         return false;
     }
 
-    /// <summary>
-    /// Live count of non-empty plots in a region cell. Scene-bound objects only —
-    /// FindObjectsOfTypeAll also returns the corral/garden/... prefabs, which must not
-    /// inflate the count. Only called on plot interaction, so the area is loaded.
-    /// </summary>
+    /// <summary>Built plots in the area, scene objects only (prefabs excluded).</summary>
     private static int CountBuiltPlotsInRegion(string regionCell)
     {
         int built = 0;
@@ -302,18 +272,9 @@ public static class RanchPlotHandler
     // -------------------------------------------------------------------------
     // Tiers 2/3 — purchase-menu data-source filtering
     // -------------------------------------------------------------------------
-    // The plot menu builds its list from PlotPurchaseCategory.items (a List on the
-    // ScriptableObject asset). Locked models are REMOVED from that list and restored
-    // when their item arrives, so the menu opens with a clean, correctly-bound list.
-    //
-    // Two earlier delegate-based approaches failed (player-tested):
-    //  • Wrapping IsAvailable rendered locked entries as "already purchased".
-    //  • Wrapping IsHidden after the menu had bound corrupted the pooled list views —
-    //    entries went visually stale (every slot showing the first item's title/cost) —
-    //    and left a payment window where a locked purchase took money before the
-    //    LandPlotLocation.Replace backstop blocked the build.
-    // Filtering the data source has neither problem: nothing locked is ever offered,
-    // so no money can be spent on it, and the game's own bind path runs untouched.
+    // Locked models are removed from PlotPurchaseCategory.items and restored when their item
+    // arrives. Not by wrapping IsAvailable (renders "already purchased") or IsHidden (corrupts
+    // the pooled list views while the menu is open).
 
     private sealed class CategoryState
     {
@@ -327,11 +288,7 @@ public static class RanchPlotHandler
     private static List<CategoryState>? _categories;
     private static int _tickCounter;
 
-    /// <summary>
-    /// Called every frame from <c>Plugin.Update</c>; does work every ~30 frames.
-    /// Rebuilds each plot purchase category's item list when the locked-set changes
-    /// (first run, or an AP item arrived).
-    /// </summary>
+    /// <summary>Per-frame; every ~30 frames re-filters categories whose locked set changed.</summary>
     public static void Tick()
     {
         if (!BuildingsEnabled && !UpgradesEnabled) return;
@@ -350,17 +307,11 @@ public static class RanchPlotHandler
         }
         catch
         {
-            // Assets collected (Resources.UnloadUnusedAssets) — refind on the next tick.
-            _categories = null;
+            _categories = null;   // assets unloaded — refind next tick
         }
     }
 
-    /// <summary>
-    /// Replaces a stale category's cached model wrappers with fresh ones resolved from
-    /// the live asset set (matched by instance id — stable for the same native object).
-    /// The originals list, not the (filtered) live list, is rebuilt, so removed entries
-    /// are recoverable; the next tick re-applies the filter with working wrappers.
-    /// </summary>
+    /// <summary>Re-resolves stale cached wrappers from live assets by instance id.</summary>
     private static void RefreshStaleWrappers(List<CategoryState> stale)
     {
         var byId = new Dictionary<int, PlotPurchaseItemModel>();
@@ -391,7 +342,6 @@ public static class RanchPlotHandler
         }
     }
 
-    /// <summary>Restores the vanilla item lists (called from <see cref="Reset"/>).</summary>
     private static void RestoreCategories()
     {
         if (_categories == null) return;
@@ -405,7 +355,7 @@ public static class RanchPlotHandler
                 foreach (var m in state.OriginalItems) list.Add(m);
                 state.Category.initialSelection = state.OriginalInitialSelection;
             }
-            catch { /* asset gone — nothing to restore */ }
+            catch { /* asset gone */ }
         }
         _categories = null;
     }
@@ -426,13 +376,9 @@ public static class RanchPlotHandler
                 var m = cat.items[i];
                 state.OriginalItems.Add(m);
 
-                // CRITICAL: pin every model against the unused-asset sweep. The category
-                // list is these assets' only native reference — removing a locked model
-                // from it let Resources.UnloadUnusedAssets DESTROY the asset a few
-                // seconds after scene load (player log: every removed entry read back
-                // as '[model null]' while every kept entry survived), after which the
-                // menu rendered garbage and the filter could never restore the entry.
-                // Interop wrappers hold weak handles, so caching them does not protect.
+                // CRITICAL: pin before removing — the list is the asset's last native reference,
+                // and Resources.UnloadUnusedAssets would destroy it for good. Cached interop
+                // wrappers don't keep it alive.
                 try { if (m != null) m.hideFlags |= HideFlags.DontUnloadUnusedAsset; } catch { }
             }
             if (state.OriginalItems.Count == 0) continue;
@@ -443,18 +389,13 @@ public static class RanchPlotHandler
 
             result.Add(state);
         }
-        // Per-entry gate diagnostics follow from the first ApplyCategoryFilter pass.
         Logger.Info(
             $"[AP] RanchPlotHandler: filtering {result.Count} plot purchase categor(ies) " +
             "(models pinned against asset unload)");
         return result;
     }
 
-    /// <summary>
-    /// The building a category's upgrade entries belong to, from the category asset name
-    /// (e.g. 'Coop Plot Purchases'). Needed because WALLS/FEEDER enum values are shared
-    /// between corral and coop.
-    /// </summary>
+    /// <summary>The building from the category name (for WALLS/FEEDER).</summary>
     private static LandPlot.Id BuildingForCategory(string categoryName)
     {
         if (categoryName.StartsWith("Corral"))      return LandPlot.Id.CORRAL;
@@ -467,12 +408,8 @@ public static class RanchPlotHandler
     }
 
     /// <summary>
-    /// AP item gating this menu model, or null when the model is never gated (demolish,
-    /// clear crop, or a tier whose option is off). Keyed on the models' own DATA —
-    /// <c>_plotDefinition.Type</c> / <c>_upgrade</c> — not on asset names: the category
-    /// lists reference per-menu model instances whose names don't match the loose assets
-    /// (player-tested: name matching resolved nothing and every entry stayed visible).
-    /// <paramref name="why"/> explains the resolution for the mask-change diagnostics.
+    /// The AP item gating a menu model, or null if ungated. Read from the model's data, not its
+    /// name — the menu's per-instance names don't match the assets. <paramref name="why"/> is for logs.
     /// </summary>
     private static long? GateItemFor(PlotPurchaseItemModel? model, LandPlot.Id categoryBuilding,
                                      out string why)
@@ -487,7 +424,7 @@ public static class RanchPlotHandler
                 if (!BuildingsEnabled) { why = "buildings tier off"; return null; }
                 var type = patch._plotDefinition?.Type ?? LandPlot.Id.NONE;
                 why = $"patch type={type}";
-                return BuildingItemFor(type); // null for demolish (no plot definition)
+                return BuildingItemFor(type); // null for demolish
             }
 
             var upgrade = model.TryCast<PlotUpgradePurchaseItemModel>();
@@ -500,27 +437,22 @@ public static class RanchPlotHandler
             }
 
             why = "not a patch/upgrade model";
-            return null; // clear crop / unknown model types — never gated
+            return null; // clear crop etc.
         }
         catch (Exception ex)
         {
-            // A throwing read means the cached wrapper went stale (asset churn) — the
-            // caller treats an all-ungated pass as stale and re-snapshots.
+            // Stale wrapper; the caller detects an all-ungated pass and re-snapshots.
             why = $"read failed: {ex.GetType().Name}";
             return null;
         }
     }
 
-    /// <summary>
-    /// Applies the lock filter; returns false when the category's cached wrappers look
-    /// stale (see below) and the whole snapshot should be rebuilt.
-    /// </summary>
+    /// <summary>Applies the lock filter; false means the cached wrappers look stale.</summary>
     private static bool ApplyCategoryFilter(CategoryState state)
     {
         var building = BuildingForCategory(state.Category.name);
 
-        // Compute the locked bitmask over the ORIGINAL item order; only touch the
-        // live list when it actually changed (menu-open reads are then always clean).
+        // Locked bitmask over the original order; touch the live list only when it changes.
         ulong mask = 0;
         int gatesResolved = 0;
         for (int i = 0; i < state.OriginalItems.Count && i < 64; i++)
@@ -533,12 +465,8 @@ public static class RanchPlotHandler
         }
         if (mask == state.AppliedMask) return true;
 
-        // Stale-wrapper guard: this category previously had gated entries, but now NONE
-        // of its entries resolves a gate at all (as opposed to resolving and being
-        // unlocked). That pattern appeared in testing ~4s after a correct first filter —
-        // the cached model wrappers stopped resolving after scene-load asset churn —
-        // and rebuilding the list from them would unhide everything (and re-add
-        // possibly-dead references). Re-snapshot from live assets instead.
+        // Had gates before, resolves none now: the wrappers went stale after asset churn.
+        // Rebuilding from them would unhide everything.
         bool hadGates = state.AppliedMask != ulong.MaxValue && state.AppliedMask != 0;
         if (gatesResolved == 0 && hadGates)
         {
@@ -560,8 +488,7 @@ public static class RanchPlotHandler
             firstVisible ??= state.OriginalItems[i];
         }
 
-        // The category's initial selection may point at a removed model — retarget it
-        // to the first visible entry so the menu doesn't try to select a missing item.
+        // Don't leave the initial selection on a removed model.
         var initial = state.OriginalInitialSelection;
         var initialGate = GateItemFor(initial, building, out _);
         state.Category.initialSelection =
@@ -574,8 +501,7 @@ public static class RanchPlotHandler
         return true;
     }
 
-    /// <summary>Per-entry gate resolution — logged on every mask change so a wrong
-    /// visibility report always comes with the reason.</summary>
+    /// <summary>Per-entry gate resolution, logged on every mask change.</summary>
     private static void LogCategoryDiagnostics(CategoryState state, LandPlot.Id building)
     {
         foreach (var m in state.OriginalItems)

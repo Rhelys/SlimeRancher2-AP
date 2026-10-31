@@ -7,11 +7,7 @@ namespace SlimeRancher2AP.Patches.PlayerPatches;
 /// <summary>
 /// Quality-of-life tweaks applied to every Archipelago game and never to a vanilla one.
 /// </summary>
-/// <remarks>
-/// No apworld option: these just make a randomizer run less tedious. "Archipelago game" means
-/// an AP-bound save (<c>ApSaveManager.IsSaveBound</c>), connected or not — the same rule
-/// location checks use, so the tweaks hold offline and never leak into an unbound save.
-/// </remarks>
+/// <remarks>No apworld option. "Archipelago game" = an AP-bound save, connected or not.</remarks>
 internal static class QualityOfLife
 {
     internal static bool IsActive
@@ -24,21 +20,15 @@ internal static class QualityOfLife
     /// <summary>Shots per second relative to vanilla. 2 = twice as fast.</summary>
     internal const float VacShootRateMultiplier = 2f;
 
-    // The vanilla cooldown of the VacuumItem we last adjusted, keyed by instance so a new
-    // vacpack (scene reload) is captured fresh rather than compounding the multiplier.
+    // Vanilla cooldown of the vacpack last adjusted, by instance — a rebuilt one is re-captured.
     private static System.IntPtr _vacPtr;
     private static float         _vanillaShootCooldown = -1f;
     private static int           _tickCounter;
 
     /// <summary>
-    /// Called every frame from <c>ApUpdateBehaviour.Update</c>; does work about once a second.
+    /// About once a second: sets the plain field <c>VacuumItem.ShootCooldown</c> — re-checked as
+    /// the vacpack is rebuilt on scene load, and restored for a vanilla save.
     /// </summary>
-    /// <remarks>
-    /// <c>VacuumItem.ShootCooldown</c> is a plain serialized field — the gap between shots
-    /// while the fire button is held — so it is set directly rather than patched. It is
-    /// re-checked periodically because the vacpack is rebuilt on scene load, and restored when
-    /// the save is no longer AP-bound so a vanilla save loaded afterwards plays at vanilla speed.
-    /// </remarks>
     internal static void Tick()
     {
         if (++_tickCounter < 60) return;
@@ -79,18 +69,9 @@ internal static class QualityOfLife
 /// the like) at <see cref="QualityOfLife.GadgetChargeupRealSeconds"/> real seconds.
 /// </summary>
 /// <remarks>
-/// <para>
-/// The wait is <c>Gadget.CooldownTimeGameHrs</c> of game time, stored on the model as an
-/// absolute world-time deadline (<c>GadgetModel.waitForChargeupTime</c>); the chargeup
-/// indicator and <c>InGadgetCooldown()</c> both read that deadline. Moving the deadline is
-/// therefore enough. <c>TimeDirector.WorldTimeRealSecFromNowOrStart</c> converts real seconds
-/// to world time with the game's own time factor, so the cap holds at any time scale.
-/// </para>
-/// <para>
-/// Only ever shortens: a gadget with no warm-up, or one already under the cap, is untouched.
-/// Patched method: <c>Gadget.OnPlaced(SpringConfiguration, float)</c> — CallerCount(1), the
-/// placement path. Gadgets restored from a save are not affected.
-/// </para>
+/// Moves the world-time deadline <c>GadgetModel.waitForChargeupTime</c>, which everything reads,
+/// converting with the game's own time factor. Only ever shortens. Placement only — gadgets
+/// restored from a save are untouched.
 /// </remarks>
 [HarmonyPatch(typeof(Gadget), nameof(Gadget.OnPlaced))]
 internal static class GadgetChargeupPatch

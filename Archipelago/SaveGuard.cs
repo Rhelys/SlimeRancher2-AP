@@ -1,38 +1,22 @@
 namespace SlimeRancher2AP.Archipelago;
 
 /// <summary>
-/// Binds an AP session (seed + slot) to a specific SR2 save game and pauses AP activity
-/// when a different save is loaded while connected.
+/// Binds an AP slot to one SR2 save — the first loaded while the session is active. Any other
+/// save is untrusted: items are held and checks refused until the bound save is loaded again.
 /// </summary>
 /// <remarks>
-/// <para>
-/// Without this guard, connecting to the server and then loading ANY save (including an
-/// unrelated vanilla playthrough) delivered the session's items into that save and let it
-/// send location checks (player-reported). The first save that reaches a live Player while
-/// the session is active becomes the associated save (covers both "connect from the pause
-/// menu mid-save" and "connect on the main menu, then load/new-game"); afterwards, any
-/// other save is untrusted: <c>ProcessItemQueue</c> holds items and <c>SendCheck</c>
-/// refuses checks until the associated save is loaded again.
-/// </para>
-/// <para>
-/// Re-associating on purpose (e.g. restarting the run with a fresh save file): clear the
-/// <c>AssociatedSaveName</c> entry in <c>BepInEx/config/SlimeRancher2-AP/AP_{seed}_{slot}.cfg</c>
-/// — the warning notification includes this hint. Debug builds also expose an
-/// "Associate current save" button on the F9 panel.
-/// </para>
+/// To re-bind, clear <c>AssociatedSaveName</c> in
+/// <c>BepInEx/config/SlimeRancher2-AP/AP_{seed}_{slot}.cfg</c> (or use F9 in debug builds).
 /// </remarks>
 public static class SaveGuard
 {
-    // Save name evaluated most recently; re-evaluated whenever the loaded save changes
-    // (loading a different save always tears the Player down first, and the name changes).
+    // The save last evaluated; a different save re-evaluates.
     private static string? _evaluatedSave;
     private static bool    _trusted;
 
     /// <summary>
-    /// True when the currently loaded save is the one associated with the active AP
-    /// session (associating it now if the slot has no save yet). False on the main menu,
-    /// while no session is active, or when a foreign save is loaded.
-    /// Main-thread only (reads Unity singletons).
+    /// True when the loaded save is the slot's bound save (binding it now if the slot has none).
+    /// Main thread.
     /// </summary>
     public static bool IsSaveTrusted()
     {
@@ -45,13 +29,8 @@ public static class SaveGuard
         if (current == _evaluatedSave) return _trusted;
         _evaluatedSave = current;
 
-        // Seed check first — it is stronger evidence than the slot association.
-        //
-        // The save records the seed it belongs to. If we are connected to a DIFFERENT seed,
-        // this save belongs to another run no matter what the slot association says. That
-        // matters most for a brand-new slot, where AssociatedSaveName is empty and the branch
-        // below would happily adopt a save that plainly belongs elsewhere — which is how a
-        // save bound to one seed silently became the save for another.
+        // Seed first: a save from another seed is foreign whatever the association says — and a
+        // new slot would otherwise adopt it.
         var liveSeed = Plugin.Instance.ApClient.Session?.RoomState.Seed;
         if (!string.IsNullOrEmpty(ExpectedSeed) && !string.IsNullOrEmpty(liveSeed)
             && !string.Equals(ExpectedSeed, liveSeed, StringComparison.Ordinal))
@@ -61,10 +40,7 @@ public static class SaveGuard
                 $"[AP] SaveGuard: save '{current}' belongs to seed {ExpectedSeed} but the " +
                 $"connected server is seed {liveSeed} — item delivery and location checks are " +
                 "PAUSED for this save.");
-            // Notification, not a modal: this path runs mid-load (SaveGuard is consulted
-            // lazily, by the first thing that wants to send a check), and a modal raised then
-            // renders but cannot be clicked. LoadGamePatch blocks the load up front for the
-            // case we can detect early; this is only the backstop for the rest.
+            // Not a modal: mid-load it can't be clicked. LoadGamePatch catches what it can earlier.
             UI.StatusHUD.Instance?.ShowNotification(
                 "AP: this save belongs to a different seed - items and checks paused");
             return _trusted;
@@ -95,31 +71,19 @@ public static class SaveGuard
         return _trusted;
     }
 
-    /// <summary>
-    /// Seed the currently-loading save says it belongs to, taken from its own AP binding.
-    /// Empty for a vanilla save, or before any save has been loaded this session.
-    /// </summary>
+    /// <summary>The loaded save's seed, from its binding; empty for a vanilla save.</summary>
     public static string ExpectedSeed { get; private set; } = "";
 
-    /// <summary>Records the seed a save is bound to. Called by the load-game patch.</summary>
     public static void SetExpectedSeed(string? seed)
     {
         ExpectedSeed   = seed ?? "";
         _evaluatedSave = null;   // re-evaluate trust for the incoming save
     }
 
-    /// <summary>Clears the per-save evaluation cache (called on disconnect).</summary>
+    /// <summary>On disconnect.</summary>
     /// <remarks>
-    /// <see cref="ExpectedSeed"/> is deliberately NOT cleared here. It describes the SAVE that is
-    /// loaded, not the session, and loading an AP save reconnects — <c>Connect</c> calls
-    /// <c>Disconnect</c>, which lands here. Clearing it made the seed check dead code on exactly
-    /// the path it exists for: the load recorded the seed, the reconnect wiped it moments later,
-    /// and <see cref="IsSaveTrusted"/> then fell through to the association branch. That branch
-    /// only catches this when the slot has already adopted some other save, so on a fresh config
-    /// a wrong-seed save was adopted silently.
-    ///
-    /// Its lifetime is "until the next save is established" instead, which every path that
-    /// establishes one already honours: new game and vanilla load clear it, an AP load sets it.
+    /// Leaves <see cref="ExpectedSeed"/> alone: it belongs to the loaded save, and loading an AP
+    /// save reconnects (and so disconnects) right after recording it.
     /// </remarks>
     public static void Reset()
     {
@@ -127,9 +91,7 @@ public static class SaveGuard
         _trusted = false;
     }
 
-    /// <summary>
-    /// Explicitly binds the currently loaded save to the active session (debug panel).
-    /// </summary>
+    /// <summary>Binds the loaded save to the session (debug panel).</summary>
     public static void ForceAssociateCurrentSave()
     {
         var current = GetCurrentSaveName();

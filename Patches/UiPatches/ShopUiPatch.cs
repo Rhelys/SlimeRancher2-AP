@@ -9,22 +9,15 @@ using TMPro;
 namespace SlimeRancher2AP.Patches.UiPatches;
 
 /// <summary>
-/// Shared helpers for the Polestar Provisions shop UI overrides. Mirrors the
-/// FabricatorDetailsPatch technique: freeze the <c>LocalizeStringEvent</c> driving a text
-/// element (so localization ticks don't overwrite us) and write to its TMP_Text directly;
-/// re-enable it whenever the element binds a non-AP item again (buttons are pooled and
-/// reused across items while scrolling).
+/// Shop UI helpers. Text is overridden by freezing its <c>LocalizeStringEvent</c> and writing
+/// the TMP_Text; it is unfrozen when a pooled element rebinds to a vanilla item.
 /// </summary>
 internal static class ShopUiHelper
 {
     /// <summary>
-    /// Archipelago tier for a scouted item: Progression, Useful, Trap or Filler.
+    /// The scouted item's tier, from the live scout or (offline) the persisted one. Trap is tested
+    /// first so a trap never reads as Progression.
     /// </summary>
-    /// <remarks>
-    /// Falls back to the persisted scout so the tier still shows offline, where the live scout
-    /// cache is empty. Trap is tested before progression — a trap is never also progression, and
-    /// labelling one "Progression" would actively mislead someone deciding how to spend Newbucks.
-    /// </remarks>
     internal static string TierOf(LocationInfo info)
     {
         var live = Plugin.Instance.ApClient.GetScoutedItem(info.Id);
@@ -40,15 +33,9 @@ internal static class ShopUiHelper
     }
 
     /// <summary>
-    /// The scouted AP item name at this location — shown as the primary item name in the
-    /// details panel and purchase popup. Falls back to a generic label until scout data
-    /// arrives (scouting runs async right after connect).
+    /// The scouted item's name, or a generic label until scouting finishes. The tier goes in the
+    /// description, not here, where it would read as part of the name.
     /// </summary>
-    /// <remarks>
-    /// The Archipelago tier is deliberately NOT appended here. It lives in the description line
-    /// built by <see cref="BuildScoutDescription"/> instead: the header is the item's name, and
-    /// a bracketed tag on the end of it reads as part of that name.
-    /// </remarks>
     internal static string HeaderText(LocationInfo info)
         => Plugin.Instance.ApClient.GetScoutedItem(info.Id)?.ItemName
            ?? Plugin.Instance.SaveManager.GetScout(info.Id)?.ItemName
@@ -74,9 +61,8 @@ internal static class ShopUiHelper
     }
 
     /// <summary>
-    /// Freezes <paramref name="localizeEvent"/> (a LocalizeStringEvent, typed as
-    /// MonoBehaviour to avoid coupling) and writes <paramref name="text"/> to its TMP_Text.
-    /// Pass <c>freeze: false</c> to restore vanilla localization instead.
+    /// Freezes the LocalizeStringEvent and writes <paramref name="text"/>; <c>freeze: false</c>
+    /// restores localization.
     /// </summary>
     internal static void OverrideText(UnityEngine.MonoBehaviour? localizeEvent, string? text, bool freeze)
     {
@@ -89,11 +75,7 @@ internal static class ShopUiHelper
         if (tmp != null) tmp.text = text;
     }
 
-    /// <summary>
-    /// Swaps <paramref name="image"/> to the Archipelago logo — the vanilla sprite
-    /// advertises a decoration the player is not receiving. Same logo as the conversation
-    /// callout and Options-menu tab (<c>OptionsMenuInjectionPatch.GetLogoSprite()</c>).
-    /// </summary>
+    /// <summary>Swaps the image to the AP logo.</summary>
     internal static void ShowLogo(UnityEngine.UI.Image? image)
     {
         var logo = OptionsMenuInjectionPatch.GetLogoSprite();
@@ -103,10 +85,8 @@ internal static class ShopUiHelper
     }
 
     /// <summary>
-    /// Restores the vanilla item sprite on <paramref name="image"/> if it is currently
-    /// showing our logo. Needed because shop UI elements are pooled and re-bound across
-    /// items — vanilla code doesn't always re-assign the icon on rebind, so a logo set for
-    /// an AP slot could otherwise linger on a vanilla item.
+    /// Puts the vanilla sprite back if the image shows our logo — rebinding a pooled element
+    /// doesn't always reassign it.
     /// </summary>
     internal static void RestoreVanillaIcon(UnityEngine.UI.Image? image,
                                             Il2CppMonomiPark.SlimeRancher.Shop.Runtime.ShopRuntimeItem? item,
@@ -126,29 +106,19 @@ internal static class ShopUiHelper
     // Full-art re-assert tick
     // -------------------------------------------------------------------------
 
-    // The blurb currently displaying an AP check slot, and the location it shows.
-    // The big item image (_itemIcon) is fed by the item's FullArtReference, which loads
-    // asynchronously — its completion callback overwrites the sprite AFTER our
-    // UpdateDisplay Postfix runs. The callback path (HandleItemLoadCompleted) is
-    // CallerCount(0) and unsafe to patch, so ShopUiHelper.Tick() re-asserts the logo
-    // instead while an AP slot is on display.
+    // The blurb showing an AP slot. Its _itemIcon is overwritten by an async art load after our
+    // Postfix (the callback can't be patched), so Tick() re-asserts the logo.
     internal static ShopItemDescriptionBlurb? ActiveBlurb;
     internal static LocationInfo?             ActiveBlurbInfo;
 
-    // The purchase confirmation popup currently open on an AP check, if any.
-    //
-    // Its name label is a LocalizeStringEvent that the game re-binds to the shop item's own
-    // title in Repopulate. That localized string can resolve asynchronously, after the
-    // Repopulate Postfix has written the AP name, and land on the frozen label anyway — the
-    // popup then showed a vanilla decoration's name ("Curly Seaweed") over the AP item's
-    // description. So while the popup is open the text is re-asserted every frame against
-    // whatever item the popup holds right now, which also covers a re-open that does not run
-    // Repopulate at all.
+    // The purchase popup open on an AP check. Its name can resolve asynchronously after our
+    // Postfix and land on the frozen label anyway, so Tick() re-asserts it every frame (which
+    // also covers a re-open without Repopulate).
     internal static ShopPurchasePopup? ActivePopup;
 
     private static int _tickCounter;
 
-    /// <summary>Called every frame from <c>Plugin.Update</c>; the blurb work runs every ~15 frames.</summary>
+    /// <summary>Per-frame; the blurb work runs every ~15 frames.</summary>
     internal static void Tick()
     {
         if (ActivePopup != null) TickPurchasePopup();
@@ -161,7 +131,6 @@ internal static class ShopUiHelper
         try
         {
             var blurb = ActiveBlurb;
-            // Unity-null / closed panel / re-bound to a different item → stop tracking.
             if (blurb == null || !blurb.isActiveAndEnabled
                 || ShopPatchState.GetActiveLocation(blurb._item)?.Id != ActiveBlurbInfo.Id)
             {
@@ -189,7 +158,6 @@ internal static class ShopUiHelper
             var info = ShopPatchState.GetActiveLocation(popup._itemToBuy);
             if (info == null)
             {
-                // Re-bound to a vanilla item without our Postfix seeing it — hand back.
                 OverrideText(popup._itemNameLabel,  null, freeze: false);
                 OverrideText(popup._infoBlurbLabel, null, freeze: false);
                 ActivePopup = null;
@@ -202,10 +170,7 @@ internal static class ShopUiHelper
         catch { ActivePopup = null; }   // popup torn down mid-frame
     }
 
-    /// <summary>
-    /// <see cref="OverrideText"/>, but only when the label differs — re-asserting every frame
-    /// must not dirty the TMP mesh every frame.
-    /// </summary>
+    /// <summary><see cref="OverrideText"/> only when it differs, so the TMP mesh isn't dirtied every frame.</summary>
     private static void EnsureText(UnityEngine.MonoBehaviour? localizeEvent, string text)
     {
         if (localizeEvent == null) return;
@@ -216,16 +181,9 @@ internal static class ShopUiHelper
     }
 
     /// <summary>
-    /// Redraws every shop button showing <paramref name="item"/>, so a just-sent check shows
-    /// as sold out straight away.
+    /// Redraws the item's buttons and details panel once its check is sent — the game's own
+    /// refresh ran inside <c>TryPurchase</c>, before the check.
     /// </summary>
-    /// <remarks>
-    /// The game refreshes the button from inside <c>TryPurchase</c>, before
-    /// <c>ShopTryPurchasePatch</c>'s Postfix has sent the check, so that refresh still saw the
-    /// slot as unbought and the overlay only appeared on the next rebind (scrolling, reopening).
-    /// Calling <c>RepopulateDisplay</c> again runs <see cref="ShopItemButtonPatch"/>, which now
-    /// sees the check. The details panel is refreshed too, for its "(Check sent)" line.
-    /// </remarks>
     internal static void RefreshAfterPurchase(Il2CppMonomiPark.SlimeRancher.Shop.Runtime.ShopRuntimeItem item)
     {
         try
@@ -233,9 +191,7 @@ internal static class ShopUiHelper
             var info = ShopPatchState.GetActiveLocation(item);
             if (info == null) return;
 
-            // Matched by AP location rather than object identity, and across inactive objects:
-            // while the purchase popup is up the grid behind it is inactive, and an
-            // active-only search found nothing at all (confirmed: "0 button(s)").
+            // Inactive ones too — the grid is inactive behind the popup.
             int matched = 0, active = 0;
             foreach (var b in ButtonsFor(info.Id))
             {
@@ -248,9 +204,7 @@ internal static class ShopUiHelper
             if (blurb != null && ShopPatchState.GetActiveLocation(blurb._item)?.Id == info.Id)
                 blurb.UpdateDisplay();
 
-            // The grid comes back when the popup closes, and the game redraws the button from its
-            // own purchase and wallet handlers; keep re-asserting until the overlay shows on a
-            // visible button, for up to ~10 s.
+            // The game redraws the button again later; keep re-asserting for up to ~10 s.
             _soldOutLocation = info.Id;
             _soldOutFrames   = SoldOutWatchFrames;
 
@@ -259,7 +213,7 @@ internal static class ShopUiHelper
         }
         catch (System.Exception ex)
         {
-            Logger.Warning($"[AP] Shop: sold-out refresh failed: {ex.Message}");   // cosmetic only
+            Logger.Warning($"[AP] Shop: sold-out refresh failed: {ex.Message}");
         }
     }
 
@@ -280,10 +234,7 @@ internal static class ShopUiHelper
         }
     }
 
-    /// <summary>
-    /// Re-asserts the overlay after a purchase until a visible button shows it, or ~10 s pass.
-    /// Runs from <see cref="Tick"/>; the search only happens every 10 frames.
-    /// </summary>
+    /// <summary>Re-asserts the overlay until a visible button shows it (searching every 10 frames).</summary>
     private static void TickSoldOut()
     {
         if (--_soldOutFrames <= 0) { _soldOutLocation = -1; return; }
@@ -301,7 +252,7 @@ internal static class ShopUiHelper
                     Logger.Info($"[AP] Shop: sold-out overlay re-shown " +
                                 $"{SoldOutWatchFrames - _soldOutFrames} frame(s) after purchase");
                 }
-                _soldOutLocation = -1;   // visible and showing — done
+                _soldOutLocation = -1;
                 return;
             }
         }
@@ -309,12 +260,7 @@ internal static class ShopUiHelper
     }
 }
 
-/// <summary>
-/// Marks AP-check slots in the shop grid: "[AP]" name prefix, plus the sold-out overlay
-/// once the check has been sent. Patched method:
-/// <c>ShopItemButton.RepopulateDisplay()</c> — CallerCount(3), runs on every (re)bind and
-/// on purchase/load refreshes.
-/// </summary>
+/// <summary>Marks AP slots in the grid: "[AP]" prefix, logo, and sold-out once sent.</summary>
 [HarmonyPatch(typeof(ShopItemButton), nameof(ShopItemButton.RepopulateDisplay))]
 internal static class ShopItemButtonPatch
 {
@@ -328,7 +274,6 @@ internal static class ShopItemButtonPatch
 
         if (info == null)
         {
-            // Pooled button re-bound to a vanilla item — restore localization and icon.
             ShopUiHelper.OverrideText(nameEvent, null, freeze: false);
             ShopUiHelper.RestoreVanillaIcon(__instance._icon, item, preferSmall: true);
             return;
@@ -357,17 +302,9 @@ internal static class ShopItemButtonPatch
 }
 
 /// <summary>
-/// Re-applies the AP sold-out overlay after the button's other refreshes.
+/// Re-applies the AP sold-out overlay after the button's own purchase/wallet redraws, which
+/// read the vanilla sold-out state and hide it. (The handlers can't be patched; these can.)
 /// </summary>
-/// <remarks>
-/// After a purchase the button is redrawn by its own event handlers — <c>HandleItemPurchased</c>,
-/// and <c>HandlePlayerNewbucksChanged</c> when the cost is debited — which go through
-/// <c>UpdateForItemSoldOut</c> and <c>UpdatePriceDisplay</c>, not <c>RepopulateDisplay</c>.
-/// Those set the overlay from the shop item's own sold-out state, which is false for an AP slot
-/// (its vanilla purchase limit is usually unlimited), so they hid the overlay again right after
-/// the purchase. The handlers themselves are CallerCount(0) and unsafe to patch; these two are
-/// CallerCount(2) and (5).
-/// </remarks>
 [HarmonyPatch(typeof(ShopItemButton), nameof(ShopItemButton.UpdateForItemSoldOut))]
 internal static class ShopItemButtonSoldOutPatch
 {
@@ -386,10 +323,7 @@ internal static class ShopItemButtonPricePatch
     }
 }
 
-/// <summary>
-/// Shows the scouted Archipelago item in the shop's right-hand details panel for AP-check
-/// slots. Patched method: <c>ShopItemDescriptionBlurb.UpdateDisplay()</c> — CallerCount(6).
-/// </summary>
+/// <summary>Shows the scouted item in the details panel for AP slots.</summary>
 [HarmonyPatch(typeof(ShopItemDescriptionBlurb), nameof(ShopItemDescriptionBlurb.UpdateDisplay))]
 internal static class ShopItemDescriptionBlurbPatch
 {
@@ -414,17 +348,12 @@ internal static class ShopItemDescriptionBlurbPatch
             return;
         }
 
-        // Primary name = the scouted AP item ("Uncommon Plort Cache"), description = who
-        // it belongs to. The vanilla item name stays visible on the grid button ("[AP] …").
+        // Header: the AP item. Description: whose it is. The grid button keeps the vanilla name.
         ShopUiHelper.OverrideText(headerEvent, ShopUiHelper.HeaderText(info), freeze: true);
         ShopUiHelper.OverrideText(descEvent, ShopUiHelper.BuildScoutDescription(info), freeze: true);
         ShopUiHelper.ShowLogo(__instance._itemIcon);
 
-        // Track for Tick(): the FullArtReference async load overwrites _itemIcon after
-        // this Postfix, so the logo must be re-asserted while this slot is on display.
-        // Only track the on-screen instance — the shop keeps one blurb per page layout
-        // (6 total) and they all run UpdateDisplay; tracking an off-screen one would make
-        // Tick() see !isActiveAndEnabled, drop tracking, and never re-assert the real one.
+        // Track for Tick() — only the on-screen blurb; there is one per page layout.
         if (__instance.isActiveAndEnabled)
         {
             ShopUiHelper.ActiveBlurb = __instance;
@@ -434,23 +363,13 @@ internal static class ShopItemDescriptionBlurbPatch
 }
 
 /// <summary>
-/// Replaces the big full-art display with the Archipelago logo for AP-check slots.
-/// Patched method: <c>UIImageDynamicLoader.SetFullArtSource(IFullArtAndIconSource source)</c>
-/// — CallerCount(5), called when the details panel binds an item that has full art.
+/// Replaces the full-art display with the AP logo: skips the async load and fires
+/// <c>_onSetSprite</c> as if it had completed.
 /// </summary>
 /// <remarks>
-/// The full art is NOT the blurb's <c>_itemIcon</c> — it is loaded asynchronously by this
-/// framework component from the item's <c>FullArtReference</c> addressable and delivered to
-/// the actual renderer via the <c>_onSetSprite</c> UnityEvent (confirmed via in-game UI dump:
-/// no scene Image ever holds the art directly). For AP slots we skip the vanilla load
-/// entirely and fire <c>_onSetSprite</c> with the logo, mimicking a completed load.
-///
-/// The event was called <c>_onLoaded</c> until the 2026-09-23 game update renamed it. That
-/// surfaced as a MissingMethodException thrown from this Prefix on an unmodded, disconnected
-/// save — Il2CppInterop resolves the member when the method is JIT-compiled, so the
-/// <c>IsEnabled</c> guard on the first line never got the chance to return.
-/// <c>_iconSource</c> is cleared so a later <c>TryAcquireCurrentHandle</c> (page re-enable)
-/// cannot restart the vanilla art load.
+/// <c>_iconSource</c> is cleared so a page re-enable can't restart the load. A renamed member
+/// (<c>_onLoaded</c> → <c>_onSetSprite</c>, 2026-09-23 update) throws when this method JITs,
+/// before the IsEnabled guard — so it breaks unmodded saves too.
 /// </remarks>
 [HarmonyPatch(typeof(Il2CppMonomiPark.SlimeRancher.UI.Framework.Components.UIImageDynamicLoader),
     nameof(Il2CppMonomiPark.SlimeRancher.UI.Framework.Components.UIImageDynamicLoader.SetFullArtSource))]
@@ -462,15 +381,14 @@ internal static class ShopFullArtPatch
     {
         if (!ShopPatchState.IsEnabled) return true;
 
-        // The source may be the ShopRuntimeItem itself or the underlying asset — resolve
-        // the AP location through whichever identity is available.
+        // The source is either the ShopRuntimeItem or its asset.
         var info = ShopPatchState.GetActiveLocation(source?.TryCast<Il2CppMonomiPark.SlimeRancher.Shop.Runtime.ShopRuntimeItem>());
         if (info == null)
             info = ShopPatchState.GetActiveLocationByAssetName(source?.TryCast<UnityEngine.Object>()?.name);
         if (info == null) return true;
 
         var logo = OptionsMenuInjectionPatch.GetLogoSprite();
-        if (logo == null) return true; // no logo available — better vanilla art than nothing
+        if (logo == null) return true;
 
         try
         {
@@ -486,11 +404,7 @@ internal static class ShopFullArtPatch
     }
 }
 
-/// <summary>
-/// Shows the scouted Archipelago item in the purchase confirmation popup for AP-check
-/// slots (info blurb line under the item name). Patched method:
-/// <c>ShopPurchasePopup.Repopulate()</c> — CallerCount(3).
-/// </summary>
+/// <summary>Shows the scouted item in the purchase popup for AP slots.</summary>
 [HarmonyPatch(typeof(ShopPurchasePopup), nameof(ShopPurchasePopup.Repopulate))]
 internal static class ShopPurchasePopupPatch
 {

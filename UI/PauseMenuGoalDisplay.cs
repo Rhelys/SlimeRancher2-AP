@@ -7,31 +7,16 @@ using UnityEngine;
 namespace SlimeRancher2AP.UI;
 
 /// <summary>
-/// Injects a goal-status label into the game's pause menu showing the active Archipelago
-/// goal and, for the newbucks goal, live progress toward the target (which is otherwise
-/// visible nowhere in-game). For the plort_seller goal it additionally shows a panel on
-/// the left side of the menu listing every in-scope plort type with its sold/target
-/// progress.
-///
-/// <para>
-/// Polling-based — no Harmony. The pause menu's bind/show methods are in the same
-/// CallerCount(0)/native-called family that has crashed trampolines since the 5/13/2026
-/// game update, so a throttled <see cref="Tick"/> instead looks for an active
-/// <c>PauseMenuRoot</c> and creates/updates TMP labels parented under it. Parenting under
-/// the root means the labels appear and disappear with the menu automatically.
-/// </para>
+/// Adds the AP goal (with progress) to the pause menu, plus a per-plort sales panel for
+/// plort_seller. Polled, not patched — the menu's show methods can't be patched since 5/13.
+/// The labels are children of <c>PauseMenuRoot</c>, so they show and hide with it.
 /// </summary>
 public static class PauseMenuGoalDisplay
 {
     private const string LabelName    = "APGoalLabel";
     private const string PanelName    = "APPlortSalesPanel";
 
-    /// <summary>
-    /// Seconds between polls.  Time-based, not frame-counted: a frame counter makes the poll
-    /// rate scale with the frame rate, so the work per second grows exactly when the machine
-    /// is already busy — at 144 fps the old "every 15 frames" ran ~10×/second, not the ~4
-    /// it was written for.
-    /// </summary>
+    /// <summary>Seconds between polls — by time, so the rate doesn't scale with frame rate.</summary>
     private const float  PollSeconds = 0.25f;
     private static float _nextPoll;
 
@@ -40,21 +25,14 @@ public static class PauseMenuGoalDisplay
     private static float _nextScan;
 
     /// <summary>
-    /// Cached pause-menu root.  <c>PauseMenuRoot</c> exists in the loaded scene whether or not
-    /// the menu is open — it is the *active* state that changes — so the expensive scan only
-    /// needs to run once per scene, and each poll afterwards is a property read.
-    ///
-    /// This matters: <c>Resources.FindObjectsOfTypeAll</c> walks every loaded object and asset
-    /// and marshals the matches across the IL2CPP boundary. Running it ~10×/second purely to
-    /// discover that the pause menu is closed was the single most expensive thing the mod did
-    /// during ordinary play.
+    /// The scene's pause root, which exists whether or not the menu is open — so the costly
+    /// FindObjectsOfTypeAll scan runs once per scene, not every poll.
     /// </summary>
     private static PauseMenuRoot? _cachedRoot;
 
-    /// <summary>Drops the cached root so the next poll re-scans (scene load / teardown).</summary>
+    /// <summary>Drops the cached root (scene change).</summary>
     public static void Reset() => _cachedRoot = null;
 
-    /// <summary>Called every frame from <c>ApUpdateBehaviour.Update</c>.</summary>
     internal static void Tick()
     {
         float now = Time.unscaledTime;
@@ -66,7 +44,6 @@ public static class PauseMenuGoalDisplay
         PauseMenuRoot? activeRoot = null;
         try
         {
-            // Fast path: re-use the cached root. Unity-null means the scene changed under us.
             if (_cachedRoot != null)
             {
                 activeRoot = _cachedRoot.isActiveAndEnabled && _cachedRoot.gameObject.activeInHierarchy
@@ -75,10 +52,7 @@ public static class PauseMenuGoalDisplay
             }
             else if (now >= _nextScan || Time.timeScale == 0f)
             {
-                // Only reached until a root has been cached. Rate-limited well below the poll
-                // rate so a scene with no PauseMenuRoot yet cannot reintroduce a per-poll scan,
-                // with an immediate scan whenever the game is paused (timeScale 0) so a root
-                // created on first open is picked up without waiting out the interval.
+                // Until cached: scan rarely, but at once while paused.
                 _nextScan = now + RescanSeconds;
                 var roots = Resources.FindObjectsOfTypeAll<PauseMenuRoot>();
                 PauseMenuRoot? sceneRoot = null;
@@ -87,16 +61,10 @@ public static class PauseMenuGoalDisplay
                     var r = roots[i];
                     if (r == null) continue;
 
-                    // FindObjectsOfTypeAll also returns prefabs and other loaded assets, which
-                    // are never active in a hierarchy. Caching one permanently disables this
-                    // display: the fast path above never re-scans once _cachedRoot is set, so
-                    // the label can never appear again for the rest of the scene. Only a root
-                    // that belongs to a loaded scene is the real menu.
+                    // Never cache a prefab — the label would never appear for the whole scene.
                     if (!r.gameObject.scene.IsValid()) continue;
 
-                    // Keep the first scene root as the fallback (inactive = menu simply closed),
-                    // but keep looking for one that is actually active rather than stopping at
-                    // the first hit.
+                    // Prefer an active root; any scene root will do.
                     sceneRoot ??= r;
                     if (r.isActiveAndEnabled && r.gameObject.activeInHierarchy)
                     {
@@ -107,8 +75,6 @@ public static class PauseMenuGoalDisplay
                 }
                 if (sceneRoot != null) _cachedRoot = sceneRoot;
 #if DEBUG
-                // Records what the scan actually saw, so a future "label never appears" report
-                // can be settled from the log instead of another instrumented build.
                 int inScene = 0;
                 for (int i = 0; i < roots.Length; i++)
                     if (roots[i] != null && roots[i].gameObject.scene.IsValid()) inScene++;
@@ -118,17 +84,16 @@ public static class PauseMenuGoalDisplay
 #endif
             }
         }
-        catch { _cachedRoot = null; return; } // scene transition — re-scan next poll
+        catch { _cachedRoot = null; return; } // scene transition
 
         if (activeRoot == null)
         {
 #if DEBUG
-            // timeScale 0 means the game is paused, so a root SHOULD be active. If this fires,
-            // the cached root is the wrong object (FindObjectsOfTypeAll also returns prefabs).
+            // Paused with no active root means the wrong root is cached.
             if (Time.timeScale == 0f)
                 Utils.DebugTrace.Once($"PauseMenu — paused but no active root (cached={_cachedRoot != null})");
 #endif
-            return; // menu closed — the labels (children) hide with it
+            return; // menu closed
         }
 
         try
@@ -142,17 +107,11 @@ public static class PauseMenuGoalDisplay
         }
         catch (System.Exception ex)
         {
-            // Was silent, which hid real failures — the menu genuinely can tear down mid-tick,
-            // so this stays non-fatal, but it must not disappear without a trace.
             Logger.Warning($"[AP] PauseMenuGoalDisplay tick failed: {ex.Message}");
         }
     }
 
-    /// <summary>
-    /// Shows/hides/updates one injected TMP element under the pause root.
-    /// <paramref name="text"/> null means "not applicable right now" — the element (if it
-    /// exists) is deactivated so the vanilla menu is untouched.
-    /// </summary>
+    /// <summary>Creates or updates one label; null <paramref name="text"/> hides it.</summary>
     private static void UpdateInjectedLabel(PauseMenuRoot root, string name, string? text,
                                             System.Func<PauseMenuRoot, TextMeshProUGUI?> create)
     {
@@ -182,10 +141,7 @@ public static class PauseMenuGoalDisplay
         label.text = text;
     }
 
-    /// <summary>
-    /// Builds the label text, or null when no AP session is active.
-    /// ASCII only — the game's HemispheresCaps2 font has no glyphs for ★/→/… .
-    /// </summary>
+    /// <summary>The goal line, or null without a session. ASCII only — the font lacks ★/→/….</summary>
     private static string? BuildGoalText()
     {
         if (!Plugin.Instance.SaveManager.HasActiveSession) return null;
@@ -220,8 +176,6 @@ public static class PauseMenuGoalDisplay
             }
             case "plort_seller":
             {
-                // Per-type progress display is a future bespoke panel; for now show the
-                // per-type target and how many types have reached it.
                 int target = slotData.PlortGoalAmount;
                 var (done, total) = GoalHandler.PlortSellerProgress();
                 body = $"SELL {target} OF EACH PLORT - {done} / {total} TYPES DONE";
@@ -229,8 +183,7 @@ public static class PauseMenuGoalDisplay
             }
             case "slimepedia":
             {
-                // Which categories count toward the goal is option-driven — show them so
-                // the player knows what "complete" means for their seed.
+                // List the categories this seed counts.
                 var categories = new System.Collections.Generic.List<string>(3);
                 if (slotData.RandomizeSlimepedia)          categories.Add("SLIMES");
                 if (slotData.RandomizeSlimepediaResources) categories.Add("RESOURCES");
@@ -251,12 +204,7 @@ public static class PauseMenuGoalDisplay
         return $"ARCHIPELAGO GOAL: {body}";
     }
 
-    /// <summary>
-    /// Builds the left-side plort sales panel text, or null when it should be hidden
-    /// (goal is not plort_seller, or no active session). One line per in-scope plort
-    /// type: sold/target, green once the target is reached. ASCII only (font glyphs),
-    /// rich-text color tags are fine.
-    /// </summary>
+    /// <summary>One sold/target line per plort (green when reached), or null if not plort_seller.</summary>
     private static string? BuildPlortPanelText()
     {
         if (!Plugin.Instance.SaveManager.HasActiveSession) return null;
@@ -265,8 +213,7 @@ public static class PauseMenuGoalDisplay
 
         int target = slotData.PlortGoalAmount;
 
-        // Alphabetical by display name — the types-complete summary lives in the goal
-        // label at the bottom of the menu, so no header here.
+        // Alphabetical; the summary is in the goal label.
         var rows = GoalHandler.PlortSellerScope()
             .Select(n => (Name: n, Display: PlortDisplayName(n)))
             .OrderBy(r => r.Display, System.StringComparer.Ordinal)
@@ -293,11 +240,7 @@ public static class PauseMenuGoalDisplay
         return trimmed.ToUpperInvariant();
     }
 
-    /// <summary>
-    /// Creates the TMP label as a direct child of the pause menu root, anchored to the
-    /// bottom-center so it sits below the button stack. Uses the menu's own font (sampled
-    /// from an existing TMP label) so it matches the native style.
-    /// </summary>
+    /// <summary>The goal label, bottom-centre below the buttons, in the menu's font.</summary>
     private static TextMeshProUGUI? CreateLabel(PauseMenuRoot root)
     {
         var go = new GameObject(LabelName);
@@ -326,10 +269,7 @@ public static class PauseMenuGoalDisplay
         return tmp;
     }
 
-    /// <summary>
-    /// Creates the plort sales panel as a direct child of the pause menu root, anchored to
-    /// the left edge at mid-height so it sits beside (not behind) the centered button stack.
-    /// </summary>
+    /// <summary>The plort panel, left edge, beside the buttons.</summary>
     private static TextMeshProUGUI? CreatePlortPanel(PauseMenuRoot root)
     {
         var go = new GameObject(PanelName);

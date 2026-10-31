@@ -9,20 +9,11 @@ using UnityEngine;
 namespace SlimeRancher2AP.Patches.RanchPatches;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Ranch plot randomization enforcement (see RanchPlotHandler for the item model).
-//
-// Three patches, all on methods with managed callers (safe post-5/13/2026):
-//   • UIActivator.OnInteract (CC1)        — tier 1 front door: blocks opening the build
-//     menu of an EMPTY plot when the area has no free plot unlocks. Built plots always
-//     open normally (upgrade/demolish stay accessible).
-//   • LandPlotLocation.Replace (CC1)      — belt-and-braces for tiers 1+2: the single
-//     managed funnel where an empty plot becomes a building. Should never fire if the
-//     UI gates hold; blocks with a HUD message if something slips through.
-//   • LandPlotUIRoot.Upgrade (CC1)        — tier 3 enforcement: resolves the upgrade
-//     enum + the plot's building type to the asset-keyed AP item and blocks the
-//     purchase when locked. The menu entry is already greyed out by the availability
-//     wrap in RanchPlotHandler.Tick; this stops a purchase racing the ~10-frame
-//     re-wrap window.
+// Ranch plot enforcement (see RanchPlotHandler), on safely patchable methods:
+//   • UIActivator.OnInteract   — an empty plot's build menu won't open without a free slot.
+//     Built plots open normally.
+//   • LandPlotLocation.Replace — backstop for tiers 1–2, where an empty plot becomes a building.
+//   • LandPlotUIRoot.Upgrade   — backstop for tier 3; the menu already hides locked upgrades.
 // ─────────────────────────────────────────────────────────────────────────────
 
 [HarmonyPatch(typeof(UIActivator), nameof(UIActivator.OnInteract))]
@@ -58,7 +49,7 @@ internal static class RanchPlotReplacePatch
         try { newType = replacementPrefab?.GetComponent<LandPlot>()?.TypeId ?? LandPlot.Id.NONE; }
         catch { }
 
-        // Tier 2 — building type must be unlocked.
+        // Tier 2 — building type
         if (RanchPlotHandler.BuildingsEnabled)
         {
             var buildingItem = RanchPlotHandler.BuildingItemFor(newType);
@@ -77,7 +68,7 @@ internal static class RanchPlotReplacePatch
             }
         }
 
-        // Tier 1 — replacing an EMPTY plot consumes a plot slot for its area.
+        // Tier 1 — a free slot in the area
         if (RanchPlotHandler.PlotsEnabled
             && oldLandPlot != null && oldLandPlot.TypeId == LandPlot.Id.EMPTY
             && !RanchPlotHandler.CanBuildOnPlot(oldLandPlot, out var blockMessage))

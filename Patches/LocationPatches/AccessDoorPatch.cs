@@ -9,16 +9,17 @@ using UnityEngine;
 
 namespace SlimeRancher2AP.Patches.LocationPatches;
 
+// Don't patch AccessDoor.ForceUpdate (crashes on every scene load) or
+// SlimeGateActivator.Activate — both broke the trampoline after the 5/13/2026 update.
+
 /// <summary>
-/// Overrides the AccessDoor purchase UI text to display Archipelago location/item
-/// information instead of the game's default expansion name and description.
-/// Only active when <c>randomize_conservatory_expansions</c> is enabled.
+/// The expansion terminal's purchase UI shows the AP location and scouted item
+/// (<c>randomize_conservatory_expansions</c>).
 /// </summary>
 [HarmonyPatch(typeof(AccessDoorUI),
     "MonomiPark_SlimeRancher_UI_Framework_Displays_IDisplayShowDataHandler_MonomiPark_SlimeRancher_UI_Purchase_MenuPurchaseItemModel__UpdateShowData")]
 internal static class AccessDoorUITextPatch
 {
-    // Known expansion door IDs — used to identify which activator belongs to an AP expansion terminal.
     private static readonly System.Collections.Generic.HashSet<string> _knownDoorIds = new()
     {
         "door1733849867", // The Gully
@@ -28,9 +29,7 @@ internal static class AccessDoorUITextPatch
         "door1356553442", // The Digsite
     };
 
-    // Deferred text override — Unity Localization fires its async OnUpdateString callback one
-    // or more frames after UpdateShowData, overwriting our text. We re-apply for several
-    // frames from ApUpdateBehaviour.Update() to outlast the localization cycle.
+    // Re-applied for a few frames from Tick — localization overwrites it asynchronously.
     private static TMP_Text? _pendingTitle;
     private static TMP_Text? _pendingDesc;
     private static string    _pendingTitleText = "";
@@ -50,9 +49,7 @@ internal static class AccessDoorUITextPatch
         if (!Plugin.Instance.ApClient.IsConnected) return;
         if (!(Plugin.Instance.ApClient.SlotData?.RandomizeConservatoryExpansions ?? false)) return;
 
-        // All 5 expansion activators are loaded simultaneously, so we can't use FirstOrDefault.
-        // Instead find the one closest to the player — UpdateShowData fires synchronously on
-        // interact, so the player is still standing at the terminal they just pressed.
+        // All five activators are loaded; the pressed one is the nearest.
         var playerGo = SceneContext.Instance?.Player;
         if (playerGo == null) return;
         var playerPos = playerGo.transform.position;
@@ -80,7 +77,7 @@ internal static class AccessDoorUITextPatch
         }
 
         bool alreadyChecked = Plugin.Instance.SaveManager.IsChecked(locInfo.Id);
-        // Strip the "Conservatory Expansion: " prefix — the full name is too long for the UI panel
+        // The full name is too long for the panel.
         const string prefix = "Conservatory Expansion: ";
         string title = locInfo.Name.StartsWith(prefix, System.StringComparison.Ordinal)
             ? locInfo.Name[prefix.Length..]
@@ -105,13 +102,11 @@ internal static class AccessDoorUITextPatch
             description = alreadyChecked ? "Check already sent." : "Archipelago check";
         }
 
-        // Freeze LocalizeStringEvent so it doesn't keep re-triggering localization loads
         var titleEvent = (MonoBehaviour?)__instance._titleLabel;
         var descEvent  = (MonoBehaviour?)__instance._descriptionLabel;
         if (titleEvent != null) titleEvent.enabled = false;
         if (descEvent  != null) descEvent.enabled  = false;
 
-        // HeaderLabel and MainDescription are the confirmed component names on this prefab
         var titleTmp = titleEvent?.GetComponent<TMP_Text>()
                     ?? titleEvent?.gameObject.GetComponentInChildren<TMP_Text>();
         var descTmp  = descEvent?.GetComponent<TMP_Text>()
@@ -132,8 +127,6 @@ internal static class AccessDoorUITextPatch
                     t.gameObject.name.Contains("Main",  System.StringComparison.OrdinalIgnoreCase));
         }
 
-        // Set text immediately, then arm the deferred updater for 10 frames to outlast
-        // Unity Localization's async OnUpdateString callback, which fires 1–2 frames later.
         _pendingTitle     = titleTmp;
         _pendingDesc      = descTmp;
         _pendingTitleText = title;
@@ -147,11 +140,7 @@ internal static class AccessDoorUITextPatch
     }
 }
 
-/// <summary>
-/// Blocks the interaction with an expansion terminal when the check has already been sent.
-/// Prevents the Newbucks confirm dialog from opening again while the door is still locked
-/// waiting for the AP item to arrive.
-/// </summary>
+/// <summary>Once its check is sent, a terminal no longer opens the purchase dialog.</summary>
 [HarmonyPatch(typeof(AccessDoorUIActivator), "OnInteract")]
 internal static class AccessDoorInteractPatch
 {
@@ -180,12 +169,8 @@ internal static class AccessDoorInteractPatch
 }
 
 /// <summary>
-/// Intercepts the conservatory expansion purchase confirmation.
-/// When <c>randomize_conservatory_expansions</c> is active and the player confirms:
-///   • Blocks re-purchase if the check was already sent.
-///   • Sends the AP check for this terminal (first time only).
-///   • Returns false to block the original — no Newbucks spent, door stays locked.
-/// When cancelled (<paramref name="result"/> = false), the original runs normally to close the UI.
+/// Confirming a terminal sends its check instead of the purchase — no Newbucks spent, door
+/// stays locked until its item. Cancelling runs the original.
 /// </summary>
 [HarmonyPatch(typeof(AccessDoorUIActivator), "OnPurchaseMenuResult")]
 internal static class AccessDoorPurchasePatch
@@ -211,12 +196,10 @@ internal static class AccessDoorPurchasePatch
 
         Plugin.Instance.ApClient.SendCheck(locInfo.Id);
         Logger.Info($"[AP] Conservatory expansion check sent: {locInfo.Name} (door='{doorId}')");
-        // If the AP item for this door already arrived before the check was sent, open the door now.
+        // Its item may already be waiting.
         Archipelago.ItemHandler.TriggerPendingDoorUnlock(doorId);
 
-        // Same reasoning as the region gate: the check is sent (unblocking other players) but the
-        // door deliberately stays locked until our own Access item arrives. Silence here is
-        // indistinguishable from the terminal being broken.
+        // Explain why the door stays shut.
         UI.ApPopup.ShowThrottled($"expansion-{doorId}", "Expansion Access required",
                                  "Archipelago", "Expansion locked");
 

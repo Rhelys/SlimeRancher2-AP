@@ -5,55 +5,19 @@ using SlimeRancher2AP.Data;
 namespace SlimeRancher2AP.Patches.LocationPatches;
 
 /// <summary>
-/// Detects first-time Slimepedia unlocks and converts them into Archipelago location checks.
-///
-/// Two overloads of <c>PediaDirector.Unlock</c> exist with SEPARATE native implementations:
-/// <list type="bullet">
-///   <item>
-///     <c>Unlock(PediaEntry, bool)</c> — CallerCount(14), returns <c>bool</c> (true = newly
-///     unlocked). Used for slime entries discovered from world interaction. Patched below in
-///     <see cref="SlimepediaPatch"/> via the <c>__result</c> guard.
-///   </item>
-///   <item>
-///     <c>Unlock(IdentifiableType, bool showPopup)</c> — CallerCount(3), returns <c>void</c>. Used for resource
-///     entries unlocked when the player first picks up or discovers an identifiable object.
-///     Does NOT call through to the PediaEntry overload at the native level (confirmed by
-///     slime checks firing but resource checks not firing). Patched below in
-///     <see cref="SlimepediaIdentTypePatch"/> using Prefix/Postfix + IsUnlocked state.
-///   </item>
-/// </list>
-///
-/// Entry identity: <c>PediaEntry.name</c> (stable Unity ScriptableObject asset name) looked up
-/// in <see cref="LocationTable"/> via <see cref="LocationTable.TryGetByEntryName"/>.
-///
-/// Active for <c>SlimepediaEntry</c> locations when <c>SlotData.RandomizeSlimepedia</c> is true,
-/// and for <c>SlimepediaResourceEntry</c> locations when <c>SlotData.RandomizeSlimepediaResources</c>
-/// is true. Both flags are checked independently per entry type.
-///
-/// <para>
-/// <b>Trampoline note:</b> After the 5/13/2026 game update, <c>PediaDirector</c> moved to the
-/// root namespace. The native <c>Unlock(PediaEntry)</c> body calls
-/// <c>PediaUnlockedAnalyticsEvent..ctor</c>, which can throw a <c>NullReferenceException</c>
-/// when the analytics service or a field on the entry is not yet initialised. Without our
-/// Harmony trampoline, IL2CPP's native exception handling swallows this silently. With the
-/// trampoline in place the exception propagates through the managed boundary and appears in
-/// error logs. The <c>[HarmonyFinalizer]</c> below suppresses it, matching the game's
-/// vanilla behaviour, and the null-guard <c>Prefix</c> short-circuits the entire call when
-/// <c>entry</c> itself is null.
-/// </para>
+/// First-time Slimepedia unlocks become checks (by <c>PediaEntry.name</c>), per the category's
+/// option. <c>Unlock</c> has two overloads with separate native bodies, so both are patched:
+/// <c>Unlock(PediaEntry, bool)</c> here, and <c>Unlock(IdentifiableType, bool)</c> — resource
+/// pickups — in <see cref="SlimepediaIdentTypePatch"/>.
 /// </summary>
 [HarmonyPatch(typeof(PediaDirector), nameof(PediaDirector.Unlock),
     new System.Type[] { typeof(PediaEntry), typeof(bool) })]
 internal static class SlimepediaPatch
 {
-    /// <summary>
-    /// Short-circuit when <c>entry</c> is null — the original method would NRE anyway.
-    /// Returning <c>false</c> causes Harmony to skip the original and return the default
-    /// <c>__result</c> of <c>false</c> (not newly unlocked), which is correct.
-    /// </summary>
+    /// <summary>Skips a null entry (the original would NRE); <c>__result</c> stays false.</summary>
     private static bool Prefix(PediaEntry entry)
     {
-        if (entry != null) return true; // normal path
+        if (entry != null) return true;
         Logger.Warning("[AP-Pedia] Unlock(PediaEntry, bool) called with null entry — skipping to prevent NRE");
         return false;
     }
@@ -61,7 +25,7 @@ internal static class SlimepediaPatch
     private static void Postfix(bool __result, PediaEntry entry)
     {
         if (!Plugin.Instance.ModEnabled) return;
-        if (!__result) return; // already unlocked — save-load replay or re-discovery
+        if (!__result) return; // not new
         if (entry == null) return;
 
         var slotData = Plugin.Instance.ApClient?.SlotData;
@@ -73,10 +37,8 @@ internal static class SlimepediaPatch
     }
 
     /// <summary>
-    /// Suppress exceptions thrown inside the native <c>PediaDirector.Unlock(PediaEntry)</c>
-    /// body (e.g. NRE from <c>PediaUnlockedAnalyticsEvent..ctor</c>). These are pre-existing
-    /// game bugs that IL2CPP handles silently in vanilla; our trampoline would otherwise make
-    /// them visible as error-log entries. Returning <c>null</c> suppresses the exception.
+    /// Swallows the native body's own exceptions (e.g. an analytics-ctor NRE), which vanilla
+    /// swallows too — our trampoline would otherwise surface them as errors.
     /// </summary>
     [HarmonyFinalizer]
     private static System.Exception? Finalizer(System.Exception? __exception)
@@ -90,23 +52,14 @@ internal static class SlimepediaPatch
 }
 
 /// <summary>
-/// Companion patch for <c>PediaDirector.Unlock(IdentifiableType)</c>.
-///
-/// This overload (CallerCount=3) is called when a resource (food, craft material, livestock,
-/// etc.) is first picked up or otherwise discovered. Its native implementation is SEPARATE
-/// from <c>Unlock(PediaEntry, bool)</c> — Harmony on the PediaEntry overload does not fire
-/// for this path.
-///
-/// Strategy: record <c>IsUnlocked(identType)</c> in a Prefix (before the unlock), then in
-/// the Postfix, if the entry was not yet unlocked, resolve it to a <c>PediaEntry</c> via
-/// <c>GetEntry(identType)</c> and forward to the shared helper.
+/// The <c>Unlock(IdentifiableType)</c> overload (resource pickups). Returns void, so the Prefix
+/// records whether it was already unlocked.
 /// </summary>
 [HarmonyPatch(typeof(PediaDirector), nameof(PediaDirector.Unlock),
     new System.Type[] { typeof(IdentifiableType), typeof(bool) })]
 internal static class SlimepediaIdentTypePatch
 {
-    // __state = true  → was already unlocked before this call (no-op, skip)
-    // __state = false → was NOT unlocked yet (this call is the first unlock)
+    // __state: already unlocked before this call
     private static void Prefix(PediaDirector __instance, IdentifiableType identifiableType,
                                 out bool __state)
     {
@@ -116,7 +69,7 @@ internal static class SlimepediaIdentTypePatch
     private static void Postfix(PediaDirector __instance, IdentifiableType identifiableType,
                                  bool __state)
     {
-        if (__state) return; // was already unlocked before this call
+        if (__state) return;
         if (!Plugin.Instance.ModEnabled) return;
 
         var slotData = Plugin.Instance.ApClient?.SlotData;
@@ -135,10 +88,6 @@ internal static class SlimepediaIdentTypePatch
         SlimepediaPatchHelper.SendCheckForEntry(entry.name, slotData);
     }
 }
-
-// ---------------------------------------------------------------------------
-// Shared helper — kept outside the patch classes so both can call it.
-// ---------------------------------------------------------------------------
 
 file static class SlimepediaPatchHelper
 {
@@ -163,11 +112,8 @@ file static class SlimepediaPatchHelper
         };
         if (!enabled) return;
 
-        // Option-gated entries — sending these when the apworld left them out of the pool
-        // would target a location ID that doesn't exist in the seed.
-        // (The RNG/weather slime entries are filtered the same way by their own patches.)
-        // "RadiantSlime" sits in the Slimes category but only unlocks after encountering a
-        // radiant slime, so it follows the radiant toggle rather than the base Slimes one.
+        // Entries the apworld may have left out of the pool. RadiantSlime follows the radiant
+        // toggle, not the Slimes one.
         if (entryName == "RadiantSlime" && !slotData.RandomizeSlimepediaRadiant) return;
         if (entryName == "Sprinkles"    && !slotData.RandomizeSanctuary) return;
 

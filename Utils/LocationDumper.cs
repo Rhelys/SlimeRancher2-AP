@@ -27,16 +27,8 @@ using UnityEngine;
 namespace SlimeRancher2AP.Utils;
 
 /// <summary>
-/// Development utility — scans all currently-loaded game objects of each checkable type and
-/// logs their identity strings to the BepInEx log.
-/// <para>
-/// Because SR2 uses zone streaming, call this once per zone while standing in it. The log
-/// output is then used to populate the <c>GameObjectName</c>/<c>EntryName</c> fields in
-/// <c>LocationTable.cs</c>.
-/// </para>
-/// <para>
-/// Trigger from the debug panel (F9 → Misc page → "Dump Locations").
-/// </para>
+/// Development dumps (F9 debug panel) that log game data for building the location tables.
+/// SR2 streams zones, so most dumps only see the zone you stand in — run once per zone.
 /// </summary>
 public static class LocationDumper
 {
@@ -56,12 +48,7 @@ public static class LocationDumper
         log.LogInfo("[AP-Dump] =========== LOCATION DUMP END ===========");
     }
 
-    /// <summary>
-    /// Logs every Slimepedia entry name, its localized display title, and whether it is
-    /// currently unlocked. Call from the debug panel Misc page while in-game (PediaDirector
-    /// must be active). Output is used to populate EntryName and display name values in
-    /// LocationTable.cs and the apworld locations.py.
-    /// </summary>
+    /// <summary>Logs every Slimepedia entry: name, display title, unlocked state.</summary>
     public static void DumpPedia()
     {
         var log = Plugin.Instance.Log;
@@ -72,8 +59,7 @@ public static class LocationDumper
             return;
         }
 
-        // PediaCategory is a ScriptableObject that holds _items (Il2CppReferenceArray<PediaEntry>)
-        // — one category per Slimepedia tab (Slimes, Resources, World, etc.).
+        // One PediaCategory per Slimepedia tab.
         var categories = Resources.FindObjectsOfTypeAll<PediaCategory>()
             .OrderBy(c => c.name)
             .ToList();
@@ -100,13 +86,8 @@ public static class LocationDumper
     }
 
     /// <summary>
-    /// Walks all loaded <c>RancherDefinition</c> ScriptableObjects and logs every conversation
-    /// that contains a gift page (GiftBlueprint, GiftGadget, or GiftUpgradeComponent).
-    /// <para>
-    /// Output format per line: rancher name → conversation ID → page type → gifted asset name.
-    /// Use this to build the LocationTable entries for comm-station gift checks.
-    /// </para>
-    /// Call from the debug panel Misc page while a save is loaded.
+    /// Logs every rancher conversation with a gift page, as rancher → conversation → page type
+    /// → gifted asset. Then lists standalone conversations triggered by world events.
     /// </summary>
     public static void DumpConversations()
     {
@@ -158,10 +139,8 @@ public static class LocationDumper
                     try { convId    = conv.GetId()        ?? "(null)"; } catch { /* ignore */ }
                     try { convDebug = conv.GetDebugName() ?? "";       } catch { /* ignore */ }
 
-                    // Walk pages to find gift pages.
-                    // Cast to FixedConversation to access its typed pages list directly —
-                    // IEnumerable<IConversationPage> from GetPages() uses an Il2Cpp enumerator
-                    // that doesn't expose MoveNext() at the CLR level.
+                    // Via FixedConversation's typed list — GetPages()'s Il2Cpp enumerator has no
+                    // usable MoveNext().
                     var gifts = new System.Collections.Generic.List<string>();
                     var fixedConv = conv.TryCast<FixedConversation>();
                     var pageList  = fixedConv?.pages;
@@ -203,14 +182,8 @@ public static class LocationDumper
             }
         }
 
-        // -------------------------------------------------------------------------
-        // Second pass: standalone FixedConversations not in any rancher provider.
-        // These are conversations that fire via world-event triggers rather than
-        // through a RancherDefinition gift queue — e.g. ViktorIntroCall (fires on
-        // first Research Drone activation) and BObGift1Intro (fires after visiting
-        // Gorge + Strand). DumpConversationConditions() already shows their conditions;
-        // this section confirms their debug names.
-        // -------------------------------------------------------------------------
+        // Second pass: conversations fired by world events, not a rancher's queue
+        // (e.g. ViktorIntroCall, BObGift1Intro).
         var coveredNames = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
         foreach (var rancher2 in rancherDefs)
         {
@@ -275,29 +248,10 @@ public static class LocationDumper
     }
 
     /// <summary>
-    /// Walks all loaded <c>FixedConversation</c> ScriptableObjects and logs their unlock
-    /// condition trees, revealing prerequisite chains (e.g. "conversation B unlocks only
-    /// after conversation A is completed").
-    /// <para>
-    /// Builds GUID-to-name lookup maps for conversations, gadgets, zones, and research drones
-    /// so GUID hashes in condition DataKeys are resolved to human-readable names.
-    /// <c>GameTimeSinceEventComponent</c> wrappers are unwrapped to show both the delay and
-    /// the underlying event condition.
-    /// </para>
-    /// Call from the debug panel Misc page while a save is loaded. Assets must be resident
-    /// (stand in the relevant zone so conversation assets stream in first).
+    /// Dumps the Prismacore prerequisites: the Nullifier blueprint, every DiscordantWall, and the
+    /// Harmonizer bells. (GigiCore_* conversations carry no serialized conditions, so the room
+    /// is the only place to look.) Diff a run before and after ringing a bell.
     /// </summary>
-    /// <summary>
-    /// Dumps the state of the Prismacore encounter prerequisites — the Nullifier blueprint,
-    /// every DiscordantWall, and any world object whose name suggests it is one of the
-    /// "Harmonizer" devices that must be activated before the fight.
-    /// </summary>
-    /// <remarks>
-    /// Written because the conversation-conditions dump proved the GigiCore_* conversations
-    /// carry NO serialized conditions — the prerequisite is decided in code at runtime, so the
-    /// only way to find the state it reads is to look at the room. Run it in the Prismacore
-    /// area, ideally once before and once after activating a device, and diff the output.
-    /// </remarks>
     public static void DumpPrismacoreState()
     {
         var log = Plugin.Instance.Log;
@@ -332,12 +286,7 @@ public static class LocationDumper
         }
         catch (Exception ex) { log.LogWarning($"[AP-Dump] DiscordantWall scan failed: {ex.Message}"); }
 
-        // --- The Harmonizer bells ---
-        // Identified from a live log: activating one emitted
-        //   [AP-Gate] InvisibleSwitch DOWN: name='labySwitchBell' scene='zoneLabyrinthCorePath'
-        // so the devices are WorldStateInvisibleSwitch objects, not any of the Prisma/Stabilizer
-        // components. A name-based GameObject scan missed them entirely — hence listing the
-        // switches directly, with their model state.
+        // --- The Harmonizer bells: WorldStateInvisibleSwitch objects named 'labySwitchBell' ---
         try
         {
             var switches = UnityEngine.Resources.FindObjectsOfTypeAll<WorldStateInvisibleSwitch>();
@@ -368,15 +317,15 @@ public static class LocationDumper
         log.LogInfo("[AP-Dump] =========== PRISMACORE STATE DUMP END ===========");
     }
 
+    /// <summary>
+    /// Logs every conversation's unlock condition tree, with GUIDs resolved to names where
+    /// known. Stand in the relevant zone first so the assets stream in.
+    /// </summary>
     public static void DumpConversationConditions()
     {
         var log = Plugin.Instance.Log;
 
-        // Build GUID → name lookup map for FixedConversations.
-        // FixedConversation extends AbstractConversation extends ScriptableObjectWithGuid,
-        // which exposes a .Guid string property. Other asset types (GadgetDefinition,
-        // ZoneDefinition, ResearchDroneEntry) don't share that interface in the interop, so
-        // their DataKeys are logged raw — likely GUIDs that can be cross-referenced manually.
+        // GUID → name for conversations only; other asset types' DataKeys are logged raw.
         var convGuids = new Dictionary<string, string>(StringComparer.Ordinal);
         try
         {
@@ -425,7 +374,7 @@ public static class LocationDumper
             var child = children[i];
             if (child == null) { log.LogInfo($"{indent}[{i}] NULL"); continue; }
 
-            // Composite — recurse into sub-children
+            // Composite — recurse
             var composite = child.TryCast<CompositeQueryComponent>();
             if (composite != null)
             {
@@ -437,7 +386,7 @@ public static class LocationDumper
                 continue;
             }
 
-            // GameTimeSinceEventComponent — time-delay wrapper; unwrap to show delay + inner event
+            // Time-delay wrapper — show the delay and the inner event
             var timeQuery = child.TryCast<GameTimeSinceEventComponent>();
             if (timeQuery != null)
             {
@@ -447,7 +396,6 @@ public static class LocationDumper
                 log.LogInfo($"{indent}[{i}] TimeSinceEvent(>={days:F1} days):");
                 if (innerChild != null)
                 {
-                    // Wrap single child in a temporary list for recursive logging
                     var innerAsQuery = innerChild.TryCast<IGameQueryComponent>();
                     if (innerAsQuery != null)
                     {
@@ -467,7 +415,7 @@ public static class LocationDumper
                 continue;
             }
 
-            // StaticEventQueryComponent — a static named game-event (story milestone etc.)
+            // Static named game event (story milestone etc.)
             var staticQuery = child.TryCast<StaticEventQueryComponent>();
             if (staticQuery != null)
             {
@@ -478,13 +426,10 @@ public static class LocationDumper
                 continue;
             }
 
-            // For all SerializedProducedEventQueryComponent subtypes, call GetEvent()
-            // to obtain the IGameEvent whose DataKey encodes the asset GUID (or string key).
-            // Then look up the GUID in the appropriate map for a readable name.
+            // Produced-event queries: the DataKey on GetEvent() is an asset GUID or a string key.
             var eventQuery = child.TryCast<GameEventQueryComponent>();
             if (eventQuery != null)
             {
-                // Determine concrete type name via IL2CPP for labelling
                 string typeName = GetIl2CppTypeName(child);
                 string dataKey = "(err)", eventKey = "(err)", resolvedName = "";
                 int count = 0;
@@ -497,21 +442,18 @@ public static class LocationDumper
                 catch (Exception ex) { eventKey = $"(exc:{ex.Message})"; dataKey = ""; }
                 try { count = eventQuery.Count; } catch { }
 
-                // Resolve GUID to human-readable name.
-                // Only FixedConversation GUIDs are in our lookup map; other asset types
-                // (GadgetDefinition, ZoneDefinition, ResearchDroneEntry) log their DataKey raw.
                 if (!string.IsNullOrEmpty(dataKey) && typeName.Contains("Conversation"))
                 {
                     if (convGuids.TryGetValue(dataKey, out var cName))
                         resolvedName = $" → '{cName}'";
                 }
-                // StringEvent: dataKey IS the string key directly — no lookup needed.
+                // StringEvent: the DataKey is the key itself.
 
                 log.LogInfo($"{indent}[{i}] {typeName}  dataKey='{dataKey}'{resolvedName}  count={count}");
                 continue;
             }
 
-            // Truly unknown type — log IL2CPP type name for future handling
+            // Unknown type — log its IL2CPP name
             log.LogInfo($"{indent}[{i}] Unknown({GetIl2CppTypeName(child)})");
         }
     }
@@ -531,11 +473,7 @@ public static class LocationDumper
         return "(unknown)";
     }
 
-    /// <summary>
-    /// Logs all loaded GadgetDefinition asset names — useful for confirming zone teleporter
-    /// names (TeleporterZoneGorge, TeleporterZoneStrand?, TeleporterZoneBluffs, etc.).
-    /// Call from the debug panel Misc page. Assets load lazily so call while in-game.
-    /// </summary>
+    /// <summary>Logs all loaded GadgetDefinition names. Assets load lazily, so run in-game.</summary>
     public static void DumpGadgets()
     {
         var log = Plugin.Instance.Log;
@@ -547,20 +485,9 @@ public static class LocationDumper
     }
 
     /// <summary>
-    /// Dumps every shop known to the <c>ShopDirector</c>: shop definition asset name, each
-    /// category (analytics name, source tag, localized display name), and every runtime item
-    /// with its identity (<c>ShopItemId</c>, addressable asset GUID, loaded asset name),
-    /// localized title, item/unlock type, Newbuck cost, purchase limit, and purchase count.
-    /// <para>
-    /// Used to build the Polestar Provisions location table (mod <c>LocationTable</c> +
-    /// apworld <c>locations.py</c>). The <c>ShopItemId</c> string is the stable per-slot key
-    /// the game persists purchases under — prefer it as the location identity.
-    /// </para>
-    /// <para>
-    /// Item assets resolve lazily through addressables — open the shop UI once (browse each
-    /// category) before dumping so asset names and titles are loaded; unloaded entries still
-    /// dump their id/GUID.
-    /// </para>
+    /// Dumps every shop, category and item (ShopItemId, asset GUID and name, title, type, cost,
+    /// limits). <c>ShopItemId</c> is the stable key purchases persist under. Browse each shop
+    /// category first so lazily loaded names resolve; unloaded items still dump id/GUID.
     /// </summary>
     public static void DumpShopItems()
     {
@@ -587,9 +514,8 @@ public static class LocationDumper
                 catch { /* keep placeholder */ }
                 log.LogInfo($"[AP-Dump] Shop[{r}]  definition='{defName}'  available={runtime.IsShopAvailable}  doneLoading={runtime.IsDoneLoading}");
 
-                // AllCategories returns a live lazy iterator that the ShopDirector's own
-                // Update invalidates mid-enumeration ("Collection was modified"). Read the
-                // backing list from the data provider instead and iterate by index.
+                // Not AllCategories: its lazy iterator is invalidated mid-enumeration by the
+                // director's Update. Index the backing list instead.
                 var cats = runtime._dataProvider?.GetLoadedCategories()
                     ?.TryCast<Il2CppSystem.Collections.Generic.List<ShopCategoryRuntime>>();
                 if (cats == null)
@@ -624,8 +550,7 @@ public static class LocationDumper
                             try { assetName = item.Asset?.TryCast<UnityEngine.Object>()?.name ?? "<not loaded>"; } catch { }
                             try { title     = item.Title?.GetLocalizedString() ?? ""; } catch { }
 
-                            // Fallback: resolve the asset through the provider's addressables
-                            // cache when the item's own lazy handle hasn't completed.
+                            // Fallback: the provider's addressables cache.
                             if (assetName == "<not loaded>" && guid.Length > 0)
                             {
                                 try
@@ -637,9 +562,7 @@ public static class LocationDumper
                                 catch { /* keep placeholder */ }
                             }
 
-                            // Kick off the addressable load for items the shop UI hasn't
-                            // displayed yet — a follow-up dump a few seconds later then has
-                            // their asset name / title / type resolved.
+                            // Start the load, so a second dump a few seconds later resolves it.
                             try { if (!item.IsDoneLoading) item.AcquireResources(); } catch { }
 
                             int newbucks = -1;
@@ -656,9 +579,7 @@ public static class LocationDumper
                             int purchased = -1;
                             try { purchased = item.GetCountPurchased(); } catch { }
 
-                            // ItemType NREs (GadgetShopItemHelper.GetTypeInfo) while the
-                            // asset is unloaded — guard each remaining read individually so
-                            // one failure can't discard the id/guid already gathered.
+                            // ItemType NREs while unloaded — guard each read separately.
                             string type = "<unloaded>", unlock = "?", soldOut = "?";
                             try { type    = item.ItemType.ToString(); }  catch { }
                             try { unlock  = item.UnlockType.ToString(); } catch { }
@@ -682,10 +603,8 @@ public static class LocationDumper
     }
 
     /// <summary>
-    /// Logs every <c>Image</c> component in the shop UI hierarchy (path, active state,
-    /// current sprite) so the component rendering the big full-art display can be
-    /// identified. Use with the shop open and an item selected: run once with a vanilla
-    /// item selected and once with an AP-check item selected, then diff the sprites.
+    /// Logs every shop UI <c>Image</c> (path, active, sprite). Run with a vanilla item and with an
+    /// AP item selected, and diff, to find what renders the full-art display.
     /// </summary>
     public static void DumpShopUiImages()
     {
@@ -725,9 +644,7 @@ public static class LocationDumper
             }
         }
 
-        // The big full-art display was not found among the Image components above —
-        // sweep the whole scene for OTHER renderer types and roots: RawImages (texture-
-        // based) and any active Image living under a root that holds no blurb.
+        // Also sweep the scene for RawImages and active Images under roots with no blurb.
         log.LogInfo("[AP-Dump]  --- scene-wide sweep (active only) ---");
         foreach (var raw in Resources.FindObjectsOfTypeAll<UnityEngine.UI.RawImage>())
         {
@@ -743,7 +660,7 @@ public static class LocationDumper
             log.LogInfo($"[AP-Dump]  Image    ON  root='{root.name}'  '{PathTo(img.transform, root)}'  sprite='{SpriteLabel(img.sprite)}'");
         }
 
-        // Re-assert tick state — reveals whether the full-art tick is actually engaged.
+        // Whether the full-art tick is engaged.
         var trackedBlurb = SlimeRancher2AP.Patches.UiPatches.ShopUiHelper.ActiveBlurb;
         var trackedInfo  = SlimeRancher2AP.Patches.UiPatches.ShopUiHelper.ActiveBlurbInfo;
         log.LogInfo($"[AP-Dump]  Tick tracking: ActiveBlurb={(trackedBlurb != null ? $"set (active={trackedBlurb.isActiveAndEnabled})" : "NULL")}  info='{trackedInfo?.Name ?? "<null>"}'");
@@ -751,13 +668,8 @@ public static class LocationDumper
     }
 
     /// <summary>
-    /// Dumps the availability conditions of every shop item: per rule-set group
-    /// (<c>ShopCategorySourceRuleSet._allItemsAvailableCondition</c>) and per item entry
-    /// (<c>ShopFixedItemsTable.ItemEntry.AvailableCondition</c>). Query components are
-    /// described recursively with their referenced assets (zone/event asset names), which
-    /// is the authoritative source for which zone unlocks each Polestar Provisions item —
-    /// used to build the apworld's regional logic for shop locations.
-    /// Item GUIDs are resolved to AP location names inline where known.
+    /// Dumps every shop item's availability condition, per rule-set group and per item — the
+    /// authoritative source for the apworld's shop region logic.
     /// </summary>
     public static void DumpShopItemConditions()
     {
@@ -851,22 +763,10 @@ public static class LocationDumper
         log.LogInfo("[AP-Dump] ===== SHOP CONDITION DUMP END =====");
     }
 
-    /// <summary>
-    /// Recursively describes a game query component. Composites expand to
-    /// <c>Operation(child, child, …)</c>; leaf components print their concrete IL2CPP type
-    /// plus referenced Unity assets (zone/event asset names) and short primitive values,
-    /// discovered via IL2CPP reflection so no per-query-type code is needed.
-    /// </summary>
-    /// <summary>
-    /// GUID -> readable asset name, used by <see cref="DescribeQuery"/> to resolve event data
-    /// keys. Populated by <see cref="BuildDescribeGuidNames"/> before a dump that needs it.
-    /// </summary>
+    /// <summary>GUID → asset name for <see cref="DescribeQuery"/>; filled by <see cref="BuildDescribeGuidNames"/>.</summary>
     private static Dictionary<string, string> _describeGuidNames = new(StringComparer.Ordinal);
 
-    /// <summary>
-    /// Builds the GUID lookup <see cref="DescribeQuery"/> uses to turn an event data key into a
-    /// name. Covers conversations and gadgets, the two asset kinds shop conditions reference.
-    /// </summary>
+    /// <summary>Conversations, ranchers and gadgets — the asset kinds shop conditions reference.</summary>
     private static void BuildDescribeGuidNames()
     {
         var map = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -881,9 +781,7 @@ public static class LocationDumper
         }
         catch { /* partial map still beats none */ }
 
-        // Ranchers too: `convoRancherPlayed` keys on the RANCHER's GUID, not a conversation's —
-        // the five cheap Vac palettes each name one, and none of those GUIDs appears anywhere in
-        // the conversation dump, which lists ranchers by name only.
+        // Ranchers too: `convoRancherPlayed` keys on the rancher's GUID.
         try
         {
             foreach (var r in Resources.FindObjectsOfTypeAll<Il2CppMonomiPark.SlimeRancher.Dialogue.CommStation.RancherDefinition>())
@@ -897,6 +795,10 @@ public static class LocationDumper
         _describeGuidNames = map;
     }
 
+    /// <summary>
+    /// Describes a query component recursively: composites as <c>Operation(child, …)</c>,
+    /// leaves as their IL2CPP type plus referenced assets and short values (via reflection).
+    /// </summary>
     private static string DescribeQuery(Il2CppInterop.Runtime.InteropTypes.Il2CppObjectBase? comp, int depth)
     {
         if (comp == null) return "<null>";
@@ -913,12 +815,8 @@ public static class LocationDumper
             return $"{composite._operation}({string.Join(" , ", parts)})";
         }
 
-        // Event-backed queries carry their real identity on the IGameEvent behind GetEvent(),
-        // not on their serialized fields. Reflecting over the fields instead yields
-        // "Count=539385616" — a pointer rendered as an int, identical on every row and useless
-        // for telling two conditions apart. That is what made the 1.3 shop-condition dump
-        // unable to say WHICH conversation gates each Vac palette, while the conversation
-        // dumper (which does call GetEvent) resolved its keys cleanly.
+        // Event-backed queries: identity lives on GetEvent(), not the fields — reflecting the
+        // fields only yields a pointer rendered as an int.
         var eventQuery = comp.TryCast<GameEventQueryComponent>();
         if (eventQuery != null)
         {
@@ -972,11 +870,7 @@ public static class LocationDumper
         }
     }
 
-    /// <summary>
-    /// Sprite name for dump output, with reference-equality disambiguation against the
-    /// mod's Archipelago logo (embedded sprites have empty names, so a bare '' in the
-    /// dump is ambiguous — an addressable-loaded sprite could theoretically be unnamed too).
-    /// </summary>
+    /// <summary>Sprite name, marking the mod's AP logo explicitly (embedded sprites are unnamed).</summary>
     private static string SpriteLabel(Sprite? sprite)
     {
         if (sprite == null) return "<null>";
@@ -1001,14 +895,8 @@ public static class LocationDumper
     }
 
     /// <summary>
-    /// Dumps every loaded <c>SlimeDefinition</c> and the <c>ZoneDefinition</c> names stored
-    /// in its <c>NativeZones</c> array.
-    /// <para>
-    /// Used to verify which AP region each Slimepedia slime entry belongs to (i.e. which zones
-    /// a slime naturally spawns in). SlimeDefinition assets load globally — no specific zone
-    /// needs to be loaded first, but call after loading a save so all assets are resident.
-    /// </para>
-    /// Output format per line: <c>name='…'  zones=[zone1, zone2, …]</c>
+    /// Logs each SlimeDefinition's <c>NativeZones</c>, to verify slime region assignments.
+    /// Loads globally; run with a save loaded.
     /// </summary>
     public static void DumpSlimeZones()
     {
@@ -1039,17 +927,8 @@ public static class LocationDumper
     }
 
     /// <summary>
-    /// Dumps every loaded <c>IdentifiableType</c> and the <c>ZoneDefinition</c> names stored
-    /// in its <c>showForZones</c> array.
-    /// <para>
-    /// Covers food, resources, craft materials, and plorts — used to verify region assignments
-    /// in <c>SLIMEPEDIA_RESOURCE_LOCATIONS</c> and ingredient zone requirements in
-    /// <c>FABRICATOR_LOCATIONS</c> in the apworld.
-    /// </para>
-    /// <para>
-    /// Types with no zone bindings (globally available or zone-irrelevant) are listed separately
-    /// at the end. Call after loading a save — IdentifiableType assets load globally.
-    /// </para>
+    /// Logs each IdentifiableType's <c>showForZones</c>, to verify resource and ingredient regions
+    /// in the apworld. Unbound types are listed last. Run with a save loaded.
     /// </summary>
     public static void DumpIdentifiableTypeZones()
     {
@@ -1082,12 +961,7 @@ public static class LocationDumper
         log.LogInfo("[AP-Dump] =========== IDENTIFIABLE TYPE ZONE DUMP END ===========");
     }
 
-    /// <summary>
-    /// Logs every loaded <c>IdentifiableType</c> asset name, sorted alphabetically.
-    /// Use this to discover food item names (for gordo-feeding tests), live animal names,
-    /// and any other identifiable object that can be granted via the Refinery.
-    /// Call from the debug panel Misc page while in-game.
-    /// </summary>
+    /// <summary>Logs every IdentifiableType name, sorted.</summary>
     public static void DumpIdentifiableTypes()
     {
         var log = Plugin.Instance.Log;
@@ -1102,12 +976,8 @@ public static class LocationDumper
     }
 
     /// <summary>
-    /// Walks every loaded <c>UpgradeDefinition</c> asset, reads each level's <c>PurchaseCost</c>,
-    /// converts it to ingredients via <c>RecipeFactory.IngredientsFromCost</c>, and for each
-    /// <c>UpgradeIngredient</c> calls <c>TryGetIdentifiableType</c> to get the exact asset name.
-    /// This is the authoritative way to discover the IdentifiableType names for Fabricator
-    /// recipe ingredients (Heart Cell, Power Chip, Dash Boot Module, etc.).
-    /// Call from the debug panel Misc page while the Fabricator scene is loaded.
+    /// Logs the IdentifiableType of every Fabricator recipe ingredient, from each upgrade level's
+    /// <c>PurchaseCost</c>. Run with the Fabricator loaded.
     /// </summary>
     public static void DumpUpgradeComponents()
     {
@@ -1119,13 +989,11 @@ public static class LocationDumper
 
         log.LogInfo($"[AP-Dump] ========== UPGRADE COMPONENT DUMP ({upgradeDefs.Count} UpgradeDefinitions) ==========");
 
-        // Log all definition names first — including those whose recipes are currency/plort-only
-        // (those won't appear in the per-level component listing below).
+        // All names first — currency/plort-only recipes don't appear below.
         log.LogInfo("[AP-Dump] --- All UpgradeDefinition names ---");
         foreach (var def in upgradeDefs)
             log.LogInfo($"[AP-Dump] UpgradeDef  name='{def.name}'  levels={def._levels?.Count ?? 0}");
 
-        // Collect unique IdentifiableType names across all levels of all upgrades
         var seen = new System.Collections.Generic.HashSet<string>();
 
         foreach (var def in upgradeDefs)
@@ -1144,7 +1012,7 @@ public static class LocationDumper
                 var rawIngredients = RecipeFactory.BaseRecipe.IngredientsFromCost(cost);
                 if (rawIngredients == null) { log.LogInfo($"[AP-Dump]   lvl{lvl}: IngredientsFromCost returned NULL"); continue; }
 
-                // The concrete type is always List<IIngredient>; wrap by pointer to get Count/indexer
+                // Always List<IIngredient>; wrap by pointer for Count/indexer
                 var ingredients = new Il2CppSystem.Collections.Generic.List<IIngredient>(rawIngredients.Pointer);
                 for (int i = 0; i < ingredients.Count; i++)
                 {
@@ -1169,11 +1037,7 @@ public static class LocationDumper
         log.LogInfo("[AP-Dump] =========== UPGRADE COMPONENT DUMP END ===========");
     }
 
-    /// <summary>
-    /// Logs every loaded <c>PuzzleSlotLockable</c> (plort doors and other puzzle locks)
-    /// with its scene, name, posKey, lockTag, current unlock state, and required plort types.
-    /// Run in each zone to build the full list for LocationTable.cs / locations.py.
-    /// </summary>
+    /// <summary>Logs every PuzzleSlotLockable: scene, name, posKey, lockTag, state, required plorts.</summary>
     public static void DumpPuzzleSlotLockables()
     {
         var log   = Plugin.Instance.Log;
@@ -1197,7 +1061,6 @@ public static class LocationDumper
             bool unlocked = false;
             try { unlocked = door.ShouldUnlock(); } catch { /* guard */ }
 
-            // Collect required plort type for each depositor slot
             var plortTypes = new System.Text.StringBuilder();
             try
             {
@@ -1222,11 +1085,7 @@ public static class LocationDumper
         log.LogInfo("[AP-Dump] =========== PUZZLE SLOT LOCKABLE DUMP END ===========");
     }
 
-    /// <summary>
-    /// Logs all loaded <c>AccessDoor</c> instances and their current model state.
-    /// Run while standing near the Valley Labyrinth gate — before AND after solving
-    /// the beam puzzle — to see if an AccessDoor changes state.
-    /// </summary>
+    /// <summary>Logs every AccessDoor and its model state.</summary>
     public static void DumpAccessDoors()
     {
         var log   = Plugin.Instance.Log;
@@ -1241,11 +1100,7 @@ public static class LocationDumper
         }
     }
 
-    /// <summary>
-    /// Logs all loaded <c>SlimeGateActivator</c> instances (Radiant Projector beam-puzzle gates).
-    /// Stand in Ember Valley near the Valley Labyrinth entrance before calling.
-    /// The <c>scene</c> and <c>name</c> fields become the <c>LabyrinthGateValley</c> constant.
-    /// </summary>
+    /// <summary>Logs every SlimeGateActivator (Radiant Projector beam-puzzle gate).</summary>
     public static void DumpSlimeGates()
     {
         var log = Plugin.Instance.Log;
@@ -1282,7 +1137,7 @@ public static class LocationDumper
     {
         var pods = Resources.FindObjectsOfTypeAll<TreasurePod>();
 
-        // Separate regular treasure pods from ghostly drone nodes (nodeComponentAcqDrone)
+        // Ghostly drone nodes are TreasurePods too
         var regularPods = pods.Where(p => !p.gameObject.name.StartsWith("node")).ToList();
         var dronePods   = pods.Where(p =>  p.gameObject.name.StartsWith("node")).ToList();
 
@@ -1309,21 +1164,19 @@ public static class LocationDumper
     {
         var gordos = Resources.FindObjectsOfTypeAll<GordoEat>();
 
-        // Gordos with an empty scene name are GordoSnare prefab templates loaded globally —
-        // not static world gordos. Only log the ones with a real scene name.
+        // An empty scene name means a GordoSnare prefab template, not a world gordo.
         var staticGordos = gordos.Where(g => !string.IsNullOrEmpty(g.gameObject.scene.name)).ToList();
         var snareGordos  = gordos.Where(g =>  string.IsNullOrEmpty(g.gameObject.scene.name)).ToList();
 
         log.LogInfo($"[AP-Dump] --- GordoEat ({staticGordos.Count} static world, {snareGordos.Count} snare/global) ---");
         foreach (var gordo in staticGordos)
         {
-            // _id is from IdHandler base class: IdPrefix() ("gordo") + numeric suffix assigned at runtime.
-            // This is the exact string event key fired on burst — matches ViktorStoryCipher4 conditions.
+            // _id ("gordo" + runtime suffix) is the event key fired on burst.
             string gordoId = "(err)";
             try { gordoId = gordo._id ?? "(null)"; } catch { }
             log.LogInfo($"[AP-Dump] GordoEat    scene='{gordo.gameObject.scene.name}'  name='{gordo.gameObject.name}'  stringEventKey='{gordoId}'");
         }
-        // Log snare gordo names only as a reference (not checks)
+        // Snare gordos, for reference (not checks)
         log.LogInfo($"[AP-Dump] GordoSnare names (NOT checks): {string.Join(", ", snareGordos.Select(g => g.gameObject.name))}");
     }
 
@@ -1341,7 +1194,7 @@ public static class LocationDumper
     private static void DumpShadowPlortDoors(BepInEx.Logging.ManualLogSource log)
     {
         var depositors = Resources.FindObjectsOfTypeAll<PlortDepositor>();
-        // Filter to Shadow Plort doors only — PlortDepositor is used for many plort locks
+        // Shadow Plort doors only
         var shadowDoors = depositors
             .Where(d => d._catchIdentifiableType != null &&
                         d._catchIdentifiableType.name == "ShadowPlort")
@@ -1372,17 +1225,8 @@ public static class LocationDumper
     }
 
     /// <summary>
-    /// Enumerates every loaded <c>ResearchDroneEntry</c> ScriptableObject and reports whether it
-    /// has an <c>archivedEntry</c>, and whether that archive is present in <see cref="LocationTable"/>.
-    ///
-    /// The archive location set was originally built by discovery — walking up to a drone with the
-    /// Archive Key and reading the warning the patch logs for unknown entries — so it was only ever
-    /// as complete as the drones that had actually been visited.  This dump answers the question
-    /// directly instead.
-    ///
-    /// SR2 streams zones, so <c>FindObjectsOfTypeAll</c> only sees entries whose owning scene is
-    /// currently loaded (plus any still resident from an earlier visit).  Run it once per zone and
-    /// merge the results; the trailing summary lists which of the table's known drones were covered.
+    /// Logs each ResearchDroneEntry, its <c>archivedEntry</c>, and whether that archive has a
+    /// <see cref="LocationTable"/> row. Run once per zone; the summary lists drones not yet seen.
     /// </summary>
     public static void DumpResearchDroneArchives()
     {
@@ -1392,8 +1236,7 @@ public static class LocationDumper
         var entries = Resources.FindObjectsOfTypeAll<ResearchDroneEntry>();
         log.LogInfo($"[AP-Dump] Loaded ResearchDroneEntry assets: {entries.Count}");
 
-        // Archive entries are themselves ResearchDroneEntry assets, so the sweep returns both
-        // mains and archives.  Collect the archive names first so mains can be told apart.
+        // Archives are ResearchDroneEntry assets too — collect their names to tell mains apart.
         var archiveNames = new HashSet<string>(StringComparer.Ordinal);
         foreach (var e in entries)
         {
@@ -1428,8 +1271,7 @@ public static class LocationDumper
                 $"(drone location: {(droneKnown ? droneInfo!.Id.ToString() : "NOT IN TABLE")})");
         }
 
-        // Coverage summary: which table drones this run did NOT observe, so it is obvious when
-        // more zones still need to be visited before the picture is complete.
+        // Table drones this run did not observe
         var tableDrones = LocationTable.All
             .Where(l => l.Type == LocationType.ResearchDrone && !string.IsNullOrEmpty(l.EntryName))
             .Select(l => l.EntryName!)
@@ -1458,23 +1300,18 @@ public static class LocationDumper
 
     // -------------------------------------------------------------------------
 
-    /// <summary>
-    /// Dumps all SceneGroup assets and the TeleportNetwork's wake-up destinations.
-    /// Used to discover zone ReferenceId strings for the teleport trap.
-    /// Call this once per zone to build the full picture.
-    /// </summary>
+    /// <summary>Logs SceneGroups and TeleportNetwork destinations (zone ids for the teleport trap).</summary>
     public static void DumpSceneGroups()
     {
         var log = Plugin.Instance.Log;
         log.LogInfo("[AP-Dump] ========== SCENE GROUPS + TELEPORT WAKE-UP DESTINATIONS ==========");
 
-        // All SceneGroup assets loaded in memory
         var allGroups = Resources.FindObjectsOfTypeAll<Il2CppMonomiPark.SlimeRancher.SceneManagement.SceneGroup>();
         log.LogInfo($"[AP-Dump] SceneGroup assets found: {allGroups.Count}");
         foreach (var sg in allGroups.OrderBy(g => g.ReferenceId ?? ""))
             log.LogInfo($"[AP-Dump] SceneGroup  refId='{sg.ReferenceId}'  name='{sg.name}'");
 
-        // TeleportNetwork wake-up destinations — populated per zone as the player visits them
+        // Wake-up destinations — populated per zone as visited
         var network = UnityEngine.Object.FindObjectOfType<Il2CppMonomiPark.SlimeRancher.World.Teleportation.TeleportNetwork>();
         if (network == null)
         {
@@ -1495,7 +1332,7 @@ public static class LocationDumper
                 }
             }
 
-            // Also dump registered teleporter node IDs for reference
+            // Teleporter node IDs
             var nodes = network._nodeIdToTeleporterNodeDict;
             log.LogInfo($"[AP-Dump] TeleportNetwork._nodeIdToTeleporterNodeDict count: {nodes?.Count ?? 0}");
             if (nodes != null)
@@ -1510,13 +1347,8 @@ public static class LocationDumper
     }
 
     /// <summary>
-    /// Scans all loaded <c>RadiantSlimePediaEntry</c> assets and logs their Unity asset name
-    /// (the lookup key for <c>LocationTable</c>) and associated <c>SlimeDefinition.name</c>.
-    /// Also dumps the per-slime shuffle-bag sizes from <c>RadiantSlimeConfig</c>.
-    ///
-    /// <para>Run once while a save is loaded. Output is used to populate
-    /// <c>LocationConstants.cs</c> and <c>LocationTable.cs</c> for the
-    /// <see cref="SlimeRancher2AP.Data.LocationType.SlimepediaRadiantEntry"/> category.</para>
+    /// Logs each RadiantSlimePediaEntry name (the <c>LocationTable</c> key) and its slime, plus
+    /// the per-slime shuffle-bag sizes.
     /// </summary>
     public static void DumpRadiantSlimes()
     {
@@ -1561,37 +1393,15 @@ public static class LocationDumper
     }
 
     /// <summary>
-    /// Sets all radiant shuffle bag sizes to <paramref name="size"/>.
-    ///
-    /// <para>Two layers are updated so the change is both immediate and sticky for
-    /// the duration of the session:</para>
-    /// <list type="number">
-    ///   <item><term>Config layer</term><description>
-    ///     <c>RadiantSlimeConfig._radiantShuffleBagSizes[i].BagSize</c> — the value used when a
-    ///     new bag is initialised (e.g. after a scene reload).
-    ///   </description></item>
-    ///   <item><term>Live bag layer</term><description>
-    ///     <c>director.RadiantSlimesModel.RadiantShuffleBags[id].SetNewSize(size)</c> — calls the
-    ///     game's own resize method, which updates <c>Size</c> and immediately reshuffles
-    ///     (<c>CurrentIndex = 0</c>, new random <c>RadiantSpawnIndex</c> within the new range).
-    ///     This means the first encounter after pressing the button starts a fresh cycle of
-    ///     the new size with no carry-over from the old cycle.
-    ///   </description></item>
-    /// </list>
-    ///
-    /// <list type="bullet">
-    ///   <item><term>size = 2</term><description>Every other encounter is radiant.</description></item>
-    ///   <item><term>size = 1</term><description>Every encounter is radiant (only one slot, so
-    ///   <c>RadiantSpawnIndex</c> is always 0).</description></item>
-    /// </list>
-    ///
-    /// <para>In-memory only — resets to vanilla on scene reload or game restart.</para>
+    /// Sets every radiant shuffle bag to <paramref name="size"/> (1 = every encounter radiant,
+    /// 2 = every other), in the config (for new bags) and on live bags via <c>SetNewSize</c>,
+    /// which reshuffles immediately. In-memory only.
     /// </summary>
     public static void SetRadiantBagSizes(int size)
     {
         var log = Plugin.Instance.Log;
 
-        // ── 1. Config layer (affects bags initialised after this point) ────────
+        // ── 1. Config (bags initialised from now on) ────────
         var configs = Resources.FindObjectsOfTypeAll<Il2CppMonomiPark.SlimeRancher.Slime.RadiantSlimeConfig>()
             .ToList();
 
@@ -1610,7 +1420,7 @@ public static class LocationDumper
             }
         }
 
-        // ── 2. Live bag layer (immediately resets current cycle) ───────────────
+        // ── 2. Live bags (resets the current cycle) ───────────────
         var directors = Resources.FindObjectsOfTypeAll<Il2CppMonomiPark.SlimeRancher.Slime.RadiantSlimeDirector>();
         int liveCount = 0;
         foreach (var director in directors)
@@ -1638,12 +1448,7 @@ public static class LocationDumper
         log.LogInfo($"[AP-Debug] SetRadiantBagSizes({size}): config entries={configCount}  live bags reset={liveCount}");
     }
 
-    /// <summary>
-    /// Dumps the current live state of every <c>RadiantShuffleBag</c> — shows
-    /// <c>CurrentIndex</c>, <c>RadiantSpawnIndex</c>, and <c>Size</c> per slime type.
-    /// Useful for verifying that a <see cref="SetRadiantBagSizes"/> call took effect
-    /// and for watching cycle progress.
-    /// </summary>
+    /// <summary>Logs each saved RadiantShuffleBag's index, radiant index and size.</summary>
     public static void DumpRadiantBagState()
     {
         var log = Plugin.Instance.Log;
@@ -1655,21 +1460,15 @@ public static class LocationDumper
             return;
         }
 
-        // NOTE: RadiantSlimesModel.RadiantShuffleBags is the PERSISTED BAG SNAPSHOT loaded
-        // from the save file, NOT the live native bag state. The game tracks active bags in
-        // a private native field. Bags only appear here after they've been serialized to a
-        // save file at least once. Missing slimes are NOT proof the multiplier is broken —
-        // they just haven't been saved mid-cycle yet.
+        // This is the snapshot persisted in the save, not the live native bags — a slime is
+        // missing until its bag has been saved once.
         log.LogInfo("[AP-Debug] ===== RADIANT BAG STATE (persisted snapshot from save) =====");
         foreach (var director in directors)
         {
             if (director == null) continue;
             bool spawnAllowed = director._isRadiantSpawnAllowedCached;
             log.LogInfo($"[AP-Debug]   isRadiantSpawnAllowedCached={spawnAllowed}  DEBUG_ForceRadiantSpawn={director.DEBUG_ForceRadiantSpawn}  DEBUG_BagSizeScalar={director.DEBUG_BagSizeScalar}");
-            // Direct field, not the RadiantSlimesModel property. The getter is CallerCount(0) and
-            // CLAUDE.md records it as an AccessViolation risk that bypasses managed try/catch and
-            // hard-crashes the process; the pre-seed and the POST Draw trace both already use the
-            // field for that reason. This dump was the one reader still calling the property.
+            // The field, not the CallerCount(0) property, which can hard-crash the process.
             var model = director._radiantSlimesModel;
             if (model == null) { log.LogInfo("[AP-Debug]   (director has null RadiantSlimesModel)"); continue; }
             var savedBags = model.RadiantShuffleBags;
@@ -1677,9 +1476,7 @@ public static class LocationDumper
 
             log.LogInfo($"[AP-Debug]   {savedBags.Count} saved bag(s):");
             if (savedBags.Count == 0)
-                // Say so in the output, not just in a source comment: an empty dictionary here
-                // reads like a broken radiant system, and it is the normal state for a save that
-                // has never serialized its bags. The live bags are native and not visible here.
+                // Empty is normal for a save that never serialized its bags — say so.
                 log.LogInfo("[AP-Debug]     (none persisted yet — normal for a save that has not " +
                             "serialized its bags; live bags are native and not observable here. " +
                             "To confirm radiants spawn, look for 'radiant=True' in [AP-Bag] lines.)");
@@ -1694,19 +1491,10 @@ public static class LocationDumper
         log.LogInfo("[AP-Debug] ===== END BAG STATE =====");
     }
 
-    /// <summary>
-    /// Sets <c>RadiantSlimeDirector.DEBUG_ForceRadiantSpawn</c> on every loaded director.
-    /// When <c>true</c>, every call to <c>DrawFromRadiantShuffleBag</c> returns <c>true</c>
-    /// unconditionally — the bag cycle is bypassed entirely, so every eligible slime
-    /// encounter is radiant immediately with no cycle-reset delay.
-    ///
-    /// <para>Set to <c>false</c> to restore normal bag behaviour.</para>
-    /// <para>In-memory only — resets on scene reload.</para>
-    /// </summary>
+    /// <summary>When true, every <c>DrawFromRadiantShuffleBag</c> returns true. In-memory only.</summary>
     public static void SetForceRadiantSpawn(bool enabled)
     {
-        // Drive our own Harmony Postfix flag — more reliable than DEBUG_ForceRadiantSpawn
-        // on the director, which appears not to be read by the shipping native code.
+        // Our own Postfix flag — shipping native code ignores DEBUG_ForceRadiantSpawn.
         Patches.LocationPatches.RadiantDebugFlags.ForceRadiantSpawn = enabled;
         Logger.Info($"[AP-Debug] SetForceRadiantSpawn: ForceRadiantSpawn = {enabled}");
     }
@@ -1716,24 +1504,9 @@ public static class LocationDumper
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// Dumps the runtime state of the <c>WeatherRegistry</c> — global forecast timing,
-    /// per-zone eligible patterns, currently running patterns, upcoming forecast schedule,
-    /// and the <c>NextChangeAt</c> timestamp that controls when the next weather event starts.
-    ///
-    /// <para>This is the companion to <see cref="DumpWeatherPatterns"/>, which shows the
-    /// static transition graphs. This dump shows live scheduling data so you can see how
-    /// long until the next weather change fires and which patterns are currently active.</para>
-    ///
-    /// <para>Format per zone:
-    /// <code>
-    ///   Zone 'Name'  NextChangeAt=X  ForecastUnlocked=Y
-    ///     Eligible patterns: A, B, C
-    ///     Running: A [state: foo]
-    ///     Forecast (N entries): ...
-    /// </code>
-    /// </para>
-    ///
-    /// Trigger: F9 → Weather Dumps page → "Dump Weather Registry".
+    /// Logs the live WeatherRegistry: forecast timing, and per zone its eligible and running
+    /// patterns, forecast, and <c>NextChangeAt</c>. (<see cref="DumpWeatherPatterns"/> shows the
+    /// static graphs.)
     /// </summary>
     public static void DumpWeatherRegistry()
     {
@@ -1795,7 +1568,6 @@ public static class LocationDumper
 
         log.LogInfo($"[AP-Dump] Weather zones ({weatherZones.Count}):");
 
-        // Also walk _zones dict for NextChangeAt / ForecastUnlocked
         Il2CppSystem.Collections.Generic.Dictionary<ZoneDefinition, WeatherRegistry.ZoneWeatherData>? zoneDict = null;
         try { zoneDict = registry._zones; }
         catch (Exception ex) { log.LogWarning($"[AP-Dump] _zones field error: {ex.Message}"); }
@@ -1806,7 +1578,6 @@ public static class LocationDumper
             if (zone == null) { log.LogInfo($"[AP-Dump]   Zone[{zi}] NULL"); continue; }
             string zoneName = zone.name ?? $"Zone[{zi}]";
 
-            // NextChangeAt + ForecastUnlocked from _zones dict
             double nextChangeAt = -1;
             bool   forecastUnlocked = false;
             try
@@ -1822,7 +1593,6 @@ public static class LocationDumper
 
             log.LogInfo($"[AP-Dump]   Zone '{zoneName}'  NextChangeAt={nextChangeAt:F4}  ForecastUnlocked={forecastUnlocked}");
 
-            // Eligible patterns
             try
             {
                 var eligible = registry.DEBUG_GetZoneWeathers(zone);
@@ -1840,7 +1610,6 @@ public static class LocationDumper
             }
             catch (Exception ex) { log.LogWarning($"[AP-Dump]     DEBUG_GetZoneWeathers error: {ex.Message}"); }
 
-            // Currently running patterns
             try
             {
                 var running = registry.DEBUG_GetRunningWeather(zone);
@@ -1863,7 +1632,6 @@ public static class LocationDumper
             }
             catch (Exception ex) { log.LogWarning($"[AP-Dump]     DEBUG_GetRunningWeather error: {ex.Message}"); }
 
-            // Forecast schedule
             try
             {
                 var forecast = registry.DEBUG_GetForecast(zone);
@@ -1877,26 +1645,8 @@ public static class LocationDumper
     }
 
     /// <summary>
-    /// Dumps the full condition tree of <c>RadiantSlimeConfig._allowRadiantSlimesToSpawnQuery</c>
-    /// — the master gate that must be satisfied before any radiant slime can spawn.
-    ///
-    /// <para>For each child condition in the query the log shows:</para>
-    /// <list type="bullet">
-    ///   <item>The IL2CPP concrete type (e.g. <c>PediaEntryEventQueryComponent</c>)</item>
-    ///   <item>The <c>DataKey</c> from the associated game event (usually an asset GUID)</item>
-    ///   <item>The <c>Count</c> threshold the event must reach to satisfy the condition</item>
-    /// </list>
-    /// <para>
-    /// Also logs <c>_sanctuaryPediaEntry.name</c> directly from the director so any
-    /// <c>PediaEntryEventQueryComponent</c> DataKeys can be cross-referenced against it,
-    /// and logs <c>_isRadiantSpawnAllowedCached</c> to show the current gate state.
-    /// </para>
-    /// <para>
-    /// Call twice — before and after discovering the Sanctuary — to observe which
-    /// conditions transition and confirm the hypothesis that Sanctuary pedia unlock
-    /// is the gate condition.
-    /// </para>
-    /// Call from the debug panel Misc page while a save is loaded.
+    /// Logs the condition tree of <c>_allowRadiantSlimesToSpawnQuery</c> — the master gate for
+    /// radiant spawns — beside the sanctuary pedia entry and the cached gate state.
     /// </summary>
     public static void DumpAllowRadiantQuery()
     {
@@ -1914,9 +1664,7 @@ public static class LocationDumper
 
         var director = directors[0];
 
-        // Log the sanctuary pedia entry asset name.
-        // Its name is the value we expect to see as the DataKey (or resolved name)
-        // in any PediaEntryEventQueryComponent child of the query.
+        // Expected to appear as a DataKey in the query.
         var sanctuaryEntry = director._sanctuaryPediaEntry;
         log.LogInfo($"[AP-Dump] Director._sanctuaryPediaEntry  name='{sanctuaryEntry?.name ?? "(null)"}'");
         log.LogInfo($"[AP-Dump] Director._isRadiantSpawnAllowedCached={director._isRadiantSpawnAllowedCached}");
@@ -1974,10 +1722,7 @@ public static class LocationDumper
 
         if (rootChildCount > 0)
         {
-            // Reuse the existing tree-walk helper. Pass an empty convGuids dict — the
-            // radiant query doesn't reference FixedConversations, so no GUID resolution
-            // is needed for that type. DataKeys for PediaEntry assets will appear raw;
-            // cross-reference against the sanctuaryPediaEntry name logged above.
+            // No conversation GUIDs to resolve here.
             LogQueryChildren(log, children!, "  ", new Dictionary<string, string>());
         }
         else
@@ -1994,18 +1739,7 @@ public static class LocationDumper
 
     private static readonly string[] GoldLuckyNames = { "Gold", "Lucky" };
 
-    /// <summary>
-    /// Iterates every <c>DirectedActorSpawner</c> in the scene and logs any entry whose
-    /// <c>SlimeSet.Member.IdentType.name</c> contains "Gold" or "Lucky".
-    ///
-    /// <para>For each hit the log shows:</para>
-    /// <list type="bullet">
-    ///   <item>The spawner's <c>gameObject.name</c> and scene path (parent chain)</item>
-    ///   <item>The slime <c>IdentType.name</c></item>
-    ///   <item>The member's current <c>Weight</c></item>
-    ///   <item>The spawner's own outer <c>Weight</c> (relative probability vs other spawners)</item>
-    /// </list>
-    /// </summary>
+    /// <summary>Logs every Gold/Lucky spawner member: spawner path, weight, and 1/X chance.</summary>
     public static void DumpGoldLuckySpawnWeights()
     {
         var log = Plugin.Instance.Log;
@@ -2029,8 +1763,6 @@ public static class LocationDumper
                 var members = slimeset.Members;
                 if (members == null) continue;
 
-                // Sum the total weight of all members in this constraint so we can compute
-                // a true 1/X spawn chance for each Gold/Lucky entry.
                 float totalWeight = 0f;
                 int memberCount = 0;
                 for (int mi = 0; mi < members.Length; mi++)
@@ -2052,9 +1784,7 @@ public static class LocationDumper
                         { isTarget = true; break; }
                     if (!isTarget) continue;
 
-                    // Express as 1/X where X = totalWeight / memberWeight.
-                    // Round X to the nearest integer for clean display; show one decimal only
-                    // when the raw value isn't close to a whole number (>0.05 error).
+                    // 1/X, with a decimal only when X isn't near a whole number.
                     string chanceStr;
                     if (totalWeight > 0f && member.Weight > 0f)
                     {
@@ -2083,16 +1813,8 @@ public static class LocationDumper
     }
 
     /// <summary>
-    /// Sets the <c>Weight</c> of every Gold and Lucky <c>SlimeSet.Member</c> across all
-    /// loaded <c>DirectedActorSpawner</c> instances to <paramref name="weight"/>.
-    ///
-    /// <para>Weight is relative within a <c>SlimeSet</c> — a member with weight 100 in a set
-    /// where all others sum to 100 has a 50% spawn chance. Vanilla Gold/Lucky weights are
-    /// typically very small (often 1–5) compared to common slimes (50–200+).
-    /// Setting this to a large value (e.g. 1000) effectively makes every spawn a
-    /// Gold or Lucky slime.</para>
-    ///
-    /// <para>In-memory only — resets on scene reload.</para>
+    /// Sets every Gold/Lucky member's weight (relative within its set; vanilla is ~1–5 vs 50–200+
+    /// for commons, so 1000 makes nearly every spawn one). In-memory only.
     /// </summary>
     public static void SetGoldLuckySpawnWeight(float weight)
     {
@@ -2139,23 +1861,16 @@ public static class LocationDumper
     }
 
     /// <summary>
-    /// Iterates every <c>DirectedActorSpawner</c> and logs the ones that contain at least
-    /// one <c>SpawnConstraint</c> with <c>Feral = true</c>, along with the spawner-level
-    /// radiant flags:
-    /// <list type="bullet">
-    ///   <item><term>_blockRadiantSpawning</term><description>True → this spawner never produces radiant slimes.</description></item>
-    ///   <item><term>_onlySpawnRadiant</term><description>True → every spawn from this spawner is radiant.</description></item>
-    ///   <item><term>_radiantChanceOverride</term><description>Non-zero → overrides the normal bag-draw chance (0 = use bag).</description></item>
-    /// </list>
-    /// Call from the debug panel Radiant page while standing in a zone with feral slimes loaded.
+    /// Logs active spawners with a feral constraint, and every <c>_onlySpawnRadiant</c> spawner,
+    /// with their radiant flags (<c>_blockRadiantSpawning</c>, <c>_onlySpawnRadiant</c>,
+    /// <c>_radiantChanceOverride</c> — non-zero overrides the bag).
     /// </summary>
     public static void DumpFeralSpawners()
     {
         var log = Plugin.Instance.Log;
         var spawners = Resources.FindObjectsOfTypeAll<DirectedActorSpawner>();
 
-        // activeInHierarchy filter: Resources.FindObjectsOfTypeAll is memory-wide and includes
-        // spawners from other streaming zones. Only count/log the ones active in the current scene.
+        // Active only — FindObjectsOfTypeAll also returns other resident zones.
         int activeCount = 0;
         for (int i = 0; i < spawners.Count; i++)
             if (spawners[i] != null && spawners[i].gameObject.activeInHierarchy) activeCount++;
@@ -2183,7 +1898,6 @@ public static class LocationDumper
             float chanceOverride = spawner._radiantChanceOverride;
             string path          = GetGameObjectPath(spawner.gameObject);
 
-            // Summarise what the radiant roll will do for this spawner
             string radiantStatus;
             if (blockRadiant)
                 radiantStatus = "BLOCKED (never radiant)";
@@ -2203,10 +1917,7 @@ public static class LocationDumper
         if (feralCount == 0)
             log.LogInfo("[AP-Dump]   (no feral spawners found — load a save in a zone with feral slimes)");
 
-        // ── Second pass: ALL spawners with _onlySpawnRadiant=true, regardless of feral flag ──
-        // These are guaranteed-radiant spawn points that may not use feral constraints.
-        // Filter by activeInHierarchy so only spawners in the currently loaded scene are shown
-        // (Resources.FindObjectsOfTypeAll is memory-wide and includes other streaming zones).
+        // ── Second pass: every active _onlySpawnRadiant spawner, feral or not ──
         log.LogInfo("[AP-Dump] --- Guaranteed Radiant Spawners (_onlySpawnRadiant=true, active in scene) ---");
         int guaranteedCount = 0;
         foreach (var spawner in spawners)
@@ -2217,7 +1928,6 @@ public static class LocationDumper
 
             string path = GetGameObjectPath(spawner.gameObject);
 
-            // Log what slime types this spawner can produce.
             var constraints = spawner.Constraints;
             var slimeNames = new List<string>();
             if (constraints != null)
@@ -2246,17 +1956,8 @@ public static class LocationDumper
     }
 
     /// <summary>
-    /// Dumps all WeatherPatternDefinition transition graphs and WeatherStateDefinition
-    /// timing values (MinDurationHours, MapTier) to the BepInEx log.
-    ///
-    /// Output format per transition:
-    ///   [Pattern 'Name'] 'FromState' → 'ToState'  ChancePerHour=X  (MinDurationHours=Y  MapTier=Z)
-    ///
-    /// ChancePerHour is the probability per in-game hour that this transition fires.
-    /// MinDurationHours is the minimum time the ToState must run before any outbound
-    /// transition is evaluated.
-    ///
-    /// Trigger: F9 → Dumps page → "Dump Weather Patterns".
+    /// Logs every weather pattern's transitions (<c>ChancePerHour</c> per in-game hour) and each
+    /// state's <c>MinDurationHours</c> (before any outbound transition) and <c>MapTier</c>.
     /// </summary>
     public static void DumpWeatherPatterns()
     {
@@ -2322,36 +2023,15 @@ public static class LocationDumper
     }
 
     /// <summary>
-    /// Dumps all active <c>DirectedActorSpawner</c> instances, grouped by zone, in a compact
-    /// hierarchical format designed for easy post-processing.
-    ///
-    /// <para>Per-spawner fields logged:</para>
-    /// <list type="bullet">
-    ///   <item><term>Zone</term><description>Human-readable zone name derived from scene name.</description></item>
-    ///   <item><term>Spawn point name</term><description>Short GameObject path (up to 3 levels).</description></item>
-    ///   <item><term>directedWeight</term><description>
-    ///     Relative weight among all spawners registered with the cell's director — higher means
-    ///     this spawn point is chosen more often.
-    ///   </description></item>
-    ///   <item><term>delayFactor</term><description>Multiplier on the base spawn delay (1.0 = vanilla rate).</description></item>
-    ///   <item><term>Per-constraint</term><description>
-    ///     Selection chance (if multiple constraint sets exist), feral flag, and time window.
-    ///   </description></item>
-    ///   <item><term>Per-slime</term><description>Chance % within the chosen constraint's pool.</description></item>
-    /// </list>
-    ///
-    /// Only active-in-hierarchy spawners are included (others belong to streaming zones not
-    /// currently loaded). Run once per zone while standing in it.
-    /// Trigger: F9 → Dumps page → "Dump Slime Spawn Weights".
+    /// Logs slime spawners grouped by zone and cell: each spawner's share of its cell's directed
+    /// weight, delay factor, constraint chances (feral, time window), and per-slime chance.
     /// </summary>
     public static void DumpSlimeSpawnWeights()
     {
         var log      = Plugin.Instance.Log;
         var allSpawners = Resources.FindObjectsOfTypeAll<DirectedActorSpawner>();
 
-        // ── Collect only active spawners that have at least one slimeset ──────────
-        // Key: (sceneName, cellRootName) — spawners sharing the same cell compete in the
-        // same directed-spawn pool, so their directedWeight values sum to the cell total.
+        // ── Group by (scene, cell): a cell's spawners share one directed-weight pool ──────────
         var byCell = new System.Collections.Generic.Dictionary<
             (string scene, string cell),
             List<DirectedActorSpawner>>();
@@ -2360,16 +2040,13 @@ public static class LocationDumper
         {
             var s = allSpawners[si];
             if (s == null) continue;
-            // Skip prefab/template instances that live outside any scene (empty scene name).
-            // Do NOT filter by activeInHierarchy — inactive spawners belong to zones that are
-            // resident in memory but not currently streamed in, and we want all of them.
+            // Skip prefab templates (no scene). Inactive spawners are kept — they belong to
+            // resident zones not streamed in.
             if (string.IsNullOrEmpty(s.gameObject.scene.name)) continue;
 
             var cons = s.Constraints;
             if (cons == null || cons.Length == 0) continue;
 
-            // Keep all spawners that have at least one constraint — the per-constraint loop
-            // below already skips empty slimesets, so non-slime spawners just produce no output.
             string scene = s.gameObject.scene.name ?? "unknown";
             string cell  = CellAncestorName(s.gameObject);   // first "cell*" ancestor = pool boundary
             var key = (scene, cell);
@@ -2384,16 +2061,13 @@ public static class LocationDumper
         int totalSpawners = 0;
         foreach (var kvp in byCell) totalSpawners += kvp.Value.Count;
 
-        // allSpawners.Count is the raw Resources.FindObjectsOfTypeAll count — includes prefab
-        // template instances (no scene name) and constraint-less spawners that are not real
-        // world spawners. totalSpawners is the filtered count of world-placed slime spawners.
+        // Raw count includes prefab templates; totalSpawners is world spawners only.
         log.LogInfo($"[AP-Dump] ======= SLIME SPAWN WEIGHTS" +
                     $"  raw={allSpawners.Count}" +
                     $"  world-placed={totalSpawners}" +
                     $"  cells={byCell.Count} =======");
 
-        // ── Output grouped by zone → cell, spawners sorted high→low chance ────────
-        // Sort cells: zone display name first, then cell name within zone.
+        // ── Output by zone → cell, spawners by descending chance ────────
         var cellKeys = new List<(string scene, string cell)>(byCell.Keys);
         cellKeys.Sort((a, b) =>
         {
@@ -2415,14 +2089,12 @@ public static class LocationDumper
 
             var list = byCell[key];
 
-            // Compute the cell-total directedWeight so we can express each spawner as a %.
             float cellTotal = 0f;
             for (int i = 0; i < list.Count; i++)
             {
                 try { cellTotal += list[i].DirectedSpawnWeight; } catch { }
             }
 
-            // Sort high→low chance.
             list.Sort((a, b) =>
             {
                 float wa = 0f, wb = 0f;
@@ -2453,7 +2125,6 @@ public static class LocationDumper
 
                 var constraints = spawner.Constraints;
 
-                // Pre-sum constraint weights so multi-constraint spawners can show selection %
                 float totalConstraintWeight = 0f;
                 for (int ci = 0; ci < constraints.Length; ci++)
                     if (constraints[ci] != null) totalConstraintWeight += constraints[ci].Weight;
@@ -2471,14 +2142,12 @@ public static class LocationDumper
                     string timeStr = "ANY";
                     try { timeStr = constraint.Window?.TimeMode.ToString() ?? "ANY"; } catch { }
 
-                    // Constraint selection probability — only meaningful when > 1 constraint
                     string constraintPct = "";
                     if (constraints.Length > 1 && totalConstraintWeight > 0f)
                         constraintPct = $"  ({constraint.Weight / totalConstraintWeight * 100f:F0}% of spawns)";
 
                     log.LogInfo($"[AP-Dump]       constraint[{ci}]  feral={feral}  time={timeStr}{constraintPct}");
 
-                    // Per-member chances within this constraint's pool
                     float totalMemberWeight = 0f;
                     for (int mi = 0; mi < slimeset.Members.Length; mi++)
                         if (slimeset.Members[mi] != null) totalMemberWeight += slimeset.Members[mi].Weight;
@@ -2503,12 +2172,8 @@ public static class LocationDumper
     }
 
     /// <summary>
-    /// Walks up the transform hierarchy to find the first ancestor whose name starts with
-    /// "cell" (SR2 naming convention: <c>cellGorge_A</c>, <c>cellFloorSwitchRoom</c>, etc.).
-    /// That node is where the <c>CellDirector</c> lives, and all <c>DirectedActorSpawner</c>
-    /// instances under it register with the same director — so their <c>DirectedSpawnWeight</c>
-    /// values are comparable and sum to the cell total.
-    /// Falls back to the hierarchy root name if no "cell*" ancestor is found.
+    /// The nearest "cell*" ancestor (where the CellDirector lives — its spawners' weights sum to
+    /// the cell total), else the root name.
     /// </summary>
     private static string CellAncestorName(GameObject go)
     {
@@ -2551,7 +2216,6 @@ public static class LocationDumper
         {
             name = parent.gameObject.name + "/" + name;
             var grandparent = parent.parent;
-            // Include grandparent only when it's not a root-level scene object
             if (grandparent != null && grandparent.parent != null)
                 name = grandparent.gameObject.name + "/" + name;
         }
@@ -2559,27 +2223,16 @@ public static class LocationDumper
     }
 
     /// <summary>
-    /// Exports the current zone's spawn rate data to
-    /// <c>BepInEx/spawn_rates.json</c>, merging with any data already in that
-    /// file (existing scene keys are overwritten; other zones' keys are kept).
-    /// <para>
-    /// Also records the full list of scene names baked into the game's build
-    /// settings so the companion HTML viewer can show a "coverage" panel —
-    /// which zone scenes have been captured and which still need a visit.
-    /// </para>
-    /// Run once per zone area while standing in it to build up a complete
-    /// dataset across all zones. Call <see cref="ClearSpawnRatesJson"/> to
-    /// wipe the file and start fresh.
-    /// Trigger: F9 → Dumps page → "Export Spawn JSON".
+    /// Merges the current zone's spawn rates into <c>BepInEx/spawn_rates.json</c> (this run's
+    /// scenes replace their old entries), plus every scene seen so far for the HTML viewer's
+    /// coverage panel.
     /// </summary>
     public static void ExportSpawnRatesJson()
     {
         var log = Plugin.Instance.Log;
         var allSpawners = Resources.FindObjectsOfTypeAll<DirectedActorSpawner>();
 
-        // ── Build scene → cell → spawner row list ─────────────────────────────
-        // Same grouping logic as DumpSlimeSpawnWeights; produces one JSON object
-        // per (zone, cell, spawner, constraint, slime) tuple.
+        // ── One row per (zone, cell, spawner, constraint, slime), grouped as in DumpSlimeSpawnWeights ──
         var byScene = new System.Collections.Generic.Dictionary<
             string,
             System.Collections.Generic.List<System.Collections.Generic.Dictionary<string, object>>>();
@@ -2665,7 +2318,7 @@ public static class LocationDumper
                         float slimePct = totalMW > 0f ? m.Weight / totalMW * 100f : 0f;
                         string slimeName = m.IdentType?.name ?? "(null)";
 
-                        // Inline mini-JSON serialisation — avoids any Json.NET dependency
+                        // Hand-rolled JSON — no Json.NET dependency
                         sceneRows.Add(new {
                             zone        = zoneName,
                             scene       = scene,
@@ -2690,30 +2343,18 @@ public static class LocationDumper
             }
         }
 
-        // ── Accumulate all-ever-seen scene names for coverage tracking ───────
-        // SR2 uses Addressables, so SceneManager.sceneCountInBuildSettings only
-        // returns 1 ("Bootstrap"). Instead we build the list from all scene keys
-        // that have appeared across every export run — existing file + this run.
-        // The HTML viewer uses this to show which zones have been captured.
+        // ── Coverage: every scene seen across runs (build settings list only "Bootstrap") ───────
 
         // ── Read existing JSON file (if any), merge, write back ───────────────
         string jsonPath = System.IO.Path.Combine(BepInEx.Paths.BepInExRootPath, "spawn_rates.json");
 
-        // Existing file is stored as a hand-rolled JSON object so we can merge
-        // without a full JSON parser — we just look for our sentinel keys.
+        // We wrote the file ourselves, so merging only needs to find our own keys.
         var existingSceneData = new System.Collections.Generic.Dictionary<string, string>();
         if (System.IO.File.Exists(jsonPath))
         {
             try
             {
                 string existing = System.IO.File.ReadAllText(jsonPath);
-                // Extract per-scene blocks: "zoneXxx": { ... rows ... }
-                // Simple regex-free approach: split on our sentinel comment pattern
-                // Actually easier: we write it ourselves, so we know the format.
-                // Each scene block starts with  "SCENE_sceneName": [  and ends with  ],
-                // We'll re-parse on next export by just replacing the matching scene key.
-                // For simplicity, store the whole existing object, strip the outer {},
-                // remove any existing entry for scenes we're overwriting, and re-insert.
                 string trimmed = existing.Trim();
                 if (trimmed.StartsWith("{") && trimmed.EndsWith("}"))
                     existingSceneData["__raw__"] = trimmed.Substring(1, trimmed.Length - 2).Trim();
@@ -2725,12 +2366,7 @@ public static class LocationDumper
         var existingParts = new System.Collections.Generic.List<string>();
         if (existingSceneData.TryGetValue("__raw__", out string? raw) && !string.IsNullOrEmpty(raw))
         {
-            // The existing file's scene_rows block as a raw string — we need to
-            // extract individual scene entries. Since we wrote them, each entry is:
-            //   "scene_rows": {
-            //     "zoneName": [ ... ],     ← one per scene
-            //   }
-            // Re-parse the whole file as a string hunt for scene_rows content
+            // scene_rows is { "zoneName": [ ... ], ... } — one entry per scene.
             string existingFull = System.IO.File.Exists(jsonPath)
                 ? System.IO.File.ReadAllText(jsonPath) : "";
             int srStart = existingFull.IndexOf("\"scene_rows\":", StringComparison.Ordinal);
@@ -2750,11 +2386,8 @@ public static class LocationDumper
                         pos++;
                     }
                     string sceneRowsContent = existingFull.Substring(braceOpen + 1, pos - braceOpen - 1).Trim();
-                    // Split into individual scene entries by finding top-level "key": [ ... ]
-                    // For each, check if the key is one we're overwriting; if not, keep it.
+                    // Keep each top-level "key": [ ... ] entry this run isn't overwriting.
                     var scenesToOverwrite = new System.Collections.Generic.HashSet<string>(rowsByScene.Keys);
-                    // Simple line-oriented split: each scene entry starts with whitespace + "zoneName":
-                    // We wrote one scene per entry block ending in ],
                     int idx2 = 0;
                     while (idx2 < sceneRowsContent.Length)
                     {
@@ -2930,48 +2563,9 @@ public static class LocationDumper
     }
 
     /// <summary>
-    /// Logs every <c>ComponentAcqDroneSpawner</c> in the current scene: pod state, spawner
-    /// name, and world position. Use this to confirm how many ghostly drone spawners exist
-    /// in the zone you're standing in and which ones the AP fix would call SpawnDrone() on.
+    /// Logs every <c>Palette</c> asset (name, GUID, ref id, title, pedia entry), independent of
+    /// which shops currently stock them. The GUID matches the shop's <c>AssetGuid</c>.
     /// </summary>
-    /// <summary>
-    /// Dumps <c>GameModel.AllSwitches()</c> — the save-persistent world-switch registry — beside
-    /// the <c>WorldStatePrimarySwitch</c> objects currently loaded, so each registry key can be
-    /// matched to the GameObject name <c>RegionTable</c> already stores.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// <b>Why.</b> <c>GateReturnEnforcer.IsGateOpen</c> reads gate state by scanning loaded
-    /// scene objects, so an open gate in an unloaded scene reads as shut — that is what threw a
-    /// player out of the Grey Labyrinth from both entrances with the Rainbow Fields gate
-    /// genuinely open, just not loaded. <c>GameModel.GetSwitchState(switchId)</c> answers the
-    /// same question from save state without caring what is loaded, but it is keyed by
-    /// <c>WorldSwitchDefinition.ID</c> and the mod only knows GameObject names.
-    /// </para>
-    ///
-    /// <para>
-    /// <b>Run this standing in Rainbow Fields</b>, where the EV and SS gate switches
-    /// (<c>ruinSwitch</c> and <c>ruinSwitch (2)</c> in <c>zoneFields</c>) are loaded — the
-    /// cross-reference only resolves for switches whose GameObject currently exists. Registry
-    /// entries whose object is absent are still listed, with their state, so an unloaded gate
-    /// can be spot-checked against what the enforcer would have concluded.
-    /// </para>
-    /// </remarks>
-    /// <summary>
-    /// Dumps every <c>Palette</c> asset — name, GUID, reference id, display name and pedia entry.
-    /// </summary>
-    /// <remarks>
-    /// Written to map the 22 vac styles listed in the 1.3 patch notes onto shop GUIDs. The shop
-    /// dumps cannot do this on their own: an item whose asset is unloaded prints as
-    /// <c>asset='&lt;not loaded&gt;'</c>, and palettes are sold across three shops (Polestar
-    /// Provisions, the Night Market, and the Caretaker's Shop) whose stock depends on save
-    /// progress. <c>Palette</c> is a ScriptableObjectWithGuid, so enumerating the assets
-    /// directly lists every one regardless of what any shop is showing.
-    ///
-    /// The GUID printed here is <c>ScriptableObjectWithGuid.Guid</c>. Whether it matches the
-    /// shop's <c>AssetGuid</c> is part of what this dump is meant to establish — compare it
-    /// against <c>guid=</c> in the shop dump before relying on it.
-    /// </remarks>
     public static void DumpPalettes()
     {
         var log = Plugin.Instance.Log;
@@ -2993,6 +2587,12 @@ public static class LocationDumper
         log.LogInfo("[AP-Dump] =================================");
     }
 
+    /// <summary>
+    /// Logs the save-persistent switch registry (<c>GameModel.AllSwitches()</c>) beside the loaded
+    /// <c>WorldStatePrimarySwitch</c> objects, mapping registry IDs to the GameObject names
+    /// <c>RegionTable</c> uses — so gate state can be read without the scene loaded. Run in
+    /// Rainbow Fields, where the EV/SS gate switches are loaded.
+    /// </summary>
     public static void DumpWorldSwitches()
     {
         var log = Plugin.Instance.Log;
@@ -3005,8 +2605,7 @@ public static class LocationDumper
             return;
         }
 
-        // GameObject name -> definition ID, built from the switches that ARE loaded. This is the
-        // mapping RegionTable needs.
+        // GameObject name → definition ID, from the loaded switches.
         var resolved = new Dictionary<string, string>();
         try
         {
@@ -3016,8 +2615,7 @@ public static class LocationDumper
                 try
                 {
                     var go = sw.gameObject;
-                    // Prefabs come back from FindObjectsOfTypeAll too; only scene instances have
-                    // a valid scene and a bound model.
+                    // Skip prefabs — only scene instances have a model.
                     if (go == null || !go.scene.IsValid()) continue;
 
                     string defId = sw.SwitchDefinition?.ID ?? "(no definition)";
@@ -3070,7 +2668,7 @@ public static class LocationDumper
             log.LogWarning($"[AP-Dump] AllSwitches() failed: {ex.Message}");
         }
 
-        // The two lines that actually matter — the gate switches RegionTable names.
+        // The gate switches RegionTable names.
         log.LogInfo("[AP-Dump] --- RegionTable gate switches ---");
         foreach (var objName in new[] { "ruinSwitch", "ruinSwitch (2)" })
         {
@@ -3092,6 +2690,7 @@ public static class LocationDumper
         log.LogInfo("[AP-Dump] ==========================================");
     }
 
+    /// <summary>Logs every ComponentAcqDroneSpawner in the scene: pod state, name, position.</summary>
     public static void DumpGhostDroneSpawners()
     {
         var log = Plugin.Instance.Log;
@@ -3130,19 +2729,9 @@ public static class LocationDumper
     }
 
     /// <summary>
-    /// Ranch plot randomization groundwork — dumps the three tiers the feature will gate:
-    /// <list type="number">
-    /// <item>Plot spots: every loaded <c>LandPlotLocation</c> (stable IdHandler id, current
-    ///   plot type, position). Zone streaming applies — run once at the Conservatory and once
-    ///   in each unlocked expansion area for full coverage.</item>
-    /// <item>Buildable types: every <c>PlotPatchPurchaseItemModel</c> asset
-    ///   (asset name, <c>LandPlot.Id</c> type, Newbucks cost).</item>
-    /// <item>Upgrades: every <c>PlotUpgradePurchaseItemModel</c> asset
-    ///   (asset name, <c>LandPlot.Upgrade</c>, Newbucks cost).</item>
-    /// </list>
-    /// The purchase-model assets are ScriptableObjects and may only be resident after a plot
-    /// UI has been opened at least once this session — open any empty plot's menu first if
-    /// the tier 2/3 sections come back empty.
+    /// Dumps the three ranch plot tiers: plot spots (<c>LandPlotLocation</c> — per area, zone
+    /// streaming applies), buildable types and upgrades (purchase-model assets, with cost — open
+    /// any plot menu first if these come back empty).
     /// </summary>
     public static void DumpLandPlots()
     {
@@ -3185,8 +2774,7 @@ public static class LocationDumper
             try { goName = loc.gameObject.name; } catch { }
             try { sceneName = loc.gameObject.scene.name; } catch { }
 
-            // Nearest scene-hierarchy ancestor often names the expansion area when the
-            // Region component doesn't (e.g. "ranchGrove" vs a generic ranch region).
+            // The hierarchy often names the expansion area when the Region doesn't.
             string rootName = "";
             try { rootName = loc.transform.root?.name ?? ""; } catch { }
 

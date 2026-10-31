@@ -19,15 +19,13 @@ public class DebugPanel : MonoBehaviour
     private bool _visible = false;
     private int  _page    = 0;
 
-    // Saved cursor state so we can restore it when the panel closes
     private CursorLockMode _savedLockMode;
     private bool           _savedCursorVisible;
 
-    // Simulated item index counter — increments with each manual grant
+    // Fake item indices for grants; far above any real one.
     private int _debugItemIndex = 9000;
 
-    // PanelX is derived at draw-time from Screen.width so the panel stays right-anchored
-    // and never overlaps the StatusHUD which lives on the left edge.
+    // PanelX is computed from Screen.width: right-anchored, clear of the StatusHUD.
     private const float PanelY  = 10;
     private const float PanelW  = 340;
     private const float BtnH    = 26;
@@ -35,7 +33,6 @@ public class DebugPanel : MonoBehaviour
     private const float LabelH  = 20;
     private const int   Pages   = 12;
 
-    // Teleport page — coordinate state (floats; adjusted with ± step buttons or clipboard paste)
     private float _tpX = 0f;
     private float _tpY = 0f;
     private float _tpZ = 0f;
@@ -51,7 +48,6 @@ public class DebugPanel : MonoBehaviour
             _visible = !_visible;
             if (_visible)
             {
-                // Unlock cursor so the player can click buttons
                 _savedLockMode      = Cursor.lockState;
                 _savedCursorVisible = Cursor.visible;
                 Cursor.lockState    = CursorLockMode.None;
@@ -59,13 +55,12 @@ public class DebugPanel : MonoBehaviour
             }
             else
             {
-                // Restore game cursor state
                 Cursor.lockState = _savedLockMode;
                 Cursor.visible   = _savedCursorVisible;
             }
         }
 
-        // Page navigation — handled in Update (not OnGUI) to avoid double-firing
+        // In Update, not OnGUI, which would double-fire.
         if (_visible)
         {
             if (kb?.qKey.wasPressedThisFrame == true) PagePrev();
@@ -73,8 +68,7 @@ public class DebugPanel : MonoBehaviour
         }
     }
 
-    // Measured so the Debug-vs-Release comparison shows what the panel itself costs while
-    // hidden — IMGUI still dispatches OnGUI every frame even when nothing is drawn.
+    // Profiled: OnGUI dispatches every frame even while hidden.
     private static readonly System.Action _drawBody = () => Instance?.DrawGui();
     private static DebugPanel? Instance;
 
@@ -89,11 +83,10 @@ public class DebugPanel : MonoBehaviour
             float x = Screen.width - PanelW - 10;
             float y = PanelY;
 
-            // Page header
             GUI.Box(new Rect(x, y, PanelW, 28), $"AP Debug  [F9 close]  [Page {_page + 1}/{Pages}  Q/E prev/next]");
             y += 32;
 
-            // Persistent player coordinates — visible on every page
+            // Player coordinates, on every page
             var playerGo = SceneContext.Instance?.Player;
             string coordText = playerGo != null
                 ? $"Pos: ({playerGo.transform.position.x:F1}, {playerGo.transform.position.y:F1}, {playerGo.transform.position.z:F1})"
@@ -120,12 +113,7 @@ public class DebugPanel : MonoBehaviour
                 case 11: DrawPagePlortsB(x, y);            break;
             }
 
-            // Nav buttons are anchored to the bottom of the screen rather than placed a fixed
-            // number of rows below the header. The old layout assumed every page fit in 20 rows;
-            // once the dumps page outgrew that, content was drawn straight over the nav buttons
-            // and both became unclickable. Anchoring keeps Prev/Next reachable no matter how long
-            // a page gets, which matters because a page that overflows is exactly when you need
-            // to navigate away from it.
+            // Bottom-anchored, so an overflowing page can't cover them.
             float navY = Screen.height - BtnH - 10;
             if (GUI.Button(new Rect(x,                 navY, 100, BtnH), "◀ Prev (Q)")) PagePrev();
             if (GUI.Button(new Rect(x + PanelW - 100,  navY, 100, BtnH), "Next ▶ (E)")) PageNext();
@@ -166,7 +154,6 @@ public class DebugPanel : MonoBehaviour
 
     }
 
-    // Page 1: Crafting Components + Zone + Home Teleporters
     private void DrawPageGadgetsTeleporters(float x, float y)
     {
         y = SectionLabel(x, y, "Crafting Components");
@@ -196,7 +183,6 @@ public class DebugPanel : MonoBehaviour
         y = ItemBtn(x, y, "Home Teleporter Yellow", ItemTable.HomeTeleporterYellow);
     }
 
-    // Page 2: Warp Depots + Functional gadgets
     private void DrawPageGadgetsDeployment(float x, float y)
     {
         y = SectionLabel(x, y, "Warp Depots");
@@ -249,8 +235,7 @@ public class DebugPanel : MonoBehaviour
         y = ItemBtn(x, y, "Grey Labyrinth Craft Cache",    ItemTable.GreyLabyrinthCraftCache);
         y = ItemBtn(x, y, "Rare Craft Cache",              ItemTable.RareCraftCache);
 
-        // Ranch plot randomization — debug counters only affect gating while the matching
-        // slot-data option is on; without a session the gates are inactive anyway.
+        // Only gate anything while the matching option is on.
         y = SectionLabel(x, y, "Ranch Plots (debug counter grants)");
         y = ItemBtn(x, y, "Ranch Plot: Conservatory",  ItemTable.RanchPlotConservatory);
         y = ItemBtn(x, y, "Ranch Plot: The Gully",     ItemTable.RanchPlotGully);
@@ -373,13 +358,9 @@ public class DebugPanel : MonoBehaviour
     }
 
     /// <summary>
-    /// Second half of the Misc page — DeathLink through Zone Protection.
+    /// Second half of the Misc page. Long pages are split because they run off-screen and IMGUI
+    /// scroll views are stripped in IL2CPP.
     /// </summary>
-    /// <remarks>
-    /// Split out on 2026-10-04 for the same reason as the Dumps page: Misc had grown to ~37 rows
-    /// (~1170px), so its lower sections ran off the bottom of a 1080p screen and under the
-    /// bottom-anchored navigation row. IMGUI scroll views are stripped in IL2CPP builds.
-    /// </remarks>
     private void DrawPageMisc2(float x, float y)
     {
         y = SectionLabel(x, y, "DeathLink");
@@ -392,8 +373,7 @@ public class DebugPanel : MonoBehaviour
             SaveGuard.ForceAssociateCurrentSave();
         y += BtnH + Gap;
 
-        // Exercises the popup path without a live multiworld. Bypasses TierFor (which needs AP
-        // flags) and goes straight to the queue, so it also demonstrates the rate limit.
+        // Straight to the queue (TierFor needs AP flags) — shows the rate limit too.
         y = SectionLabel(x, y, "Prismacore Hunt");
         GUI.Label(new Rect(x + 4, y, PanelW - 8, LabelH),
             $"Prisma Shards: {Archipelago.PrismaShardHandler.Progress}   " +
@@ -451,8 +431,7 @@ public class DebugPanel : MonoBehaviour
         }
         y += BtnH + Gap;
 
-        // Zone protection now enforces in debug builds too; this toggle restores the old
-        // "log what it would have done, then cancel" behaviour for free roaming.
+        // Log-and-cancel instead of enforcing, for free roaming.
         y = SectionLabel(x, y, "Zone Protection");
         bool suppressed = GateReturnEnforcer.SuppressReturn;
         GUI.color = suppressed ? new Color(1f, 0.75f, 0.4f) : new Color(0.4f, 1f, 0.4f);
@@ -464,7 +443,6 @@ public class DebugPanel : MonoBehaviour
         y += BtnH + Gap;
     }
 
-    // Page 6: Radiant slime tools + Weather dumps
     private float DrawPageRadiant(float x, float y)
     {
         y = SectionLabel(x, y, "Radiant Spawn Rate");
@@ -499,7 +477,6 @@ public class DebugPanel : MonoBehaviour
         return y;
     }
 
-    // Page 7: Goal testing + Upgrade Components
     private float DrawPageGoals(float x, float y)
     {
         y = SectionLabel(x, y, "Goal Triggers");
@@ -540,7 +517,6 @@ public class DebugPanel : MonoBehaviour
         return y;
     }
 
-    // Page 8: All data dump buttons
     private float DrawPageDumps(float x, float y)
     {
         GUI.color = new Color(1f, 0.9f, 0.5f);
@@ -611,16 +587,7 @@ public class DebugPanel : MonoBehaviour
         return y;
     }
 
-    /// <summary>
-    /// Second half of the dumps page — spawn weights and radiant diagnostics.
-    /// </summary>
-    /// <remarks>
-    /// Split out on 2026-10-02. The single dumps page had grown to 28 buttons across three
-    /// sections — about 31 rows, roughly 930px of content. Everything past row 20 ran under the
-    /// navigation row and then off the bottom of the screen, so the radiant and spawn-weight
-    /// dumps could not be clicked at all. IMGUI scroll views are not an option here:
-    /// GUI.BeginScrollView is stripped in IL2CPP builds (see CLAUDE.md).
-    /// </remarks>
+    /// <summary>Second half of the dumps page (see <see cref="DrawPageMisc2"/> on splitting).</summary>
     private float DrawPageDumps2(float x, float y)
     {
         GUI.color = new Color(1f, 0.9f, 0.5f);
@@ -633,10 +600,7 @@ public class DebugPanel : MonoBehaviour
         y = SectionLabel(x, y, "Spawn Weights");
 
         // ── Live loaded-scene list ────────────────────────────────────────────
-        // Shows every Unity scene currently in memory. Zone scenes (starting with
-        // "zone") are highlighted so you can see at a glance which streaming areas
-        // are loaded. Walk to a new sub-area and watch for new entries before
-        // pressing Export Spawn JSON.
+        // Zone scenes highlighted — check a new sub-area has loaded before exporting.
         var prevColor = GUI.color;
         int sceneCount = UnityEngine.SceneManagement.SceneManager.sceneCount;
         for (int si = 0; si < sceneCount; si++)
@@ -687,7 +651,6 @@ public class DebugPanel : MonoBehaviour
         return y;
     }
 
-    // (Merged into page 6 — Radiant + Weather)
     private float DrawPageWeatherDumps(float x, float y)
     {
         GUI.color = new Color(0.7f, 0.9f, 1f);
@@ -706,7 +669,6 @@ public class DebugPanel : MonoBehaviour
         return y;
     }
 
-    // Page 10: NoClip + Coordinate Teleport
     private float DrawPageTeleport(float x, float y)
     {
         // ── NoClip toggle ────────────────────────────────────────────────────
@@ -745,11 +707,7 @@ public class DebugPanel : MonoBehaviour
         }
 
         // ── Coordinate input ─────────────────────────────────────────────────
-        // "Paste X Y Z" parses three floats from the clipboard — accepts formats like:
-        //   -452.3, 12.1, 890.0   |   (-452.3, 12.1, 890.0)   |   Pos: (-452.3, 12.1, 890.0)
-        // Per-axis "Paste" buttons paste a single float from the clipboard.
-        // ± step buttons fine-tune the current value.
-        // Step sizes: ±0.5 / ±5 / ±50 / ±500 — covers the full SR2 world range.
+        // Clipboard paste (all three or per axis), plus ± step buttons.
         GUI.color = new Color(0.8f, 0.8f, 1f);
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Paste X Y Z from Clipboard"))
         {
@@ -803,9 +761,8 @@ public class DebugPanel : MonoBehaviour
     }
 
     /// <summary>
-    /// Draws a labelled coordinate row: current value + Paste button + four pairs of ± step buttons.
-    /// "Paste" reads a single float from the clipboard (GUI.TextField is stripped in IL2CPP).
-    /// Step sizes: ±0.5, ±5, ±50, ±500. Returns the next Y position.
+    /// A coordinate row: value, clipboard Paste (GUI.TextField is stripped in IL2CPP) and ± steps.
+    /// Returns the next Y.
     /// </summary>
     private float DrawCoordRow(float x, float y, string label, ref float val)
     {
@@ -813,7 +770,6 @@ public class DebugPanel : MonoBehaviour
         var ns = System.Globalization.NumberStyles.Float |
                  System.Globalization.NumberStyles.AllowLeadingSign;
 
-        // Value label + per-axis Paste button on the same row
         GUI.color = Color.white;
         const float pasteW = 52f;
         GUI.Label(new Rect(x, y, PanelW - pasteW - Gap, LabelH),
@@ -831,7 +787,6 @@ public class DebugPanel : MonoBehaviour
         GUI.color = Color.white;
         y += LabelH + 2;
 
-        // ± step buttons — four negative on the left, four positive on the right
         float[] steps = { 0.5f, 5f, 50f, 500f };
         float btnW = (PanelW - Gap * (steps.Length * 2 - 1)) / (steps.Length * 2);
         float bx = x;
@@ -853,16 +808,12 @@ public class DebugPanel : MonoBehaviour
         return y + BtnH + Gap + 2;
     }
 
-    /// <summary>
-    /// Tries to extract three floats from a clipboard string.
-    /// Handles formats: "x, y, z"  |  "(x, y, z)"  |  "Pos: (x, y, z)"
-    /// </summary>
+    /// <summary>Parses "x, y, z", "(x, y, z)" or "Pos: (x, y, z)".</summary>
     private static bool TryParseThreeFloats(string? s, out float a, out float b, out float c)
     {
         a = b = c = 0f;
         if (string.IsNullOrWhiteSpace(s)) return false;
 
-        // Strip common decorators
         s = s.Replace("Pos:", "").Replace("(", "").Replace(")", "").Trim();
 
         var parts = s.Split(new[] { ',', ' ' }, System.StringSplitOptions.RemoveEmptyEntries);
@@ -883,7 +834,7 @@ public class DebugPanel : MonoBehaviour
         return player?.GetComponent<Il2CppMonomiPark.SlimeRancher.Player.CharacterController.SRCharacterController>()?._motor;
     }
 
-    // Page 11: Common + Uncommon plorts (1× each → vacpack, for plort door testing)
+    // 1× each to the vacpack, for plort door testing
     private void DrawPagePlortsA(float x, float y)
     {
         y = SectionLabel(x, y, "Common Plorts ×1 → Vacpack");
@@ -907,7 +858,6 @@ public class DebugPanel : MonoBehaviour
         y = PlortBtn(x, y, "Yolky",     "YolkyPlort");
     }
 
-    // Page 12: Rare plorts + bulk test grants
     private void DrawPagePlortsB(float x, float y)
     {
         y = SectionLabel(x, y, "Rare Plorts ×1 → Vacpack");

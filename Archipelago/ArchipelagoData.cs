@@ -2,10 +2,7 @@ using BepInEx.Configuration;
 
 namespace SlimeRancher2AP.Archipelago;
 
-/// <summary>
-/// Holds the connection parameters for an Archipelago session.
-/// Persisted to BepInEx config so the last-used values are remembered.
-/// </summary>
+/// <summary>Connection parameters, persisted in config so the last ones are remembered.</summary>
 public class ArchipelagoData
 {
     private const string Section = "Connection";
@@ -15,7 +12,7 @@ public class ArchipelagoData
     public string SlotName { get; set; } = "";
     public string Password { get; set; } = "";
 
-    // Populated after a successful login
+    // Set after a successful login
     public string? Seed { get; set; }
     public int     Team { get; set; } = -1;
     public int     Slot { get; set; } = -1;
@@ -28,7 +25,6 @@ public class ArchipelagoData
             Port     = cfg.Bind(Section, "Port",     38281,            "Archipelago server port").Value,
             SlotName = cfg.Bind(Section, "SlotName", "",               "Your slot/player name").Value,
             Password = cfg.Bind(Section, "Password", "",               "Room password (leave blank if none)").Value,
-            // Seed is persisted so PreloadLastItemIndex can run before login on reconnects.
             Seed     = cfg.Bind(Section, "LastSeed", "", "Seed from last successful login (auto-set)").Value
                            is string s && s.Length > 0 ? s : null,
         };
@@ -40,16 +36,11 @@ public class ArchipelagoData
         cfg.Bind(Section, "Port",     Port,     "Archipelago server port").Value     = Port;
         cfg.Bind(Section, "SlotName", SlotName, "Your slot/player name").Value       = SlotName;
         cfg.Bind(Section, "Password", Password, "Room password (leave blank if none)").Value = Password;
-        // Do NOT persist Seed here — it is saved separately after a successful login
-        // (see ArchipelagoClient.Connect) so it only reflects a confirmed good seed.
+        // Not Seed — SaveSeedToConfig writes it only after a successful login.
         cfg.Save();
     }
 
-    /// <summary>
-    /// Persists the seed that was set after a successful login so that
-    /// <see cref="ApSaveManager.PreloadLastItemIndex"/> can run correctly on the
-    /// next reconnect attempt for the same slot.
-    /// </summary>
+    /// <summary>Persists the seed after a successful login.</summary>
     public void SaveSeedToConfig(ConfigFile cfg)
     {
         if (string.IsNullOrEmpty(Seed)) return;

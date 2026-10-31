@@ -11,22 +11,13 @@ namespace SlimeRancher2AP.Patches.LocationPatches;
 // ---------------------------------------------------------------------------
 
 /// <summary>
-/// Tracks which <see cref="FixedConversation"/> is currently being displayed so that
-/// the gift-page patches below know whether to suppress the in-game grant.
-///
-/// Hook: <c>ConversationViewHolder.ShowConversation(IConversation, bool)</c> fires
-/// whenever a new conversation begins playing. The debug name is extracted and stored
-/// in <see cref="ActiveConversationDebugName"/>. All conversation UI and page callbacks
-/// run on the main thread, so this static field is safe to read without locking.
+/// Tracks the conversation on screen, so the gift-page patches below know whether to
+/// suppress the in-game grant. Main thread only.
 /// </summary>
 [HarmonyPatch(typeof(ConversationViewHolder), nameof(ConversationViewHolder.ShowConversation))]
 internal static class ConversationActiveTrackerPatch
 {
-    /// <summary>
-    /// Debug name (<c>AbstractConversation.GetDebugName()</c>) of the conversation
-    /// currently open in the CommStation UI, or <see langword="null"/> if none.
-    /// Updated each time <c>ShowConversation</c> fires.
-    /// </summary>
+    /// <summary>Debug name of the open conversation, or null.</summary>
     internal static string? ActiveConversationDebugName { get; private set; }
 
     private static void Postfix(IConversation conversation)
@@ -46,20 +37,13 @@ internal static class ConversationActiveTrackerPatch
     }
 
     // ── Latch release ─────────────────────────────────────────────────────────
-    // ActiveConversationDebugName MUST be cleared once the CommStation UI closes.
-    // If it stays latched, ShouldSuppressGift() keeps returning true for the rest of
-    // the session, and the gift-page patches keep intervening long after any
-    // conversation is on screen. That permanently broke the pause menu (every item
-    // except Screenshot vanished) — see ConversationPageGiftBlueprintCalloutPatch.
-    //
-    // ConversationViewHolder.EndConversation is CallerCount(0) (unsafe to patch since
-    // the 5/13/2026 update), so the close is detected by polling: while a name is
-    // latched, check ~2×/second whether any ConversationViewHolder is still active.
+    // The name MUST clear when the UI closes, or gifts stay suppressed all session.
+    // EndConversation can't be patched (CallerCount(0)), so poll for an active view holder.
 
     private const int UiPollInterval = 30; // ~0.5 s at 60 fps
     private static int _uiPollCounter;
 
-    /// <summary>Called every frame from <c>ApUpdateBehaviour.Update</c>. Cheap: no-ops unless a conversation name is latched.</summary>
+    /// <summary>Per-frame; no-op unless a name is latched.</summary>
     internal static void Tick()
     {
         if (ActiveConversationDebugName == null) return;
@@ -80,19 +64,14 @@ internal static class ConversationActiveTrackerPatch
         Logger.Info(
             $"[AP-Conv] Conversation UI closed — clearing active conversation '{ActiveConversationDebugName}'");
         ActiveConversationDebugName = null;
-        // Safety net for conversations exited early (no RecordPlayed): kill any award
-        // tweens still running against the (about-to-be / already) torn-down UI.
+        // For conversations exited early (no RecordPlayed).
         KillConversationTweens("UI closed");
     }
 
     /// <summary>
-    /// Kills any DOTween tweens targeting transforms in the CommStation conversation UI.
-    /// The gift-page award animation (a Sequence with DOShakePosition) is started natively
-    /// when the callout displays; when the player closes the conversation within the shake's
-    /// duration — typical for the final gift page — the UI teardown destroys the tween's
-    /// target Transform mid-animation and DOTween spams "Target or field is missing/null"
-    /// warnings until its safe mode reaps the tween. Killing by target before teardown
-    /// prevents the spam. complete=false: the UI is closing, no need to snap to end state.
+    /// Kills tweens animating the conversation UI before teardown destroys their targets —
+    /// otherwise DOTween spams "Target or field is missing/null" (e.g. closing during the
+    /// gift award shake).
     /// </summary>
     internal static void KillConversationTweens(string reason)
     {
@@ -114,26 +93,12 @@ internal static class ConversationActiveTrackerPatch
                     killed += DG.Tweening.DOTween.Kill(tr, false);
                 }
             }
-            // Phase 2: the gift-page award shake is a Sequence whose target is NULL from
-            // creation (confirmed via the tween dump — the shake references a presentation
-            // object that the suppressed grant never instantiated), so the kill-by-target
-            // pass above can never reach it.
-            //
-            // Only after a suppressed gift. A null target is not specific to that shake: any
-            // DOTween.To(getter, setter) tween has one, and the game runs those well outside
-            // the conversation UI. Reaping them on every conversation killed one unrelated
-            // tween per Gigi page, and killing with complete=false skips its OnComplete — the
-            // suspected cause of sound effects dying for the rest of the session (deposits,
-            // water, market sales), since a fade that never completes never hands its audio
-            // source back.
-            //
-            // The other case is matched by contents rather than by a missing target: a looping
-            // Sequence (2s, loops=-1) runs on every conversation page, and its child tweens
-            // (DOLocalMoveZ) target transforms the page teardown destroys — DOTween then warns
-            // "Target or field is missing/null" until safe mode reaps it. Phase 1 cannot reach
-            // it either, because DOTween.Kill(target) only matches top-level tweens. A Sequence
-            // whose children animate the conversation UI, or something already destroyed, is
-            // killed here; DOTween's own safe mode would kill it a frame later anyway.
+            // Phase 2, null-target tweens, which kill-by-target can't reach:
+            //  • After a suppressed gift, the award shake (its target was never created). Only
+            //    then — any DOTween.To tween has a null target, and killing unrelated ones
+            //    skipped their OnComplete (suspected of silencing game audio all session).
+            //  • A Sequence whose children animate the conversation UI or a destroyed object
+            //    (the looping page Sequence); Kill(target) only matches top-level tweens.
             int reaped = 0;
             bool giftSuppressed = GiftSuppressedThisConversation;
             GiftSuppressedThisConversation = false;
@@ -177,11 +142,7 @@ internal static class ConversationActiveTrackerPatch
         catch { /* DOTween not initialised or scene tearing down — nothing to kill */ }
     }
 
-    /// <summary>
-    /// Set by the gift-page Prefixes when they block a grant, and consumed by
-    /// <see cref="KillConversationTweens"/>. A suppressed grant is what leaves the award shake
-    /// with a null target, so it is the only case where reaping null-target tweens is safe.
-    /// </summary>
+    /// <summary>Set when a gift Prefix blocks a grant; makes reaping null-target tweens safe.</summary>
     internal static bool GiftSuppressedThisConversation;
 
     /// <summary>
@@ -228,11 +189,7 @@ internal static class ConversationActiveTrackerPatch
         catch (System.Exception ex) { return $"<unreadable: {ex.GetType().Name}>"; }
     }
 
-    /// <summary>
-    /// Diagnostic: the null-target DOShakePosition warning comes from a tween whose target is
-    /// NOT under the conversation UI hierarchy (the kill above finds nothing). Dump every
-    /// playing tween's target so the culprit can be identified from the log.
-    /// </summary>
+    /// <summary>Logs every playing tween's target, for when the cleanup finds nothing to kill.</summary>
     private static void DumpPlayingTweens(string reason)
     {
         try
@@ -271,12 +228,7 @@ internal static class ConversationActiveTrackerPatch
     }
 #endif
 
-    /// <summary>
-    /// Returns <see langword="true"/> when the currently-active conversation is an AP
-    /// location check under the current <see cref="ConversationCheckMode"/>.
-    /// When <see langword="true"/>, gift-page <c>ApplyChanges()</c> should be suppressed
-    /// so the AP server delivers the randomized item instead of the hardcoded in-game gift.
-    /// </summary>
+    /// <summary>True when the open conversation is a check in this seed — its gift comes from AP instead.</summary>
     internal static bool ShouldSuppressGift()
     {
         if (Plugin.Instance == null || !Plugin.Instance.ModEnabled) return false;
@@ -295,23 +247,12 @@ internal static class ConversationActiveTrackerPatch
     }
 
     /// <summary>
-    /// Assets the apworld puts in the item pool of EVERY seed, no matter how
-    /// <c>conversation_checks</c> is set, keyed by the game asset name a gift page carries.
+    /// Gift assets the apworld puts in EVERY seed's pool, so their vanilla gift is suppressed
+    /// even with conversations off — a free Radiant Projector would bypass the Labyrinth logic.
     /// </summary>
     /// <remarks>
-    /// These must be suppressed even when conversations are not randomized. All are added
-    /// unconditionally by <c>create_items</c> — Radiant Projector Blueprint in
-    /// SPECIAL_ACCESS_ITEMS, Archive Key Component in CRAFTING_COMPONENT_ITEMS, Refinery Link in
-    /// GADGET_ITEMS — so a player who receives one from a conversation holds it without the AP
-    /// item, and the logic that assumed they needed it no longer holds. For the Radiant Projector
-    /// that means reaching the Grey Labyrinth without its access item, which breaks every seed
-    /// with GL in scope. Refinery Link is useful rather than progression, so for it the cost is
-    /// only a duplicate.
-    ///
-    /// The conversation-gifted gadgets are NOT here on purpose: the apworld already keeps them
-    /// out of the pool unless the matching conversation tier is enabled
-    /// (<c>_CONV_KEY_GADGET_NAMES</c> / <c>_CONV_CONDITIONAL_GADGET_NAMES</c>), so when
-    /// conversations are off the vanilla gift is the only source and must be allowed.
+    /// The other conversation gadgets are deliberately absent: the apworld only pools them when
+    /// their conversation tier is on, so otherwise the vanilla gift is their only source.
     /// </remarks>
     private static readonly HashSet<string> AlwaysApGiftAssets = new(StringComparer.Ordinal)
     {
@@ -320,10 +261,7 @@ internal static class ConversationActiveTrackerPatch
         "RefineryLink",         // Refinery Link                (MochiIntroCall)
     };
 
-    /// <summary>
-    /// True when this gift hands over an item the AP pool always contains, so the in-game grant
-    /// must be suppressed regardless of the conversation-checks setting.
-    /// </summary>
+    /// <summary>True for a gift in <see cref="AlwaysApGiftAssets"/> on a bound save.</summary>
     internal static bool IsAlwaysApGift(string? assetName)
         => Plugin.Instance != null
            && Plugin.Instance.ModEnabled
@@ -337,29 +275,16 @@ internal static class ConversationActiveTrackerPatch
 // ---------------------------------------------------------------------------
 
 /// <summary>
-/// Intercepts CommStation conversations that gift a gadget blueprint.
-///
-/// <list type="bullet">
-///   <item>When the active conversation is an AP location:
-///     <c>Prefix</c> returns <see langword="false"/>, blocking <c>ApplyChanges()</c>
-///     so the blueprint is NOT granted. The AP server delivers the randomized item
-///     via <see cref="SlimeRancher2AP.Archipelago.ItemHandler"/> instead.</item>
-///   <item>Otherwise the original runs normally and <c>Postfix</c> logs the grant.</item>
-/// </list>
-///
-/// Note: <c>ConversationRecordedPatch</c> is responsible for sending the actual AP check —
-/// this patch only suppresses the duplicate in-game gift. Multi-gift conversations
-/// (e.g. <c>ViktorGift_GadgetIntro</c> with three blueprint pages) are suppressed on
-/// every page, but only one AP check is sent.
+/// Blocks a blueprint gift when its conversation is a check (or the asset is always an AP
+/// item). The check itself is sent by <c>ConversationRecordedPatch</c> — once, even for
+/// multi-gift conversations.
 /// </summary>
 [HarmonyPatch(typeof(ConversationPageGiftBlueprint), nameof(ConversationPageGiftBlueprint.ApplyChanges))]
 internal static class ConversationPageGiftBlueprintPatch
 {
     private static bool Prefix(ConversationPageGiftBlueprint __instance, out bool __state)
     {
-        // __state must be set before any early return so Harmony can pass it to Postfix.
-        // HasBlueprint = possession (the set AddBlueprint writes); IsBlueprintUnlocked reads
-        // the separate availability set and is wrong for "does the player already have this".
+        // HasBlueprint, not IsBlueprintUnlocked (see ItemHandler.EnsureGadgetBlueprint).
         var director = SceneContext.Instance?.GadgetDirector;
         __state = director != null && __instance.gadget != null
                   && director.HasBlueprint(__instance.gadget);
@@ -409,13 +334,8 @@ internal static class ConversationPageGiftBlueprintPatch
 // ---------------------------------------------------------------------------
 
 /// <summary>
-/// Intercepts conversations that gift a gadget unit directly (not a blueprint).
-/// Suppresses the in-game grant when the conversation is an active AP location check.
-///
-/// Note: Most GiftGadget conversations are the GiftPrefab variants (e.g. a pre-built
-/// Warp Depot) that are NOT in the LocationTable, so suppression will rarely fire here.
-/// The guard is present for correctness in case a GiftGadget conversation is ever
-/// added to the location pool.
+/// Blocks a gadget-unit gift when its conversation is a check. Rarely fires: most such
+/// gifts aren't locations.
 /// </summary>
 [HarmonyPatch(typeof(ConversationPageGiftGadget), nameof(ConversationPageGiftGadget.ApplyChanges))]
 internal static class ConversationPageGiftGadgetPatch
@@ -450,11 +370,7 @@ internal static class ConversationPageGiftGadgetPatch
 // Gift upgrade component suppression
 // ---------------------------------------------------------------------------
 
-/// <summary>
-/// Intercepts conversations that gift an UpgradeComponent
-/// (e.g. Mochi's <c>Conv_Mochi_ArchiveKeyComponent</c>).
-/// Suppresses the in-game grant when the conversation is an active AP location check.
-/// </summary>
+/// <summary>Blocks an UpgradeComponent gift when its conversation is a check (or always AP).</summary>
 [HarmonyPatch(typeof(ConversationPageGiftUpgradeComponent), nameof(ConversationPageGiftUpgradeComponent.ApplyChanges))]
 internal static class ConversationPageGiftUpgradeComponentPatch
 {
@@ -491,31 +407,13 @@ internal static class ConversationPageGiftUpgradeComponentPatch
 // Callout content override — shows the scouted AP item on suppressed gift pages
 // ---------------------------------------------------------------------------
 //
-// NOTE: the old ConversationPageGiftBlueprintCalloutPatch (Prefix on ShouldShowCallout that
-// hid the callout while suppressing) was REMOVED entirely, for three compounding reasons:
-//
-//  1. ShouldShowCallout's trivial native body ("return true") is shared/folded with unrelated
-//     methods in the IL2CPP build, so the Harmony detour fired for foreign callers — once a
-//     check conversation latched ShouldSuppressGift() true, the always-skip version emptied
-//     the pause menu of everything but Screenshot (player-reported). Removing the detour
-//     eliminates that hazard class at the root.
-//  2. Hiding the callout left the notice page's award animation (DOShakePosition via the
-//     _animators list) tweening a deactivated/destroyed transform, spamming benign but noisy
-//     "DOTWEEN ► Target or field is missing/null" warnings after the conversation closed.
-//  3. Hiding the callout meant the player never saw WHAT the check delivered.
-//
-// Instead the callout now shows vanilla-style (live tween target, no warnings) and
-// ConversationCalloutOverridePatch below rewrites its content: the Archipelago logo replaces
-// the vanilla gift icon and the label shows the scouted item ("★ Anti-Spark 10 bundle → Rhelys")
-// so the conversation no longer advertises a gadget the player is not actually receiving.
+// Never patch ShouldShowCallout to hide the callout: its trivial native body is folded with
+// unrelated methods, so the detour fired for foreign callers and emptied the pause menu.
 
 /// <summary>
-/// Rewrites the gift callout on suppressed gift pages to display the scouted Archipelago
-/// item instead of the vanilla gift. Hook: <c>ConversationViewHolder.ShowConversationPage</c>
-/// (CallerCount 2 — safe; the notice view holder's own bind methods are CallerCount(0) and
-/// cannot be patched). The override is re-applied for several frames from
-/// <see cref="Tick"/> to outlast Unity Localization's async label update, mirroring
-/// <c>AccessDoorUITextPatch</c>.
+/// Shows the scouted AP item (and AP logo) in a suppressed gift page's callout. Hooks
+/// <c>ShowConversationPage</c> — the notice holder's own binds are CallerCount(0) — and
+/// re-applies for a few frames from <see cref="Tick"/> to outlast async localization.
 /// </summary>
 [HarmonyPatch(typeof(ConversationViewHolder), "ShowConversationPage")]
 internal static class ConversationCalloutOverridePatch
@@ -527,20 +425,18 @@ internal static class ConversationCalloutOverridePatch
     {
         if (!ConversationActiveTrackerPatch.ShouldSuppressGift())
         {
-            // Non-check conversation (or checks off) — hand any frozen callout label back to
-            // Unity Localization so vanilla gifts display their real names again. View
-            // holders are pooled and reused across conversations.
+            // Unfreeze any label we froze — view holders are pooled.
             RestoreLocalization();
             _framesLeft = 0;
             return;
         }
 
         _message    = BuildScoutMessage();
-        _framesLeft = 30; // localization's async OnUpdateString fires 1-2 frames later; add margin
+        _framesLeft = 30; // localization updates 1-2 frames later; margin
         Apply();
     }
 
-    /// <summary>Called every frame from <c>ApUpdateBehaviour.Update</c>. No-ops when idle.</summary>
+    /// <summary>Per-frame; no-op when idle.</summary>
     internal static void Tick()
     {
         if (_framesLeft <= 0) return;
@@ -561,8 +457,7 @@ internal static class ConversationCalloutOverridePatch
                 var calloutGo = h._calloutHolder;
                 if (calloutGo == null || !calloutGo.activeInHierarchy) continue; // page has no visible callout
 
-                // Freeze the LocalizeStringEvent so it stops overwriting our text, then write
-                // the scout message into the TMP label it drives.
+                // Freeze localization so it stops overwriting our text.
                 var locEvent = (UnityEngine.MonoBehaviour?)h._calloutText;
                 if (locEvent != null)
                 {
@@ -571,9 +466,7 @@ internal static class ConversationCalloutOverridePatch
                            ?? locEvent.gameObject.GetComponentInChildren<TMPro.TMP_Text>();
                     if (tmp != null)
                     {
-                        // AP item names can be far longer than vanilla gift names — let TMP
-                        // shrink the font to fit. Max is pinned to the label's designed size
-                        // so short names render exactly like vanilla.
+                        // AP names run long — auto-size down, never above the designed size.
                         if (!tmp.enableAutoSizing)
                         {
                             tmp.fontSizeMax      = tmp.fontSize;
@@ -584,8 +477,6 @@ internal static class ConversationCalloutOverridePatch
                     }
                 }
 
-                // Replace the vanilla gift icon with the Archipelago logo — the vanilla sprite
-                // advertises a gadget the player is not receiving.
                 var logo = SlimeRancher2AP.Patches.UiPatches.OptionsMenuInjectionPatch.GetLogoSprite();
                 if (logo != null && h._calloutImage != null)
                 {
@@ -593,7 +484,7 @@ internal static class ConversationCalloutOverridePatch
                     h._calloutImage.preserveAspect = true;
                 }
 
-                // Hide the quantity bubble — any count refers to the vanilla gift, not the AP item.
+                // The count belongs to the vanilla gift.
                 if (h._quantityHolder != null) h._quantityHolder.SetActive(false);
             }
         }
@@ -615,11 +506,8 @@ internal static class ConversationCalloutOverridePatch
     }
 
     /// <summary>
-    /// Builds the callout label from persisted scout data for the active conversation's
-    /// location: "* item" (progression), "! item" (trap), plus "FOR player" when the item
-    /// belongs to another world. ASCII markers only — the game's HemispheresCaps2 font has
-    /// no glyphs for ★/⚠/→ (they render as blank spaces and spam font warnings).
-    /// Falls back to a generic label when scout data is missing.
+    /// "* item" (progression) / "! item" (trap), plus "FOR player" for another world. ASCII
+    /// only — the callout font lacks ★/⚠/→.
     /// </summary>
     private static string BuildScoutMessage()
     {

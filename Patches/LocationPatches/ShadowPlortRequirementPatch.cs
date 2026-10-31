@@ -3,35 +3,13 @@ using HarmonyLib;
 namespace SlimeRancher2AP.Patches.LocationPatches;
 
 /// <summary>
-/// Scales <c>PlortDepositor._fillAmount</c> on Awake from the <c>shadow_plort_requirement</c>
-/// slot data option, so a Grey Labyrinth shadow door can be made cheaper or dearer to open.
-/// 100 (vanilla) is a no-op; the result is always at least 1.
+/// <c>shadow_plort_requirement</c>: scales shadow plort depositors' <c>_fillAmount</c> (the
+/// target — never the saved running total) on Awake. Other plort doors keep vanilla counts.
 /// </summary>
 /// <remarks>
-/// <para>
-/// <b>Which field.</b> <c>PlortDepositor._fillAmount</c> is the serialized TARGET count — the
-/// running total lives on <c>PlortDepositorModel.AmountDeposited</c>, which is save state and
-/// must not be touched. This mirrors <see cref="GordoFeedRequirementPatch"/> scaling
-/// <c>GordoEat.TargetCount</c> rather than the gordo's current fill.
-/// </para>
-///
-/// <para>
-/// <b>Shadow plorts only.</b> Gated on <c>_catchIdentifiableType.name == "ShadowPlort"</c> so
-/// the ordinary coloured plort doors in EV / SS / RF keep their vanilla counts. The option is
-/// about the cost of the Grey Labyrinth doors specifically.
-/// </para>
-///
-/// <para>
-/// <b>Patch-safety note.</b> <c>PlortDepositor</c> has a history of unsafe patch targets — see
-/// the header of <c>PlortDepositorPatch.cs</c> for the three that were removed
-/// (<c>ActivateOnFill</c>, <c>PlortDepositorModel.Push</c>, <c>OnTriggerEnter</c>). <c>Awake</c>
-/// was NOT among them, and carries the same CallerCount(0) / CachedScanResults profile as
-/// <c>GordoEat.Awake</c>, which this mod already patches successfully in shipping builds.
-/// If this ever does crash the trampoline, the fallback is to set <c>_fillAmount</c> from
-/// <c>PlortDoorPoller</c> instead — it already walks the shadow doors, and their
-/// <c>PuzzleSlotLockable._depositors</c> array reaches the same objects with no Harmony patch
-/// at all.
-/// </para>
+/// Awake has the same profile as the safely patched <c>GordoEat.Awake</c>. Should it ever crash
+/// the trampoline, set <c>_fillAmount</c> from PlortDoorPoller instead, which reaches the same
+/// depositors with no patch.
 /// </remarks>
 [HarmonyPatch(typeof(PlortDepositor), "Awake")]
 internal static class ShadowPlortRequirementPatch
@@ -59,7 +37,6 @@ internal static class ShadowPlortRequirementPatch
         }
         catch (System.Exception ex)
         {
-            // Never let a cosmetic scaling failure break door setup.
             Logger.Warning($"[AP] ShadowPlortRequirementPatch threw: {ex.Message}");
         }
     }

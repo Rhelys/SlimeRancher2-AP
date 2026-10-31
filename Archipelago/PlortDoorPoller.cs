@@ -6,33 +6,19 @@ using UnityEngine;
 namespace SlimeRancher2AP.Archipelago;
 
 /// <summary>
-/// Polls PuzzleSlotLockable objects each Update tick to detect when plort doors open.
-/// Handles:
-///   1. Powderfall Bluffs region gate (when RegionAccessMode != "vanilla")
-///   2. The 28 other plort doors (when RandomizePlortDoors == "locations")
-///
-/// Harmony patches on PuzzleSlotLockable.ActivateOnUnlock only fire for managed callers.
-/// These doors are opened from native code, so the patch is bypassed. Polling
-/// ShouldUnlock() is the only reliable approach.
-///
-/// Shadow plort doors (Grey Labyrinth, 819200-819224) are NOT tracked here — they have
-/// a managed caller path and are handled by PuzzleSlotLockableActivatePatch.
-///
-/// Any door whose ShouldUnlock() is already true when polled (e.g. Boom Gordo door after
-/// defeat, or a door opened in a prior session) immediately triggers a check if not yet
-/// recorded in the save manager.
+/// Polls <c>ShouldUnlock()</c> on the plort doors that open from native code, past the
+/// ActivateOnUnlock patch: the PB region gate (non-vanilla modes) and the 28 plort doors
+/// (<c>randomize_plort_doors</c>). A door already open when seen sends any unsent check.
+/// Shadow doors are PuzzleSlotLockableActivatePatch's.
 /// </summary>
 public static class PlortDoorPoller
 {
-    // A door may map to more than one AP location (e.g. the PB gate is both a plort door
-    // check and a region gate check when both settings are active).
+    // A door can be several locations (the PB gate: plort door and region gate).
     private record DoorEntry(PuzzleSlotLockable Psl, List<long> LocationIds);
 
-    // posKey → tracked door entry. Built up across scans; not cleared on scene change
-    // (scenes load additively so doors from previous sub-scenes stay valid).
+    // posKey → door. Kept across scene changes (scenes load additively).
     private static readonly Dictionary<string, DoorEntry> _tracked = new();
-    // posKeys that have been fully processed (check sent or already saved). Scan skips
-    // these so processed doors are never re-added after Poll removes them.
+    // Fully processed doors, never re-tracked.
     private static readonly HashSet<string> _done = new();
 
     private static float _nextScan = 0f;
@@ -96,7 +82,6 @@ public static class PlortDoorPoller
 
             if (ids.Count == 0) continue;
 
-            // Already fully checked in a prior session — mark done immediately.
             if (ids.TrueForAll(id => Plugin.Instance.SaveManager.IsChecked(id)))
             {
                 _done.Add(posKey);
@@ -127,11 +112,8 @@ public static class PlortDoorPoller
             try { shouldUnlock = door.Psl.ShouldUnlock(); }
             catch
             {
-                // The tracked IL2CPP object was destroyed (typical after a zone unload).
-                // The check has NOT been sent — drop only the stale reference so Scan()
-                // re-tracks a live instance when the player returns to the zone.
-                // Marking it _done here would make the check silently unobtainable
-                // for the rest of the session.
+                // Destroyed with its zone, check unsent: drop the reference so Scan re-tracks
+                // it — never mark it done.
                 stale.Add(posKey);
                 continue;
             }

@@ -6,23 +6,9 @@ using SlimeRancher2AP.Utils;
 namespace SlimeRancher2AP.Patches.LocationPatches;
 
 /// <summary>
-/// Fires a location check when a map node is first revealed by the player.
-///
-/// <para>
-/// Hook point: <c>MapNodeActivator.SendMapNodeUnlockedAnalyticsEvent()</c> — CallerCount(1).
-/// This method fires only on genuine new discoveries; it is NOT called during
-/// scene-state restoration (previously-revealed nodes restored from save skip it).
-/// This replaces the old <c>MapNodeActivator.Activate()</c> patch, which was
-/// CallerCount(0)/virtual and crashed after the 5/13/2026 game update changed its
-/// native prologue.
-/// </para>
-///
-/// <para>
-/// Identity: posKey via <see cref="WorldUtils.PositionKey"/> — all map node GameObjects
-/// share the generic name <c>nodeMapEntry</c>, so world position is the only stable
-/// identifier. Stored as <see cref="LocationInfo.GameObjectName"/> in
-/// <see cref="LocationTable"/>.
-/// </para>
+/// A map node's first reveal sends its check, keyed by posKey (every node is named
+/// <c>nodeMapEntry</c>). Hooks the unlock analytics event, which fires only for real discoveries,
+/// not save restore. (Not <c>Activate()</c> — that crashed after the 5/13/2026 update.)
 /// </summary>
 [HarmonyPatch(typeof(MapNodeActivator), nameof(MapNodeActivator.SendMapNodeUnlockedAnalyticsEvent))]
 internal static class MapNodePatch
@@ -31,9 +17,7 @@ internal static class MapNodePatch
     {
         if (!Plugin.Instance.ModEnabled || !Plugin.Instance.SaveManager.IsSaveBound) return;
 
-        // randomize_map_nodes=false removes all map node locations from the seed — do not send
-        // checks. Only gate when slot data is available; when temporarily offline (SlotData null)
-        // the check still accumulates locally so a revealed node is never permanently lost.
+        // Off = not in the seed. Without slot data (offline) record it anyway rather than lose it.
         var slotData = Plugin.Instance.ApClient.SlotData;
         if (slotData != null && !slotData.RandomizeMapNodes) return;
 

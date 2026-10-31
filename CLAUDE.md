@@ -465,7 +465,7 @@ prologues changed → trampoline crashes), so some detection is done by **pollin
 - **How**: Prefix on `PuzzleSlotLockable.ActivateOnUnlock` — shadow doors have a managed
   caller path so this fires reliably for them. (The old `PlortDepositor.ActivateOnFill` /
   `OnTriggerEnter` patches were removed — stack overflow / trampoline crashes; see the note
-  in `PlortDepositorPatch.cs`.)
+  at the end of `PuzzleDoorLockPatch.cs`.)
 - **Identity**: posKey via `WorldUtils.PositionKey()` — door object names are not unique.
 - **Location IDs**: 819200–819224
 
@@ -508,7 +508,6 @@ Items still genuinely incomplete (history of completed work lives in git, not he
 |---|---|
 | Minor item notifications | `item_notifications: all` routes filler/traps to the mod's existing IMGUI corner text, NOT the vanilla side-notification list (`ItemAcquisitionNotificationList`). That list is fed by `INotificationProvider` implementations, which need an IL2CPP type registration to implement from managed code. `NotificationEntry`'s public ctor takes an arbitrary `Sprite`, so a real provider is feasible if the corner text proves unsatisfying. |
 | Plort Market / Market Recovery | Implemented mod-side: first-sale checks in `PlortMarketPatch`; saturation, sale-override, immediate price refresh, and declarative Market Recovery in `PlortMarketModePatch`. In-development warnings removed from the apworld `options.py` (2026-07-06) to allow full testing — **in-game verification still in progress**. |
-| `Patches/UiPatches/MainMenuPatch.cs` | Stub — `MainMenuUI` class/method TBD; the "Archipelago" connect entry lives in Options → Archipelago instead. Cosmetic — does not affect functionality. |
 
 ---
 

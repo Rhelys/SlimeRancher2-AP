@@ -8,18 +8,11 @@ using SlimeRancher2AP.UI;
 namespace SlimeRancher2AP.Patches.PlayerPatches;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// NewGamePatch — fired when the player confirms a new game in NewGameOptionsUIRoot.
-//
-// If the mod is enabled AND the player is connected to AP:
-//   • Writes a SaveSlot_{N}_binding.json so this SR2 slot auto-connects on future loads.
-//   • Injects the Archipelago logo as the save-slot icon so AP saves are visually distinct.
-//
-// If not connected, the game proceeds as a vanilla save (no binding, no AP logic).
-// The player can connect via Options → Archipelago and then start a new game.
+// NewGamePatch — a new game started while connected is bound to the AP slot (a
+// SaveSlot_{N}_binding.json, for auto-connect) and gets every item replayed. Unconnected,
+// it is a vanilla save.
 //
 // Patch point: AutoSaveDirector.StartNewGame(int saveSlotIndex, GameSettingsModel)
-//   __0 = saveSlotIndex (0-based)
-//   __1 = GameSettingsModel — we call SetGameIconForNewGame() on it to inject the logo.
 // ─────────────────────────────────────────────────────────────────────────────
 
 [HarmonyPatch(typeof(AutoSaveDirector), "StartNewGame")]
@@ -35,7 +28,6 @@ internal static class NewGamePatch
 
         int slotIndex = __0;
 
-        // Build and persist the binding so this slot auto-connects on future loads.
         var data = ArchipelagoData.LoadFromConfig(Plugin.Instance.Config);
         var binding = new SaveBindingManager.SaveBinding
         {
@@ -47,34 +39,18 @@ internal static class NewGamePatch
         };
         SaveBindingManager.Save(slotIndex, binding);
 
-        // Re-queue ALL items from the AP server snapshot for this fresh SR2 save.
-        //
-        // Connect() already ran when the player clicked "Connect" in the main menu.
-        // The replay loop in Connect() filtered out items at or below the saved watermark
-        // (which could be non-zero if this AP slot was played before on a different SR2 save).
-        // Those items are missing from the queue and would never be applied to the new game.
-        //
-        // RequestFullReplay() clears the queue, resets the watermark to -1, and re-enqueues
-        // everything from index 0 — except ephemerals already in _ephemeralSet (one-shot
-        // effects from a previous SR2 run on this AP slot are not refired).
-        // For a genuinely new AP slot, _ephemeralSet is empty, so all items replay.
+        // Connect() only queued items above the slot's watermark, which an earlier SR2 save on
+        // this slot may have advanced. The new save needs everything.
         Plugin.Instance.ApClient.RequestFullReplay();
         Logger.Info(
             $"[AP] NewGamePatch: full replay requested — all items from AP snapshot will be applied to new save.");
 
-        // NOTE: Icon injection via SetGameIconForNewGame is intentionally skipped.
-        // Passing a transient GameIconDefinition with an unknown persistenceId causes
-        // the game to fail when it tries to resolve the icon from the asset catalog
-        // during save creation.  Save-slot icon support can be revisited by patching
-        // the save slot *display* UI instead of new-game creation.
+        // No AP save-slot icon: SetGameIconForNewGame with a transient GameIconDefinition fails
+        // save creation. A display-side patch would be the way to do it.
 
-        // A fresh save has no prior seed binding — clear any expectation left over from an
-        // earlier load attempt, or SaveGuard will judge this save against the wrong seed.
+        // Clear a seed left over from an earlier load attempt.
         SaveGuard.SetExpectedSeed(null);
 
-        // No UpgradeModel.Push is coming for a save that was just created — there is nothing on
-        // disk to restore. Without this, upgrade reconciliation waits out the whole grace period
-        // and then warns about an "unrestored" model that is correctly empty.
         SlimeRancher2AP.Archipelago.ItemHandler.MarkFreshSave();
 
         StatusHUD.Instance?.ShowNotification(
@@ -84,15 +60,11 @@ internal static class NewGamePatch
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// LoadGamePatch — fired when the player selects a save slot to load.
-//
-// If the selected slot has a SaveBinding sidecar, we trigger an auto-connect
-// in the background so the AP session is (or is being) established by the time
-// gameplay starts.  We never block the load — an offline load is valid and checks
-// accumulate locally until the next connection.
+// LoadGamePatch — loading a bound save auto-connects in the background and binds the save
+// for offline play meanwhile. The load is never held for the connection; only a known seed
+// mismatch stops it, for confirmation.
 //
 // Patch point: AutoSaveDirector.BeginLoad(GameSaveIdentifier identifier)
-//   __0 = GameSaveIdentifier { GameName = "Game 1", SaveName = "..." }
 // ─────────────────────────────────────────────────────────────────────────────
 
 [HarmonyPatch(typeof(AutoSaveDirector), "BeginLoad")]
@@ -108,24 +80,18 @@ internal static class LoadGamePatch
     {
         if (!Plugin.Instance.ModEnabled) return true;
 #if DEBUG
-        // Reset the Once() deduplication set so all patch traces can fire again
-        // for this Continue attempt, even if they already fired on the main menu.
+        // Let Once() traces fire again for this load.
         SlimeRancher2AP.Utils.DebugTrace.Reset();
         SlimeRancher2AP.Utils.DebugTrace.All("LoadGamePatch.Prefix — trace set reset for new load");
 #endif
 
-        // Resolve slot index from GameName via the live save summary list.
         int slotIndex = ResolveSlotIndex(__instance, __0.GameName);
         if (slotIndex < 0) return true;
 
         var binding = SaveBindingManager.Load(slotIndex);
         if (binding == null)
         {
-            // Vanilla (unbound) save. If an AP session is live — e.g. the player connected in
-            // the main menu intending to start a new game, then pressed Continue on an old
-            // vanilla save — disconnect so no AP logic applies to it. Without this, treasure
-            // pod rewards get suppressed, restored research drones mass-send checks, damage
-            // multipliers apply, etc., all against a save that has no AP world.
+            // Vanilla save: drop any live session so no AP logic touches it.
             if (Plugin.Instance.ApClient.IsConnected || Plugin.Instance.SaveManager.HasActiveSession)
             {
                 Logger.Info(
@@ -134,7 +100,7 @@ internal static class LoadGamePatch
                 Plugin.Instance.ApClient.Disconnect();
                 StatusHUD.Instance?.ShowNotification("Vanilla save loaded — Archipelago disconnected");
             }
-            SaveGuard.SetExpectedSeed(null);   // vanilla save — no seed to match
+            SaveGuard.SetExpectedSeed(null);
             return true;
         }
 
@@ -142,15 +108,8 @@ internal static class LoadGamePatch
             $"[AP] LoadGamePatch: slot {slotIndex} ({__0.GameName}) has AP binding " +
             $"(seed={binding.Seed}, slot={binding.Slot}) — auto-connecting...");
 
-        // Wrong-seed protection, applied BEFORE the load starts.
-        //
-        // SaveGuard also detects this, but only once something asks it to — by which point the
-        // save is already loading, and a modal raised mid-load is not interactable. Catching it
-        // here keeps the player on the save-select screen where a dialog still works.
-        //
-        // Only decidable while connected: an offline load has no live seed to compare, and the
-        // auto-connect below may land on a different seed entirely — SaveGuard remains the
-        // backstop for that.
+        // Wrong seed: ask before loading, while a modal still works (it doesn't mid-load).
+        // Only decidable while connected; SaveGuard is the backstop otherwise.
         if (!_bypassSeedCheck
             && Plugin.Instance.ApClient.IsConnected
             && !string.IsNullOrEmpty(binding.Seed))
@@ -181,19 +140,12 @@ internal static class LoadGamePatch
         }
         _bypassSeedCheck = false;
 
-        // Record the seed only once the load is actually going ahead. Setting it before the
-        // check above left a REJECTED save's seed in place, which then condemned the next save
-        // loaded — including a brand-new one created for the connected seed.
+        // Only now — a rejected save's seed would condemn the next save loaded.
         SaveGuard.SetExpectedSeed(binding.Seed);
 
-        // A real load restores upgrade levels through UpgradeModel.Push, so reconciliation must
-        // wait for that signal rather than reading an empty model.
         SlimeRancher2AP.Archipelago.ItemHandler.MarkLoadedSave();
 
-        // If already connected to the correct session, no need to reconnect.
-        // But do schedule upgrade re-validation: the scene is about to reload and SR2's
-        // save data will be freshly restored.  AP-applied upgrades (e.g. Resource Harvester)
-        // are not persisted natively, so repair must re-run against the new model.
+        // Already on this seed: no reconnect, but re-validate against the reloaded model.
         if (Plugin.Instance.ApClient.IsConnected &&
             Plugin.Instance.ApClient.Session?.RoomState.Seed == binding.Seed)
         {
@@ -202,18 +154,8 @@ internal static class LoadGamePatch
             return true;
         }
 
-        // Pre-load LastItemIndex BEFORE connecting so that when Session.Items.ItemReceived
-        // fires during TryConnectAndLogin (replaying all historical items), the dedup guard
-        // in ArchipelagoClient.OnItemReceived already has the correct high-water mark.
-        // Without this, all historical items are enqueued (since _lastItemIdx starts at -1)
-        // and then requeued in an infinite loop while the scene is loading.
-        //
-        // Guard: skip preload when a session is already active. If HasActiveSession is true,
-        // OnConnected already set the correct watermark for the live session. Calling Preload
-        // here would overwrite it with data from a DIFFERENT save's binding file, causing
-        // newly-received items to be incorrectly skipped (observed: watermark=9021, idx=0).
-        // The preload is also immediately nullified by Disconnect()→ResetSession() inside
-        // Connect(), so it serves no purpose when a session is already running.
+        // Preload the watermark before connecting (see PreloadLastItemIndex) — but not over a
+        // live session's, which would come from a different save.
         bool activeSession = Plugin.Instance.SaveManager.HasActiveSession;
         Logger.Info(
             $"[AP] LoadGamePatch: HasActiveSession={activeSession} watermark={Plugin.Instance.SaveManager.LastItemIndex}");
@@ -222,18 +164,11 @@ internal static class LoadGamePatch
         {
             Plugin.Instance.SaveManager.PreloadLastItemIndex(binding.Seed, binding.Slot);
 
-            // Bind the save file now, without waiting for the connection. If the server is
-            // unreachable the player still gets correct AP behaviour offline: checks are
-            // recorded and persisted, and the fabricator keeps suppressing vanilla grants so
-            // an offline craft cannot hand out an upgrade the multiworld still owns.
+            // Bind now, so an unreachable server still gets correct offline behaviour.
             Plugin.Instance.SaveManager.BindOfflineSave(binding.Seed, binding.Slot);
-
-            // Reload the options from the persisted copy so option-gated checks evaluate the
-            // same way offline as they do connected.
             Plugin.Instance.ApClient.RestorePersistedSlotData();
         }
 
-        // Kick off connection in background; game load proceeds immediately.
         var connectData = new ArchipelagoData
         {
             Uri      = binding.Host,
@@ -245,10 +180,7 @@ internal static class LoadGamePatch
         return true;
     }
 
-    /// <summary>
-    /// Finds the SaveSlotIndex for a given GameName (e.g. "Game 3") by querying the
-    /// AutoSaveDirector's in-memory summary list.
-    /// </summary>
+    /// <summary>The SaveSlotIndex for a GameName (e.g. "Game 3"), or -1.</summary>
     private static int ResolveSlotIndex(AutoSaveDirector director, string gameName)
     {
         try
@@ -271,17 +203,10 @@ internal static class LoadGamePatch
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SessionEndedPatch — disconnects from the AP server when the player uses
-// Save and Quit to return to the main menu.
+// SessionEndedPatch — disconnects on Save and Quit, so the next save loaded can
+// auto-connect to its own slot.
 //
-// Without this patch the mod stays connected after quitting to menu, which
-// prevents auto-connecting a different save slot (LoadGamePatch bails out if
-// IsConnected is already true and the seed matches the previous session).
-//
-// Patch point: AutoSaveDirector.OnSessionEnded()  [CallerCount = 1]
-//   Called by the save director immediately before unloading the gameplay
-//   scenes; fires only on Save and Quit, not on application exit (that path
-//   goes through OnApplicationQuit instead).
+// Patch point: AutoSaveDirector.OnSessionEnded()  [CallerCount = 1; not on app exit]
 // ─────────────────────────────────────────────────────────────────────────────
 
 [HarmonyPatch(typeof(AutoSaveDirector), "OnSessionEnded")]
@@ -298,8 +223,7 @@ internal static class SessionEndedPatch
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DeleteGamePatch — removes the binding sidecar when a save slot is deleted so
-// the slot is no longer treated as an AP save.
+// DeleteGamePatch — deleting a save also deletes its binding and AP progress files.
 //
 // Patch point: AutoSaveDirector.DeleteGame(string gameName)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -326,9 +250,7 @@ internal static class DeleteGamePatch
         if (slotIndex < 0) return;
         if (!SaveBindingManager.Exists(slotIndex)) return;
 
-        // Load the binding before deleting it — we need the seed + slot name to locate
-        // the AP progress config and scout JSON files, which are keyed by seed+slot, not
-        // by slot index.
+        // Read it first: the progress files are keyed by its seed+slot.
         var binding = SaveBindingManager.Load(slotIndex);
         SaveBindingManager.Delete(slotIndex);
 

@@ -19,10 +19,7 @@ public class Plugin : BasePlugin
     public ApSaveManager     SaveManager { get; private set; } = null!;
     public ConnectionUI?     ConnectionUi { get; private set; }
 
-    /// <summary>
-    /// When false, all AP logic is bypassed and the game runs as vanilla SR2.
-    /// Persisted to the BepInEx config file so it survives restarts.
-    /// </summary>
+    /// <summary>When false, all AP logic is bypassed (vanilla SR2). Persisted in config.</summary>
     public bool ModEnabled { get; private set; }
 
     private ConfigEntry<bool>? _modEnabledEntry;
@@ -37,10 +34,8 @@ public class Plugin : BasePlugin
             "Set to false to disable all Archipelago logic and play vanilla SR2.");
         ModEnabled = _modEnabledEntry.Value;
 
-        // Frame-cost profiling. Off by default so shipping builds pay nothing; set to a
-        // positive number of seconds to have the per-Tick breakdown written to this log on
-        // that interval. The debug panel's F9 button only exists in Debug builds, so this
-        // config entry is the only way to profile a Release build.
+        // Frame-cost profiling: seconds between per-Tick reports, 0 = off. The only way to
+        // profile a Release build (F9 is Debug-only).
         var perfEntry = Config.Bind("Diagnostics", "PerfLogSeconds", 0f,
             "Seconds between mod frame-cost reports in the log. 0 disables profiling entirely.");
         Utils.ModProfiler.LogIntervalSeconds = perfEntry.Value;
@@ -51,7 +46,6 @@ public class Plugin : BasePlugin
         if (perfEntry.Value > 0f)
             Logger.Info($"[AP-Perf] Frame-cost profiling ON — reporting every {perfEntry.Value}s.");
 
-        // Register IL2CPP MonoBehaviour types before use
         ClassInjector.RegisterTypeInIl2Cpp<ApUpdateBehaviour>();
         ClassInjector.RegisterTypeInIl2Cpp<ConnectionUI>();
         ClassInjector.RegisterTypeInIl2Cpp<StatusHUD>();
@@ -68,7 +62,6 @@ public class Plugin : BasePlugin
         AddComponent<SlimeRancher2AP.UI.DebugPanel>();
 #endif
 
-        // Apply all Harmony patches discovered by attribute scan
         new Harmony(PluginInfo.GUID).PatchAll(typeof(Plugin).Assembly);
 
         Logger.Info($"All patches applied. Mod is {(ModEnabled ? "ENABLED" : "DISABLED — vanilla mode")}. Awaiting Archipelago connection.");
@@ -78,10 +71,7 @@ public class Plugin : BasePlugin
     // Mod toggle
     // -------------------------------------------------------------------------
 
-    /// <summary>
-    /// Toggle or set the mod-enabled flag and persist the new value to config.
-    /// Call from the main thread only (UI toggle button).
-    /// </summary>
+    /// <summary>Sets and persists the mod-enabled flag. Main thread.</summary>
     public void SetModEnabled(bool value)
     {
         ModEnabled = value;
@@ -92,10 +82,7 @@ public class Plugin : BasePlugin
     }
 }
 
-/// <summary>
-/// MonoBehaviour injected into the BepInEx game object to provide a Unity Update loop.
-/// Required for IL2CPP plugins because BasePlugin has no Update method.
-/// </summary>
+/// <summary>The mod's Update loop — BasePlugin has none in IL2CPP.</summary>
 public class ApUpdateBehaviour : MonoBehaviour
 {
     private static class Prof
@@ -106,21 +93,18 @@ public class ApUpdateBehaviour : MonoBehaviour
 
     public ApUpdateBehaviour(IntPtr handle) : base(handle) { }
 
-    // Ghost drone spawn retry state.
-    // SR2 loads zone sub-scenes additively and they finish streaming in several seconds
-    // after SceneContext.Player becomes available. We retry every 3 seconds for up to 60
-    // seconds after each scene change so we catch spawners in late-loading sub-scenes.
+    // Ghost drone spawn retries: every 3 s for 60 s after each scene change, since sub-scenes
+    // stream in well after the Player exists.
     private string _lastScene          = "";
     private float  _droneSpawnDeadline = 0f;
     private float  _droneSpawnNextTry  = 0f;
     private float  _nextSceneCheck     = 0f;
 
-    // Cached player + its TeleportablePlayer so the zone read below is not a per-frame
-    // GetComponent across the IL2CPP boundary. Invalidated whenever the player changes.
+    // Cached, so the per-frame zone read isn't a GetComponent across IL2CPP.
     private UnityEngine.GameObject?   _cachedPlayer;
     private TeleportablePlayer?       _cachedTeleportable;
 
-    // Cached Action instances for the profiled Update sections — allocated once, not per frame.
+    // Cached delegates for the profiled sections — no per-frame allocation.
     private static readonly Action _tItemQueue    = () => Plugin.Instance?.ApClient?.ProcessItemQueue();
     private static readonly Action _tDeathQueue   = () => Plugin.Instance?.ApClient?.DeathLink?.ProcessDeathQueue();
     private static readonly Action _tTrap         = TrapHandler.Tick;
@@ -161,9 +145,7 @@ public class ApUpdateBehaviour : MonoBehaviour
 #if DEBUG
         SlimeRancher2AP.Utils.DebugTrace.Once("Update.4 — after ProcessDeathQueue");
 #endif
-        // Each Tick is timed under its own name so a frame-cost regression can be attributed to
-        // the exact poll responsible. The delegates are cached statics — building them inline
-        // would allocate a closure per section per frame and pollute what we are measuring.
+        // Each Tick is timed separately, so a regression points at its poll.
         Prof.BeginFrame();
         Prof.Time("TrapHandler",          _tTrap);
         Prof.Time("GateReturnEnforcer",   _tGate);
@@ -189,12 +171,7 @@ public class ApUpdateBehaviour : MonoBehaviour
 #if DEBUG
         SlimeRancher2AP.Utils.DebugTrace.Once("Update.5 — after TrapHandler.Tick");
 #endif
-        // Track which zones the player visits so the teleport trap can infer region accessibility
-        // even when gates were opened in a previous session or via gadget teleporters.
-        //
-        // The TeleportablePlayer component is cached against the player GameObject: GetComponent
-        // crosses the IL2CPP boundary and was being called every single frame purely to read a
-        // zone id that changes a handful of times per session.
+        // Zone tracking (teleport trap pool, gate enforcement).
         try
         {
             var player = SceneContext.Instance?.Player;
@@ -220,12 +197,7 @@ public class ApUpdateBehaviour : MonoBehaviour
         SlimeRancher2AP.Utils.NoClipManager.Tick();
 #endif
 
-        // Ghost drone spawner fix — retry every 3s for 60s after each scene change.
-        // Sub-scenes finish streaming in well after SceneContext.Player is available,
-        // so a one-shot trigger misses spawners that load a few seconds later.
-        // Scene-change detection, sampled 5×/second rather than every frame: GetActiveScene().name
-        // marshals a fresh string across the IL2CPP boundary on every call, and a scene change is
-        // never so urgent that a 200 ms detection delay matters here.
+        // Scene-change detection, 5×/second — GetActiveScene().name marshals a new string per call.
         float nowT = UnityEngine.Time.unscaledTime;
         if (nowT >= _nextSceneCheck)
         {
@@ -243,7 +215,6 @@ public class ApUpdateBehaviour : MonoBehaviour
                 SlimeRancher2AP.Archipelago.PrismacoreFulfiller.Rearm();
                 // The upgrade model is repopulated by Push on the next save load.
                 SlimeRancher2AP.Archipelago.ItemHandler.ResetUpgradeRestoreState();
-                // Decode the AP logo here rather than on the first popup — see Prewarm().
                 SlimeRancher2AP.UI.ApPopup.Prewarm();
             }
         }
@@ -255,7 +226,7 @@ public class ApUpdateBehaviour : MonoBehaviour
             _droneSpawnNextTry = UnityEngine.Time.time + 3f;
         }
 
-        // Last: write everything this frame changed (checks, watermark, counters) in one save.
+        // Last: one save for everything this frame changed.
         Prof.Time("SaveFlush", _tSaveFlush);
     }
 

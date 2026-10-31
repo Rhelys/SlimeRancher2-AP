@@ -4,10 +4,7 @@ using SlimeRancher2AP.Data;
 
 namespace SlimeRancher2AP.Patches.LocationPatches;
 
-/// <summary>
-/// Fires a location check when a gordo slime pops.
-/// Postfix on GordoEat.ImmediateReachedTarget() — confirmed from SR2PopAllGordos.
-/// </summary>
+/// <summary>A gordo popping sends its check.</summary>
 [HarmonyPatch(typeof(GordoEat), nameof(GordoEat.ImmediateReachedTarget))]
 internal static class GordoPatch
 {
@@ -18,17 +15,14 @@ internal static class GordoPatch
 #endif
         if (!Plugin.Instance.ModEnabled || !Plugin.Instance.SaveManager.IsSaveBound) return;
 
-        // randomize_gordos=false removes all gordo locations from the seed — do not send checks.
-        // Only gate when slot data is available; when temporarily offline (SlotData null) the
-        // check still accumulates locally so a popped gordo is never permanently lost.
+        // Off = not in the seed. Without slot data (offline) record it anyway rather than lose it.
         var slotData = Plugin.Instance.ApClient.SlotData;
         if (slotData != null && !slotData.RandomizeGordos) return;
 
-        // Guard: PlayerModel is null while the world is still loading from save.
+        // Still loading from save.
         if (SceneContext.Instance?.PlayerState?._model == null) return;
 
-        // Gordos with an empty/invalid scene name are GordoSnare prefab templates loaded globally —
-        // NOT static world gordos. Only send checks for static gordos with a real scene.
+        // No valid scene = a GordoSnare template, not a world gordo.
         string gordoName, sceneName;
         try
         {

@@ -6,11 +6,7 @@ public enum ItemType { RegionAccess, Upgrade, Gadget, Filler, Useful, UpgradeCom
 public record ItemInfo(long Id, string Name, ItemType Type);
 
 /// <summary>
-/// Master table of all items and their IDs. IDs MUST match the companion Python apworld exactly.
-/// Base offset: 819000 (items start at 819500).
-///
-/// Verified against Archipelago/worlds/slime_rancher_2/items.py (2026-04-12).
-/// GadgetDefinition asset names marked (?) have not been confirmed via DumpGadgets yet.
+/// Every item and its ID. IDs and names MUST match the apworld's items.py exactly.
 /// </summary>
 public static class ItemTable
 {
@@ -26,9 +22,7 @@ public static class ItemTable
     // Special Access: 819510
     public const long RadiantProjectorBlueprint = 819510; // grants EnergyBeamNode blueprint
 
-    // Crafting Components: 819511–819514, 819530–819536
-    // Consumed by Fabricator recipes; received from AP pool (one per consuming craft tier).
-    // Game asset names confirmed via upgrade_components.txt dump (2026-04-13).
+    // Crafting Components: 819511–819514, 819530–819536, 819538 — one per consuming craft tier
     public const long ArchiveKeyComponent  = 819511; // → ArchiveKeyComponent      (Drone Archive Key ×1)
     public const long SureshotModule       = 819512; // → SureShotComponent        (Golden Sureshot I/II/III ×3)
     public const long TankLiner            = 819513; // → TankGuardComponent       (Tank Guard I/II/III ×3)
@@ -59,50 +53,48 @@ public static class ItemTable
     public const long ResourceHarvester   = 819528; // ResourceNodeHarvester × 1
     public const long DroneArchiveKey     = 819529; // ArchiveKey            × 1
 
-    // Useful — Quantum Drone Station: 819537 (formerly "Drone Station Module").
-    // First copy grants the DroneStation blueprint + one placeable station; each copy
-    // also adds one ComponentAcqDrone module (another craftable station).
+    // Useful — Quantum Drone Station: 819537. Each copy ensures the DroneStation blueprint and
+    // adds one station (see ItemHandler.ApplyUseful).
     public const long QuantumDroneStation = 819537;
 
     // Gadgets: 819540–819557
-    // Zone Teleporters — one per region (confirmed via DumpGadgets)
+    // Zone Teleporters
     public const long TeleporterEmberValley      = 819540; // TeleporterZoneGorge
     public const long TeleporterStarlightStrand  = 819541; // TeleporterZoneStrand
     public const long TeleporterPowderfallBluffs = 819542; // TeleporterZoneBluffs
     public const long TeleporterGreyLabyrinth    = 819543; // TeleporterZoneLabyrinth
 
-    // Home Teleporters — four colours (confirmed via DumpGadgets)
+    // Home Teleporters
     public const long HomeTeleporterBlue   = 819544; // TeleporterHomeBlue
     public const long HomeTeleporterGreen  = 819545; // TeleporterHomeGreen
     public const long HomeTeleporterRed    = 819546; // TeleporterHomeRed
     public const long HomeTeleporterYellow = 819547; // TeleporterHomeYellow
 
-    // Warp Depots — four variants (confirmed via DumpGadgets)
+    // Warp Depots
     public const long WarpDepotGrey   = 819548; // WarpDepotGrey
     public const long WarpDepotBerry  = 819549; // WarpDepotBerry  (orange-coloured)
     public const long WarpDepotViolet = 819550; // WarpDepotViolet
     public const long WarpDepotSnowy  = 819551; // WarpDepotSnowy
 
-    // Functional gadgets (?)
-    public const long MarketLink        = 819552; // MarketLink        (?)
-    public const long SuperHydroTurret  = 819553; // SuperHydroTurret  (?)
-    public const long PortableScareSlime= 819554; // PortableScareSlime (?)
-    public const long GordoSnareAdvanced= 819555; // GordoSnareAdvanced (?)
-    public const long MedStation        = 819556; // MedStation        (?)
-    public const long DreamLanternT2    = 819557; // DreamLanternT2    (confirmed: DreamLanternT2)
+    // Functional gadgets
+    public const long MarketLink        = 819552; // MarketLink
+    public const long SuperHydroTurret  = 819553; // SuperHydroTurret
+    public const long PortableScareSlime= 819554; // PortableScareSlime
+    public const long GordoSnareAdvanced= 819555; // GordoSnareAdvanced
+    public const long MedStation        = 819556; // MedStation
+    public const long DreamLanternT2    = 819557; // DreamLanternT2
 
-    // Movement / utility gadgets — always in the apworld pool (items.py GADGET_ITEMS)
-    public const long DashPad           = 819558; // DashPad           (confirmed via DumpGadgets)
-    public const long SpringPad         = 819559; // SpringPad         (confirmed via DumpGadgets)
-    public const long PortableWaterTap  = 819560; // PortableWaterTap  (confirmed via DumpGadgets)
+    // Movement / utility gadgets — always in the pool
+    public const long DashPad           = 819558; // DashPad
+    public const long SpringPad         = 819559; // SpringPad
+    public const long PortableWaterTap  = 819560; // PortableWaterTap
 
-    // Labyrinth goal gadget — in pool ×3 for prismacore/slimepedia goals (items.py)
-    public const long DisruptionDetector = 819561; // PrismaDisruptionDetector (confirmed via DumpGadgets)
+    // Labyrinth goal gadget — ×3 for prismacore/slimepedia goals
+    public const long DisruptionDetector = 819561; // PrismaDisruptionDetector
 
-    // Utility gadgets — always in the apworld pool, one each (items.py GADGET_ITEMS).
-    // 819562 is the Progressive Shop Catalog, below.
-    public const long RefineryLink       = 819563; // RefineryLink       (docs/dumps/1.3/gadgets.txt)
-    public const long PortableFabricator = 819564; // PortableFabricator (docs/dumps/1.3/gadgets.txt; new in 1.3)
+    // Utility gadgets — always in the pool, one each. (819562 is the Shop Catalog, below.)
+    public const long RefineryLink       = 819563; // RefineryLink
+    public const long PortableFabricator = 819564; // PortableFabricator (new in 1.3)
 
     // Filler — Newbucks: 819580–819582
     public const long Newbucks250  = 819580;
@@ -126,15 +118,11 @@ public static class ItemTable
     public const long SlimeRing     = 819610; // spawns common slimes in a ring around the player
     public const long WeatherChange = 819611; // triggers random Heavy/SlimeRain weather for 3 minutes
 
-    // Market Recovery: 819635–819636 — in pool when plort_market_mode is 5_items/10_items.
-    // Each reduces every plort's saturation by the stated fraction of its FullSaturation cap;
-    // implemented declaratively in Patches/EconomyPatches/PlortMarketModePatch.
+    // Market Recovery: 819635–819636 (plort_market_mode) — see PlortMarketModePatch.
     public const long MarketRecovery20 = 819635; // Market Recovery (20%) ×5
     public const long MarketRecovery10 = 819636; // Market Recovery (10%) ×10
 
-    // Conservatory Expansions: 819630–819634
-    // Received from AP pool; opens the corresponding AccessDoor in the Conservatory.
-    // Door _id strings confirmed via F9 → Dumps → "Dump Access Doors" in the Conservatory.
+    // Conservatory Expansions: 819630–819634 — each opens its AccessDoor
     public const long ExpansionGully     = 819630;
     public const long ExpansionTidepools = 819631;
     public const long ExpansionArchway   = 819632;
@@ -148,12 +136,9 @@ public static class ItemTable
     public const long TrapVacExpel    = 819615; // expels all vacpack contents as world objects and clears slots
     public const long TrapVacFill = 819616; // fills all empty vacpack slots with Pink slimes
 
-    // Ranch Plot randomization: 819640–819672 — three tiers, each behind its own apworld
-    // option. Counts are always derived from the AP server snapshot (RanchPlotHandler),
-    // never from replay state, so these items are safe to re-apply.
+    // Ranch Plot randomization: 819640–819672, three tiers (see RanchPlotHandler).
     //
-    // Per-area plot unlocks (randomize_plots) — progressive; count per area from the
-    // in-game plot dump (docs/dumps/1.2/plot.txt): region cell name in comment.
+    // Per-area plot unlocks (randomize_plots) — progressive; region cell name in comment.
     public const long RanchPlotConservatory = 819640; // cellConservatory      ×8
     public const long RanchPlotGully        = 819641; // cellExpansionGully    ×5
     public const long RanchPlotTidepools    = 819642; // cellExpansionPools    ×5
@@ -161,8 +146,7 @@ public static class ItemTable
     public const long RanchPlotDen          = 819644; // cellExpansionDen      ×5
     public const long RanchPlotDigsite      = 819645; // cellExpansionDigsite  ×4
 
-    // Building type unlocks (randomize_plot_buildings) — PlotPatchPurchaseItemModel asset
-    // name in comment (the gate key).
+    // Building type unlocks (randomize_plot_buildings) — purchase asset name in comment
     public const long CorralPlans      = 819646; // 'Corral Patch'
     public const long CoopPlans        = 819647; // 'Coop Patch'
     public const long GardenPlans      = 819648; // 'Garden Patch'
@@ -170,9 +154,7 @@ public static class ItemTable
     public const long PondPlans        = 819650; // 'Pond Patch'
     public const long IncineratorPlans = 819651; // 'Incinerator Patch'
 
-    // Plot upgrade unlocks (randomize_plot_upgrades) — PlotUpgradePurchaseItemModel asset
-    // name in comment. WALLS/FEEDER enum values are shared between corral and coop, so the
-    // asset name (not the LandPlot.Upgrade enum) is the gate key.
+    // Plot upgrade unlocks (randomize_plot_upgrades) — purchase asset name in comment
     public const long CorralUpgradeWalls          = 819652; // 'Walls Upgrade'
     public const long CorralUpgradeAirNet         = 819653; // 'AirNet Upgrade'
     public const long CorralUpgradeMusicBox       = 819654; // 'MusicBox Upgrade'
@@ -185,8 +167,7 @@ public static class ItemTable
     public const long GardenUpgradeSoil           = 819661; // 'Soil Upgrade'
     public const long GardenUpgradeSprinkler      = 819662; // 'Sprinkler Upgrade'
     public const long GardenUpgradeScareslime     = 819663; // 'Scareslime Upgrade'
-    // Vitamizer sits in the COOP purchase category in-game (confirmed via category
-    // diagnostics 2026-07-12), despite the initial garden guess.
+    // Vitamizer really is a coop upgrade in-game.
     public const long CoopUpgradeVitamizer        = 819664; // 'Vitamizer Upgrade'
     public const long GardenUpgradeDeluxe         = 819665; // 'DeluxeGarden Upgrade'
     public const long SiloUpgradeStorage2         = 819666; // 'Storage2 Upgrade'
@@ -198,32 +179,20 @@ public static class ItemTable
     public const long IncineratorUpgradePlortCollector = 819672; // 'PlortCollectorIncerator Upgrade' (game asset typo is real)
 
     // -------------------------------------------------------------------------
-    // Prisma Shard: 819673 — the prisma_shard_hunt goal's collectible.
+    // Prisma Shard: 819673 — the prisma_shard_hunt collectible.
     //
-    // Deliberately NOT Filler/Useful/Trap: those types are ephemeral-guarded and skipped on
-    // replay, and while the running count comes from the server snapshot rather than replay
-    // state, giving shards their own type keeps them out of that machinery entirely.
+    // Counter-like items (shards, catalogs, palettes) get their own types, never Filler/Useful/
+    // Trap: those are ephemeral-guarded and skipped on replay, which would lose them.
     // -------------------------------------------------------------------------
     public const long PrismaShard = 819673;
 
     // -------------------------------------------------------------------------
-    // Progressive Shop Catalog: 819562 — releases the next wave of Polestar shop checks
-    // (apworld `shop_catalog` option).
-    //
-    // Its own type for the same reason as PrismaShard: Filler/Useful/Trap are ephemeral-guarded
-    // and skipped on replay, and a catalog copy that is skipped silently locks a shop wave the
-    // player has already earned. Holding N copies is the whole state — which copy arrived never
-    // matters, so there is no ordering to reconstruct.
+    // Progressive Shop Catalog: 819562 — releases the next wave of shop checks (shop_catalog).
     // -------------------------------------------------------------------------
     public const long ProgressiveShopCatalog = 819562;
 
     // -------------------------------------------------------------------------
-    // Vac palettes: 819674–819695 (apworld palette_items option, game update 1.3)
-    //
-    // Each unlocks one vac style. A permanent unlock, like a gadget blueprint — so its own type
-    // rather than Filler. Filler is ephemeral-guarded and skipped on replay, which is right for
-    // one-shot currency and caches but would leave a fresh save without palettes the player had
-    // already received. Re-applying is safe: ApplyPalette checks IsOwned first.
+    // Vac palettes: 819674–819695 (palette_items option, game update 1.3) — permanent unlocks.
     // -------------------------------------------------------------------------
     public const long Palette_Blue = 819674;
     public const long Palette_Purple = 819675;
@@ -262,7 +231,7 @@ public static class ItemTable
         // Special Access
         new(RadiantProjectorBlueprint, "Radiant Projector Blueprint", ItemType.Gadget),
 
-        // Crafting Components — fabricator ingredients received from AP pool
+        // Crafting Components
         new(ArchiveKeyComponent,   "Archive Key Component",   ItemType.UpgradeComponent),
         new(SureshotModule,       "Sureshot Module",         ItemType.UpgradeComponent),
         new(TankLiner,             "Tank Liner",              ItemType.UpgradeComponent),
@@ -293,8 +262,7 @@ public static class ItemTable
         new(ResourceHarvester,         "Resource Harvester",          ItemType.Upgrade),
         new(DroneArchiveKey,           "Drone Archive Key",           ItemType.Upgrade),
 
-        // Useful — Quantum Drone Station (blueprint+station on first copy, then modules;
-        // module IdentType confirmed: ComponentAcqDrone, max 19 in game)
+        // Useful — Quantum Drone Station
         new(QuantumDroneStation, "Quantum Drone Station", ItemType.Useful),
 
         // Gadgets — Zone Teleporters
@@ -323,16 +291,15 @@ public static class ItemTable
         new(MedStation,         "Med Station",          ItemType.Gadget),
         new(DreamLanternT2,     "Dream Lantern T2",     ItemType.Gadget),
 
-        // Gadgets — Movement / utility (always in the apworld pool)
+        // Gadgets — Movement / utility
         new(DashPad,            "Dash Pad",             ItemType.Gadget),
         new(SpringPad,          "Spring Pad",           ItemType.Gadget),
         new(PortableWaterTap,   "Portable Water Tap",   ItemType.Gadget),
 
-        // Gadgets — Labyrinth goal (×3 in pool for prismacore/slimepedia goals; duplicate
-        // receipts are skipped by GrantSingleGadget's blueprint-already-unlocked guard)
+        // Gadgets — Labyrinth goal
         new(DisruptionDetector, "Disruption Detector",  ItemType.Gadget),
 
-        // Gadgets — Utility (always in the apworld pool, one each)
+        // Gadgets — Utility
         new(RefineryLink,       "Refinery Link",        ItemType.Gadget),
         new(PortableFabricator, "Portable Fabricator",  ItemType.Gadget),
 
@@ -364,7 +331,7 @@ public static class ItemTable
         new(SlimeRing,     "Slime Ring",     ItemType.Filler),
         new(WeatherChange, "Weather Change", ItemType.Useful),
 
-        // Market Recovery (only in pool when plort_market_mode != disabled)
+        // Market Recovery
         new(MarketRecovery20, "Market Recovery (20%)", ItemType.Useful),
         new(MarketRecovery10, "Market Recovery (10%)", ItemType.Useful),
 
@@ -447,9 +414,7 @@ public static class ItemTable
 
     public static ItemInfo? Get(long id) => _byId.TryGetValue(id, out var info) ? info : null;
 
-    // Maps expansion item ID → AccessDoor._id string.
-    // Placeholder values must be replaced after running the in-game AccessDoor dump
-    // (F9 → Dumps → "Dump Access Doors" while standing in the Conservatory).
+    // Expansion item ID → AccessDoor._id
     private static readonly Dictionary<long, string> _expansionDoorIds = new()
     {
         [ExpansionGully]     = "door1733849867", // zoneConservatory_Arboretum
@@ -459,10 +424,7 @@ public static class ItemTable
         [ExpansionDigsite]   = "door1356553442", // zoneConservatory_Digsite
     };
 
-    /// <summary>
-    /// Returns the <c>AccessDoor._id</c> string for a conservatory expansion item, or
-    /// <c>null</c> if the item ID is not a conservatory expansion.
-    /// </summary>
+    /// <summary>The expansion item's <c>AccessDoor._id</c>, or null.</summary>
     public static string? GetExpansionDoorId(long itemId)
         => _expansionDoorIds.TryGetValue(itemId, out var id) ? id : null;
 }

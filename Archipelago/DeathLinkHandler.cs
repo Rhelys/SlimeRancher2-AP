@@ -6,37 +6,30 @@ using UnityEngine;
 namespace SlimeRancher2AP.Archipelago;
 
 /// <summary>
-/// Wraps the Archipelago DeathLink service. Sending and receiving deaths are decoupled:
-/// sends happen from the Unity main thread (via patch); receives are queued and processed
-/// on the main thread in ProcessDeathQueue() to safely call Unity APIs.
-/// A feedback-loop guard prevents re-broadcasting a death we caused.
+/// DeathLink: sends from PlayerDeathPatch; received deaths queue for the main thread
+/// (ProcessDeathQueue). A death we caused is never re-broadcast.
 /// </summary>
 public class DeathLinkHandler
 {
     /// <summary>
-    /// Seconds after any death (local, or one we applied) during which incoming DeathLinks are
-    /// ignored. Covers the death/respawn sequence, where calling <c>OnDeath</c> again would
-    /// stack a second death on the first, and collapses a burst of near-simultaneous deaths
-    /// from several players into one.
+    /// Incoming deaths are ignored this long after any death — no second death mid-respawn, and
+    /// a burst counts once.
     /// </summary>
     private const float DeathCooldownSeconds = 10f;
 
     /// <summary>
-    /// A queued death older than this is discarded rather than applied. Deaths are held while
-    /// there is no player (loading, main menu); without a limit, one received minutes earlier
-    /// on the main menu would kill the player the instant they load in.
+    /// Older queued deaths are dropped — deaths wait while there is no player, and one from the
+    /// main menu shouldn't kill on load.
     /// </summary>
     private static readonly TimeSpan MaxQueuedAge = TimeSpan.FromSeconds(30);
 
     private readonly DeathLinkService _service;
     private readonly string           _playerName;
 
-    // Written by the network thread (OnDeathReceived), read by the main thread — must be
-    // concurrent. Receipt time is stamped on arrival for the staleness check.
+    // Network thread → main thread, stamped on arrival.
     private readonly ConcurrentQueue<(DeathLink death, DateTime receivedUtc)> _pendingDeaths = new();
 
-    // True while we are in the process of sending a death, so that the incoming
-    // PlayerDeathPatch does not fire again for the death we triggered.
+    // Set while applying a received death, so PlayerDeathPatch doesn't echo it.
     private bool _isSendingDeath;
 
     /// <summary><c>Time.unscaledTime</c> of the most recent death; -inf before the first.</summary>
@@ -52,11 +45,7 @@ public class DeathLinkHandler
     public void Enable()  => _service.EnableDeathLink();
     public void Disable() => _service.DisableDeathLink();
 
-    /// <summary>
-    /// Called from PlayerDeathPatch when the local player dies.
-    /// Skipped if we caused this death via an incoming DeathLink (feedback-loop guard).
-    /// Does NOT modify _isSendingDeath — that flag is owned by ProcessDeathQueue only.
-    /// </summary>
+    /// <summary>On a local death; skipped for one we applied.</summary>
     public void SendDeath(string? cause = null)
     {
         if (_isSendingDeath) return;
@@ -72,10 +61,7 @@ public class DeathLinkHandler
         _pendingDeaths.Enqueue((death, DateTime.UtcNow));
     }
 
-    /// <summary>
-    /// Kills the local player by triggering the full death pipeline via PlayerDeathHandler.
-    /// Also called directly from the debug panel for death testing.
-    /// </summary>
+    /// <summary>Kills the player through the full death pipeline (also the debug panel's).</summary>
     public static void KillPlayer()
     {
         var player = SceneContext.Instance?.Player;
@@ -88,7 +74,6 @@ public class DeathLinkHandler
         }
         else
         {
-            // Fallback: set health to 0 if the component isn't found
             Logger.Warning("[AP] PlayerDeathHandler component not found — falling back to SetHealth(0)");
             SceneContext.Instance?.PlayerState?.SetHealth(0);
         }
@@ -98,12 +83,10 @@ public class DeathLinkHandler
     {
         if (_pendingDeaths.IsEmpty) return;
 
-        // Hold — don't dequeue — while there is no player to kill (loading, main menu). The old
-        // code dequeued first and then bailed, silently dropping the death.
+        // Hold, don't dequeue, while there is no player.
         if (SceneContext.Instance?.Player == null) return;
 
-        // Drain everything queued: one kill answers all of it. Applying each separately would
-        // call OnDeath again mid-respawn for every extra death in the burst.
+        // One kill answers the whole queue.
         var now = DateTime.UtcNow;
         DeathLink? toApply = null;
         int stale = 0, merged = 0;
@@ -133,8 +116,7 @@ public class DeathLinkHandler
             $"[AP] Applying DeathLink from {toApply.Source}" +
             (merged > 0 ? $" (+{merged} more received at the same time)" : ""));
 
-        // Set the guard BEFORE killing the player so that PlayerDeathPatch.Prefix fires
-        // during OnDeath() and sees _isSendingDeath = true, blocking the echo signal.
+        // Guard first — PlayerDeathPatch fires inside OnDeath.
         _lastDeathAt    = Time.unscaledTime;
         _isSendingDeath = true;
         try     { KillPlayer(); }

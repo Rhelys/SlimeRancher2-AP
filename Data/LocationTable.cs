@@ -10,122 +10,84 @@ public enum LocationType
     FabricatorCraft,
     ResearchDrone,
     /// <summary>
-    /// Archive page of a Research Drone (unlocked by the Drone Archive Key upgrade).
-    /// 13 of the 23 drones have archive content (confirmed via Resources scan).
-    /// Lookup key: <c>ResearchDroneEntry.archivedEntry.name</c> (e.g. "ResearchDroneConservatoryArchive").
+    /// A Research Drone's archive page (needs the Drone Archive Key). 19 of 23 drones have one.
+    /// Lookup key: <c>ResearchDroneEntry.archivedEntry.name</c>.
     /// </summary>
     ResearchDroneArchive,
     GhostlyDrone,
     ShadowPlortDoor,
 
     /// <summary>
-    /// A plort door (PuzzleSlotLockable, lockTag='plort_door') that is not the PB region gate
-    /// and not a Grey Labyrinth shadow plort door.  Optional — enabled by the
-    /// <c>randomize_puzzle_doors</c> apworld option.
-    /// Lookup key: posKey "sceneName_X_Y_Z".
+    /// A plort door other than the PB gate and the shadow doors (<c>randomize_puzzle_doors</c>).
+    /// Lookup key: posKey.
     /// </summary>
     PuzzleDoor,
 
     /// <summary>
-    /// A Radiant Slime Slimepedia entry unlocked when the player first catches a radiant
-    /// variant of that slime type.
-    /// Included when <see cref="SlimeRancher2AP.Archipelago.SlotData.RandomizeSlimepediaRadiant"/> is true.
-    /// Lookup key: <c>RadiantSlimePediaEntry.name</c> (stable Unity asset name).
+    /// Radiant Slimepedia entry, unlocked by the first radiant of that type
+    /// (<see cref="SlimeRancher2AP.Archipelago.SlotData.RandomizeSlimepediaRadiant"/>).
+    /// Lookup key: <c>RadiantSlimePediaEntry.name</c>.
     /// </summary>
     SlimepediaRadiantEntry,
 
     /// <summary>
-    /// First-time sale of a plort type at the Plort Market.
-    /// Included when <see cref="SlimeRancher2AP.Archipelago.SlotData.RandomizePlortMarket"/> is true.
-    /// Lookup key: <c>IdentifiableType.name</c> (e.g. "PinkPlort").
+    /// First sale of a plort type (<see cref="SlimeRancher2AP.Archipelago.SlotData.RandomizePlortMarket"/>).
+    /// Lookup key: <c>IdentifiableType.name</c>.
     /// </summary>
     PlortMarket,
 
     /// <summary>
-    /// Conversation with confirmed zone or chain access conditions (8 total).
-    /// Included when <see cref="ConversationCheckMode"/> ≥ <see cref="ConversationCheckMode.Conditional"/>.
-    /// Examples: Radiant Projector Blueprint (EV or Strand), Archive Key (EV+Strand),
-    /// Gordo Snare Advanced, BOb's first gift (EV+Strand), rancher intro-call chain.
+    /// Conversation with zone or chain access conditions — included from
+    /// <see cref="ConversationCheckMode.Conditional"/> up.
     /// </summary>
     ConversationConditional,
 
-    /// <summary>
-    /// Conversation gifting a functional/progression item (teleporter, EnergyBeamNode, etc.)
-    /// but without strong access conditions. Included only when
-    /// <see cref="ConversationCheckMode"/> = <see cref="ConversationCheckMode.All"/>.
-    /// </summary>
+    /// <summary>Functional gift without strong access conditions. <see cref="ConversationCheckMode.All"/> only.</summary>
     ConversationKeyGift,
 
-    /// <summary>
-    /// Conversation gifting a cosmetic/decorative item (grass, rocks, flags, etc.).
-    /// Included only when <see cref="ConversationCheckMode"/> = <see cref="ConversationCheckMode.All"/>.
-    /// </summary>
+    /// <summary>Decorative gift. <see cref="ConversationCheckMode.All"/> only.</summary>
     ConversationDecoGift,
 
-    /// <summary>
-    /// Non-gift conversation (story arc, lore, deflect dialogue).
-    /// Included only when <see cref="ConversationCheckMode"/> = <see cref="ConversationCheckMode.All"/>.
-    /// </summary>
+    /// <summary>Story, lore or deflect dialogue. <see cref="ConversationCheckMode.All"/> only.</summary>
     ConversationNonGift,
 
     /// <summary>
-    /// A Conservatory expansion terminal (AccessDoor).
-    /// Included when <c>randomize_conservatory_expansions</c> is enabled.
-    /// Lookup key: <c>AccessDoor._id</c> (IdHandler string ID).
+    /// Conservatory expansion terminal (<c>randomize_conservatory_expansions</c>).
+    /// Lookup key: <c>AccessDoor._id</c>.
     /// </summary>
     ConservatoryExpansion,
 
     /// <summary>
-    /// First purchase of a specific item at the Polestar Provisions shop (Conservatory).
-    /// Included (as a per-seed random subset) when
-    /// <see cref="SlimeRancher2AP.Archipelago.SlotData.RandomizeShop"/> is true — only
-    /// locations present in the seed (<c>IsLocationInSeed</c>) are active checks.
-    /// Lookup key: <c>ShopRuntimeItem.AssetGuid</c> (stable addressables GUID —
-    /// <c>ShopItemId</c> is NOT stable: it degrades to a GUID while unloaded and some
-    /// entries use hand-authored GUIDs even when loaded).
-    /// <c>EntryName</c> holds the GadgetDefinition asset name for logs/debugging.
+    /// First purchase of a Polestar Provisions item; a per-seed subset is active
+    /// (<c>IsLocationInSeed</c>). Lookup key: <c>ShopRuntimeItem.AssetGuid</c> — not
+    /// <c>ShopItemId</c>, which is unstable while unloaded. <c>EntryName</c> is for logs.
     /// </summary>
     PolestarShop,
 
     /// <summary>
-    /// A region gate switch check (locations/bundled <c>region_access_mode</c> only).
-    /// Detection is handled by <c>RegionTable</c> + <c>RegionGateActivatePatch</c> (EV/SS)
-    /// and <c>PlortDoorPoller</c> (PB) — NOT via the GameObjectName dictionary. These rows
-    /// exist so the locations are scouted and resolvable by <see cref="LocationTable.GetById"/>
-    /// for check notifications.
+    /// Region gate check (locations/bundled mode). Detected by <c>RegionGateActivatePatch</c> and
+    /// <c>PlortDoorPoller</c>; the rows exist only for scouting and <see cref="LocationTable.GetById"/>.
     /// </summary>
     RegionGate,
 }
 
-/// <summary>
-/// Controls which CommStation conversations become Archipelago location checks.
-/// Value read from slot data key <c>"conversation_checks"</c>.
-/// </summary>
+/// <summary>Which conversations are checks (slot data <c>"conversation_checks"</c>).</summary>
 public enum ConversationCheckMode
 {
-    /// <summary>No conversation locations. All ranchers give vanilla gifts directly.</summary>
+    /// <summary>None; ranchers give vanilla gifts.</summary>
     Off         = 0,
-    /// <summary>
-    /// The 8 conversations with confirmed zone or chain access conditions:
-    /// Radiant Projector Blueprint, Gordo Snare Advanced, Archive Key, Mochi/Ogden/Thora
-    /// intro calls, BOb's first gift and Yolky 1 (both require EV+Strand access).
-    /// </summary>
+    /// <summary>Only conversations with zone or chain access conditions.</summary>
     Conditional = 1,
-    /// <summary>Every conversation — all 120 total including decorative gifts and story/lore.</summary>
+    /// <summary>Every conversation, including decorative gifts and story.</summary>
     All         = 2,
 }
 
 /// <summary>Describes a single randomizable location in the game world.</summary>
 /// <param name="GameObjectName">
-///   Primary lookup key — matches <c>gameObject.name</c> in-game for most types, or
-///   the position key (<c>"sceneName_X_Y_Z"</c>) for TreasurePod, MapNode, and GhostlyDrone.
-///   Not used for ResearchDrone (use <see cref="EntryName"/>) or FabricatorCraft.
+///   Primary key: <c>gameObject.name</c>, or a posKey (<c>"sceneName_X_Y_Z"</c>) for pods,
+///   map nodes, doors and ghostly drones. Each section header below says which.
 /// </param>
-/// <param name="EntryName">
-///   Secondary lookup key used only by ResearchDrone locations.
-///   Matches the <c>ResearchDroneEntry</c> asset name (NOT the GameObject name).
-///   Null for all other location types.
-/// </param>
+/// <param name="EntryName">Asset-name key for types looked up by asset (drones, pedia, fabricator).</param>
 public record LocationInfo(
     long         Id,
     string       Name,
@@ -135,21 +97,13 @@ public record LocationInfo(
     string?      EntryName = null
 );
 
-/// <summary>
-/// Master table of all randomizable locations.
-/// <para>
-/// Entries marked <b>PLACEHOLDER</b> in GameObjectName need their posKey confirmed by running
-/// the in-game AP-Dump (F9 → Misc → Dump Locations) while standing in the relevant zone.
-/// </para>
-/// </summary>
+/// <summary>Master table of all randomizable locations. Must match the apworld's locations.py.</summary>
 public static class LocationTable
 {
     public static readonly IReadOnlyList<LocationInfo> All = new LocationInfo[]
     {
         // -------------------------------------------------------------------------
-        // TREASURE PODS (IDs 819000–819199)
-        // GameObjectName = posKey "sceneName_X_Y_Z" (confirmed via AP-Dump).
-        // PLACEHOLDER entries still need a dump run in their zone.
+        // TREASURE PODS (IDs 819000–819199) — GameObjectName = posKey
         // -------------------------------------------------------------------------
 
         // Conservatory — 3 pods ✅
@@ -281,9 +235,7 @@ public static class LocationTable
 
         // -------------------------------------------------------------------------
         // SHADOW PLORT DOORS (IDs 819200–819224) — Grey Labyrinth only
-        // GameObjectName = posKey "sceneName_X_Y_Z" — all doors share name='TriggerActivate'
-        // so PlortDepositorPatch uses WorldUtils.PositionKey() for lookup, same as TreasurePods.
-        // All 25 confirmed ✅ — Door 2 (y=48) and Door 10 (y=67) corrected vs original estimates.
+        // GameObjectName = posKey (every door is named 'TriggerActivate')
         // -------------------------------------------------------------------------
         new(LocationConstants.ShadowPlortDoor_01, "Shadow Plort Door 1",  LocationType.ShadowPlortDoor, "zoneLabStrandEntrance",              "zoneLabStrandEntrance_918_56_-1238"),
         new(LocationConstants.ShadowPlortDoor_02, "Shadow Plort Door 2",  LocationType.ShadowPlortDoor, "zoneLabStrandEntrance",              "zoneLabStrandEntrance_1160_48_-1357"),
@@ -312,11 +264,8 @@ public static class LocationTable
         new(LocationConstants.ShadowPlortDoor_25, "Shadow Plort Door 25", LocationType.ShadowPlortDoor, "zoneLabyrinthTerrarium_JungleGlacier","zoneLabyrinthTerrarium_JungleGlacier_2079_185_-975"),
 
         // -------------------------------------------------------------------------
-        // GORDO SLIMES (IDs 819250–819299)
-        // GameObjectName = gameObject.name (confirmed via AP-Dump).
-        // GordoPatch filters out GordoSnare templates (scene='') at runtime.
-        // gordoAngler / gordoFlutter static instances get Unity " (1)" suffix because
-        // the GordoSnare template registered the base name first.
+        // GORDO SLIMES (IDs 819250–819299) — GameObjectName = gameObject.name
+        // gordoAngler / gordoFlutter carry a " (1)" suffix: the GordoSnare template took the base name.
         // -------------------------------------------------------------------------
 
         // Rainbow Fields (zoneFields_*)
@@ -342,15 +291,13 @@ public static class LocationTable
         new(LocationConstants.Gordo_Saber,   "Saber Gordo",   LocationType.Gordo, "zoneBluffs_Area2",  "gordoSaber"),
 
         // Grey Labyrinth (Goals 3 and 4 only) ✅
-        // Note: SloomberGordo uses capital S and no "gordo" prefix — unlike all other gordos.
-        // Kinetic Gordo confirmed in zoneLabyrinthTerrarium_FoyerGazebo (not Hub_C).
+        // SloomberGordo really is named differently from the rest.
         new(LocationConstants.Gordo_Sloomber,"Sloomber Gordo",LocationType.Gordo, "zoneLabyrinthDreamland_C",           "SloomberGordo"),
         new(LocationConstants.Gordo_Twin,    "Twin Gordo",    LocationType.Gordo, "zoneLabyrinthHub_C",                 "gordoTwin"),
         new(LocationConstants.Gordo_Kinetic, "Kinetic Gordo", LocationType.Gordo, "zoneLabyrinthTerrarium_FoyerGazebo", "gordoKinetic"),
 
         // -------------------------------------------------------------------------
-        // MAP DATA NODES (IDs 819300–819349)
-        // GameObjectName = posKey "sceneName_X_Y_Z" (confirmed for all zones ✅).
+        // MAP DATA NODES (IDs 819300–819349) — GameObjectName = posKey
         // -------------------------------------------------------------------------
         new(LocationConstants.MapNode_RainbowFields_01,    "Rainbow Fields Map Node 1",    LocationType.MapNode, "zoneFields_Area1",   "zoneFields_Area1_188_4_216"),
         new(LocationConstants.MapNode_RainbowFields_02,    "Rainbow Fields Map Node 2",    LocationType.MapNode, "zoneFields_Area3",   "zoneFields_Area3_103_16_290"),
@@ -371,13 +318,8 @@ public static class LocationTable
         new(LocationConstants.MapNode_GreyLabyrinth_07,    "Grey Labyrinth Map Node: Terrarium Jungle",  LocationType.MapNode, "zoneLabyrinthTerrarium_JungleGlacier","zoneLabyrinthTerrarium_JungleGlacier_2020_167_-969"),
 
         // -------------------------------------------------------------------------
-        // SLIMEPEDIA ENTRIES (IDs 819350–819378)
-        // Patch: PediaDirector.Unlock(PediaEntry, bool) Postfix — fires only on NEW unlocks.
-        // EntryName = PediaEntry.name (confirmed via DumpPedia, 2026-04-10).
-        // Scene and GameObjectName are unused for this type (lookup is EntryName-only).
-        // All 29 entries in the 'Slimes' PediaCategory are included — Largo, FeralSlime,
-        // and Gordo are natural encounters during gameplay and required for the
-        // slimepedia goal (PediaRuntimeCategory.AllUnlocked() checks all 29).
+        // SLIMEPEDIA ENTRIES (IDs 819350–819379) — EntryName = PediaEntry.name
+        // All 30 'Slimes' entries, including Largo, FeralSlime, Gordo and the RadiantSlime concept.
         // -------------------------------------------------------------------------
         new(LocationConstants.Slimepedia_Pink,     "Slimepedia: Pink Slime",     LocationType.SlimepediaEntry, "", "", "Pink"),
         new(LocationConstants.Slimepedia_Cotton,   "Slimepedia: Cotton Slime",   LocationType.SlimepediaEntry, "", "", "Cotton"),
@@ -411,9 +353,8 @@ public static class LocationTable
         new(LocationConstants.Slimepedia_RadiantSlime, "Slimepedia: Radiant Slimes", LocationType.SlimepediaEntry, "", "", "RadiantSlime"),
 
         // -------------------------------------------------------------------------
-        // SLIMEPEDIA RESOURCES ENTRIES (IDs 819630–819683)
-        // EntryName = PediaEntry.name (confirmed via AP-Dump DumpPedia, 2026-04-14).
-        // Zone assignments reflect where each resource is first encountered.
+        // SLIMEPEDIA RESOURCES ENTRIES (IDs 819630–819684) — EntryName = PediaEntry.name
+        // Grouped by where each resource is first encountered.
         // -------------------------------------------------------------------------
 
         // Rainbow Fields (21)
@@ -484,15 +425,7 @@ public static class LocationTable
 
         // -------------------------------------------------------------------------
         // FABRICATOR — VACPACK UPGRADE CRAFTS (IDs 819400–819449)
-        // Order matches apworld locations.py FABRICATOR_LOCATIONS exactly.
-        // EntryName = UpgradeDefinition.name (used by FabricatorPatch for lookup).
-        // Confirmed names: ResourceNodeHarvester, HealthCapacity, EnergyCapacity,
-        //   AmmoSlots, Jetpack, RunEfficiency, PulseWave, LiquidSlot.
-        // Unconfirmed (educated guess, verify via DumpUpgradeComponents):
-        //   AmmoCapacity, TankGuard, GoldenSureshot, ShadowSureshot, ArchiveKey,
-        //   EnergyDelay, EnergyRegen.
-        // NOTE: EnergyCapacity has 5 tiers in apworld — verify game supports level 5.
-        //       RunEfficiency has 2 tiers in apworld — verify game supports level 2.
+        // EntryName = UpgradeDefinition.name. Order matches the apworld's FABRICATOR_LOCATIONS.
         // -------------------------------------------------------------------------
         new(LocationConstants.Fabricator_ResourceHarvester,  "Craft: Resource Harvester",   LocationType.FabricatorCraft, "zoneRanch", "Fabricator", "ResourceNodeHarvester"),
         new(LocationConstants.Fabricator_HealthCapacity_1,   "Craft: Health Tank I",        LocationType.FabricatorCraft, "zoneRanch", "Fabricator", "HealthCapacity"),
@@ -534,10 +467,8 @@ public static class LocationTable
         new(LocationConstants.Fabricator_EnergyRegen_2,      "Craft: Regenerator II",       LocationType.FabricatorCraft, "zoneRanch", "Fabricator", "EnergyRegen"),
 
         // -------------------------------------------------------------------------
-        // RESEARCH DRONES (IDs 819450–819479)
-        // EntryName = ResearchDroneEntry asset name (confirmed via AP-Dump).
-        // GameObjectName is NOT used for lookup (always something generic like "Drone_2").
-        // SceneName is approximate — sub-scene may differ; not used for runtime lookup.
+        // RESEARCH DRONES (IDs 819450–819472) — EntryName = ResearchDroneEntry name
+        // GameObjectName and SceneName are informational only.
         // -------------------------------------------------------------------------
 
         // Conservatory sub-zones (5 drones) ✅
@@ -574,31 +505,24 @@ public static class LocationTable
         new(LocationConstants.ResearchDrone_BluffsFinal,         "Research Drone: Powderfall Bluffs - Below Eastern Map Node", LocationType.ResearchDrone, "zoneBluffs_Area3", "Drone_2", "ResearchDroneBluffsFinal"),
 
         // -------------------------------------------------------------------------
-        // RESEARCH DRONE ARCHIVES (IDs 819473–819495 and 820075–820080)
-        // EntryName = ResearchDroneEntry.archivedEntry asset name, always "<DroneEntryName>Archive".
-        //
-        // 19 rows, and this set is COMPLETE. Asset dumps on 2026-08-02 across the Conservatory,
-        // Rainbow Fields, Ember Valley, Starlight Strand and Powderfall Bluffs accounted for all
-        // 23 drones: 19 have an archivedEntry, and the 4 Powderfall Bluffs drones report null.
-        //
-        // A row whose archive asset does not exist is an unreachable AP location, so if a game
-        // update adds drones, never add rows from the naming pattern alone — PB shows the pattern
-        // says nothing about whether an archive exists. Confirm with
-        // F9 → Dumps → "Dump Research Drone Archives", run once per zone (SR2 streams them).
+        // RESEARCH DRONE ARCHIVES (IDs 819473–819479, 819490–819495, 820075–820080)
+        // EntryName = archivedEntry name ("<DroneEntryName>Archive"). COMPLETE: 19 of 23 drones;
+        // the 4 PB drones have none. Never add rows from the naming pattern — a nonexistent
+        // archive is an unreachable location. Confirm with F9 → "Dump Research Drone Archives".
         // -------------------------------------------------------------------------
 
-        // Conservatory sub-zones (5 archives — all 5 Conservatory drones have archives)
+        // Conservatory (5)
         new(LocationConstants.ResearchDroneArchive_Gully,               "Research Drone Archive: Conservatory - Gully",        LocationType.ResearchDroneArchive, "zoneConservatory_Arboretum", "Drone_2", "ResearchDroneGullyArchive"),
         new(LocationConstants.ResearchDroneArchive_Conservatory,        "Research Drone Archive: Conservatory - Above Gully entrance", LocationType.ResearchDroneArchive, "zoneConservatory_Arboretum", "Drone_2", "ResearchDroneConservatoryArchive"),
         new(LocationConstants.ResearchDroneArchive_TheDen,              "Research Drone Archive: Conservatory - The Den",      LocationType.ResearchDroneArchive, "zoneConservatory_Den",       "Drone_2", "ResearchDroneTheDenArchive"),
         new(LocationConstants.ResearchDroneArchive_Archway,             "Research Drone Archive: Conservatory - Archway",      LocationType.ResearchDroneArchive, "zoneConservatory_Garden",    "Drone_2", "ResearchDroneArchwayArchive"),
         new(LocationConstants.ResearchDroneArchive_Tidepools,           "Research Drone Archive: Conservatory - Tidepools",    LocationType.ResearchDroneArchive, "zoneConservatory_Pools",     "Drone_2", "ResearchDroneTidepoolsArchive"),
 
-        // Rainbow Fields (2 archives — all 2 Rainbow Fields drones have archives)
+        // Rainbow Fields (2)
         new(LocationConstants.ResearchDroneArchive_FieldsExpanse,       "Research Drone Archive: Rainbow Fields - First big area",              LocationType.ResearchDroneArchive, "zoneFields_Area1", "Drone_2", "ResearchDroneFieldsExpanseArchive"),
         new(LocationConstants.ResearchDroneArchive_FieldsBluff,         "Research Drone Archive: Rainbow Fields - By path to Starlight Strand", LocationType.ResearchDroneArchive, "zoneFields_Area3", "Drone_2", "ResearchDroneFieldsBluffArchive"),
 
-        // Ember Valley / zoneGorge (all 6 drones — archives confirmed by dump 2026-08-02)
+        // Ember Valley (6)
         new(LocationConstants.ResearchDroneArchive_GorgeOverlook,       "Research Drone Archive: Ember Valley - Before 3-geyser main area", LocationType.ResearchDroneArchive, "zoneGorge_Area1", "Drone_2", "ResearchDroneGorgeOverlookArchive"),
         new(LocationConstants.ResearchDroneArchive_GorgeRuinedOverlook, "Research Drone Archive: Ember Valley - Below Angler ruins",        LocationType.ResearchDroneArchive, "zoneGorge_Area2", "Drone_2", "ResearchDroneGorgeRuinedOverlookArchive"),
         new(LocationConstants.ResearchDroneArchive_GorgeOceanPerch,     "Research Drone Archive: Ember Valley - Next to Tabby Gordo",       LocationType.ResearchDroneArchive, "zoneGorge_Area3", "Drone_2", "ResearchDroneGorgeOceanPerchArchive"),
@@ -606,7 +530,7 @@ public static class LocationTable
         new(LocationConstants.ResearchDroneArchive_GorgeLabyrinthGate,  "Research Drone Archive: Ember Valley - Grey Labyrinth Gate",       LocationType.ResearchDroneArchive, "zoneGorge_Area4", "Drone_2", "ResearchDroneGorgeLabyrinthGateArchive"),
         new(LocationConstants.ResearchDroneArchive_GorgeMagmaFieldsPerch,"Research Drone Archive: Ember Valley - Magma Fields Perch",       LocationType.ResearchDroneArchive, "zoneGorge_Area4", "Drone_2", "ResearchDroneGorgeMagmaFieldsPerchArchive"),
 
-        // Starlight Strand / zoneStrand (all 6 drones — archives confirmed by dump 2026-08-02)
+        // Starlight Strand (6)
         new(LocationConstants.ResearchDroneArchive_StrandField,         "Research Drone Archive: Starlight Strand - Start of Blue area",    LocationType.ResearchDroneArchive, "zoneStrand",       "Drone_2", "ResearchDroneStrandFieldArchive"),
         new(LocationConstants.ResearchDroneArchive_StrandMushroomAlley, "Research Drone Archive: Starlight Strand - Mushroom Alley",        LocationType.ResearchDroneArchive, "zoneStrand_Area1", "Drone_2", "ResearchDroneStrandMushroomAlleyArchive"),
         new(LocationConstants.ResearchDroneArchive_StrandWaterfall,     "Research Drone Archive: Starlight Strand - In front of Honey Gordo",LocationType.ResearchDroneArchive, "zoneStrand_Area2", "Drone_2", "ResearchDroneStrandWaterfallArchive"),
@@ -614,14 +538,10 @@ public static class LocationTable
         new(LocationConstants.ResearchDroneArchive_StrandSlopedCliff,   "Research Drone Archive: Starlight Strand - Southeast Red path",    LocationType.ResearchDroneArchive, "zoneStrand_Area3", "Drone_2", "ResearchDroneStrandSlopedCliffArchive"),
         new(LocationConstants.ResearchDroneArchive_StrandLabyrinthGate, "Research Drone Archive: Starlight Strand - Grey Labyrinth Gate",   LocationType.ResearchDroneArchive, "zoneStrand_Area4", "Drone_2", "ResearchDroneStrandLabyrinthGateArchive"),
 
-        // Powderfall Bluffs / zoneBluffs — NONE. All 4 PB drones lack an archivedEntry
-        // (observed in-game 2026-08-01). Do not add rows here without dump evidence.
+        // Powderfall Bluffs — none.
 
         // -------------------------------------------------------------------------
-        // GHOSTLY DRONES (IDs 819480–819494)
-        // These are TreasurePod subclass nodes (nodeComponentAcqDrone).
-        // GameObjectName = posKey "sceneName_X_Y_Z".
-        // Confirmed: EV ✅, SS ✅, PB ✅, Conservatory ✅, Rainbow Fields ✅, Grey Labyrinth ✅.
+        // GHOSTLY DRONES (IDs 819480–819489) — TreasurePod nodes; GameObjectName = posKey
         // -------------------------------------------------------------------------
         new(LocationConstants.GhostlyDrone_Conservatory_01,     "Ghostly Drone: Conservatory 1",     LocationType.GhostlyDrone, "zoneConservatory",  "zoneConservatory_560_42_466"),   // parent: ComponentAcquisitionDroneConservatory
         new(LocationConstants.GhostlyDrone_Conservatory_02,     "Ghostly Drone: Conservatory 2",     LocationType.GhostlyDrone, "zoneConservatory",  "zoneConservatory_589_27_27"),    // parent: ComponentAcquisitionDroneConservatory3
@@ -635,11 +555,9 @@ public static class LocationTable
         new(LocationConstants.GhostlyDrone_GreyLabyrinth_03,    "Ghostly Drone: Grey Labyrinth 3",   LocationType.GhostlyDrone, "zoneLabyrinthCorePath",              "zoneLabyrinthCorePath_1415_57_-1008"),
 
         // -------------------------------------------------------------------------
-        // CONVERSATION CONDITIONAL (10) — zone or chain access requirements
-        // ConversationCheckMode.Conditional and above.
-        // SceneName = rancher name.  GameObjectName = conversation debug name.
-        // Note: BOb: Rainbow Lumps Blueprint and BOb: Yolky 1 also have ConversationConditional
-        // type but are listed in their respective DECO / STORY sections below.
+        // CONVERSATION CONDITIONAL — Conditional mode and above
+        // SceneName = rancher, GameObjectName = conversation debug name (for all conversations).
+        // Two more Conditional rows sit in the DECO and STORY sections below.
         // -------------------------------------------------------------------------
 
         new(LocationConstants.Conv_Viktor_IntroCall,           "Viktor: Intro Call",                  LocationType.ConversationConditional, "Viktor", "ViktorIntroCall"),
@@ -652,8 +570,7 @@ public static class LocationTable
         new(LocationConstants.Conv_Mochi_ArchiveKeyComponent, "Mochi: Archive Key",                  LocationType.ConversationConditional, "Mochi",  "MochiStoryDrones3"),
 
         // -------------------------------------------------------------------------
-        // CONVERSATION KEY GIFTS (819701–819714) — functional gifts without strong access gates
-        // ConversationCheckMode.All only.
+        // CONVERSATION KEY GIFTS — All mode only
         // -------------------------------------------------------------------------
         new(LocationConstants.Conv_Viktor_GadgetIntro,        "Viktor: Gadget Introduction",         LocationType.ConversationKeyGift, "Viktor", "ViktorGift_GadgetIntro"),
         new(LocationConstants.Conv_Viktor_TeleporterPink,     "Viktor: Teleporter Pink",             LocationType.ConversationKeyGift, "Viktor", "ViktorGift1_TeleporterPink"),
@@ -668,11 +585,10 @@ public static class LocationTable
         new(LocationConstants.Conv_Mochi_MarketLink,          "Mochi: Market Link",                  LocationType.ConversationKeyGift, "Mochi",  "MochiGift1"),
 
         // -------------------------------------------------------------------------
-        // CONVERSATION DECORATION GIFTS (819714–819761)
-        // ConversationCheckMode.All only.
+        // CONVERSATION DECORATION GIFTS — All mode only
         // -------------------------------------------------------------------------
 
-        // BOb — Rainbow Lumps is ConversationConditional (EV+Strand gate); rest are All-only
+        // BOb — Rainbow Lumps is Conditional (EV+Strand)
         new(LocationConstants.Conv_BOb_RainbowLumps,            "BOb: Rainbow Lumps Blueprint",            LocationType.ConversationConditional, "BOb", "BObGift2"),
         new(LocationConstants.Conv_BOb_ThinCavePillar,          "BOb: Thin Cave Pillar Blueprint",         LocationType.ConversationDecoGift, "BOb", "BObGift3"),
         new(LocationConstants.Conv_BOb_RockClump,               "BOb: Rock Clump Blueprint",               LocationType.ConversationDecoGift, "BOb", "BObGift4"),
@@ -731,8 +647,7 @@ public static class LocationTable
         new(LocationConstants.Conv_Viktor_FlagCurious,          "Viktor: Curious Flag Blueprint",          LocationType.ConversationDecoGift, "Viktor", "ViktorGift_FlagCurious"),
 
         // -------------------------------------------------------------------------
-        // CONVERSATION NON-GIFTS (819762–819815)
-        // ConversationCheckMode.All only (except BOb: Yolky 1 which is Conditional).
+        // CONVERSATION NON-GIFTS — All mode only (except BOb: Yolky 1, Conditional)
         // -------------------------------------------------------------------------
 
         new(LocationConstants.Conv_Viktor_StoryCipher1,         "Viktor: Cipher 1",                        LocationType.ConversationNonGift, "Viktor", "ViktorStoryCipher1"),
@@ -796,12 +711,8 @@ public static class LocationTable
         new(LocationConstants.Conv_Gigi_Core_PostGame,         "Gigi: Post Game",                         LocationType.ConversationNonGift, "Gigi", "GigiCore_PostGame"),
 
         // -------------------------------------------------------------------------
-        // RADIANT SLIMEPEDIA ENTRIES (819821–819842)
-        // 22 entries confirmed via DumpRadiantSlimes() — alphabetical order.
-        // Lookup key: RadiantSlimePediaEntry.name (stable Unity asset name).
-        // The existing SlimepediaPatch on PediaDirector.Unlock(PediaEntry, bool) fires
-        // for RadiantSlimePediaEntry because it extends PediaEntry — no extra patch needed.
-        // Enabled when SlotData.RandomizeSlimepediaRadiant is true.
+        // RADIANT SLIMEPEDIA ENTRIES (819821–819842) — EntryName = RadiantSlimePediaEntry.name
+        // A PediaEntry subclass, so SlimepediaPatch covers it.
         // -------------------------------------------------------------------------
         new(LocationConstants.SlimepediaRadiant_Angler,   "Radiant Slimepedia: Angler",   LocationType.SlimepediaRadiantEntry, "", "", "RadiantAngler"),
         new(LocationConstants.SlimepediaRadiant_Batty,    "Radiant Slimepedia: Batty",    LocationType.SlimepediaRadiantEntry, "", "", "RadiantBatty"),
@@ -827,11 +738,8 @@ public static class LocationTable
         new(LocationConstants.SlimepediaRadiant_Yolky,    "Radiant Slimepedia: Yolky",    LocationType.SlimepediaRadiantEntry, "", "", "RadiantYolky"),
 
         // -------------------------------------------------------------------------
-        // OTHER PUZZLE DOORS (819847–819874)  — optional, enabled by randomize_puzzle_doors
-        // GameObjectName = posKey "sceneName_X_Y_Z" (same lookup as TreasurePod).
-        // All 28 entries confirmed via AP-Dump (2026-04-21).
-        // Excludes: Grey Labyrinth shadow_plort_collector/door (819200–819249),
-        //           PB region gate (819845).
+        // OTHER PLORT DOORS (819847–819874) — randomize_puzzle_doors; GameObjectName = posKey
+        // Excludes the shadow doors and the PB region gate.
         // -------------------------------------------------------------------------
 
         // Ember Valley (4)
@@ -857,7 +765,7 @@ public static class LocationTable
         new(LocationConstants.PlortDoor_StarlightStrand_11, "Plort Door - Starlight Strand 11", LocationType.PuzzleDoor, "zoneStrand_Area2", "zoneStrand_Area2_251_2_-232"),
         new(LocationConstants.PlortDoor_StarlightStrand_12, "Plort Door - Starlight Strand 12", LocationType.PuzzleDoor, "zoneStrand_Area4", "zoneStrand_Area4_116_60_-651"),
 
-        // Grey Labyrinth (11 — plort_door only; shadow doors are 819200–819249)
+        // Grey Labyrinth (11)
         new(LocationConstants.PlortDoor_GreyLabyrinth_1,  "Plort Door - Grey Labyrinth 1",  LocationType.PuzzleDoor, "zoneLabStrandEntrance",              "zoneLabStrandEntrance_1159_53_-1404"),
         new(LocationConstants.PlortDoor_GreyLabyrinth_2,  "Plort Door - Grey Labyrinth 2",  LocationType.PuzzleDoor, "zoneLabStrandEntranceMain_B",        "zoneLabStrandEntranceMain_B_1222_29_-1307"),
         new(LocationConstants.PlortDoor_GreyLabyrinth_3,  "Plort Door - Grey Labyrinth 3",  LocationType.PuzzleDoor, "zoneLabStrandEntranceMain_B",        "zoneLabStrandEntranceMain_B_1266_50_-1435"),
@@ -871,11 +779,8 @@ public static class LocationTable
         new(LocationConstants.PlortDoor_GreyLabyrinth_11, "Plort Door - Grey Labyrinth 11", LocationType.PuzzleDoor, "zoneLabyrinthTerrarium_JungleGlacier","zoneLabyrinthTerrarium_JungleGlacier_2145_155_-856"),
 
         // -------------------------------------------------------------------------
-        // PLORT MARKET (IDs 819896–819920)
-        // Enabled by the "randomize_plort_market" apworld option.
-        // GameObjectName = IdentifiableType.name; SceneName = "" (cross-zone mechanic).
-        // Checked via TryGetPlortMarketByPlortName() in PlortMarketPatch.
-        // Region reflects where the plort type natively lives (from Gordo/Slimepedia data).
+        // PLORT MARKET (IDs 819896–819920) — randomize_plort_market
+        // GameObjectName = IdentifiableType.name. Grouped by where the plort natively lives.
         // -------------------------------------------------------------------------
 
         // Rainbow Fields (7)
@@ -914,10 +819,7 @@ public static class LocationTable
         new(LocationConstants.PlortMarket_Stable,   "Plort Market: Prisma Plort",   LocationType.PlortMarket, "", "StablePlort"),
 
         // =================================================================
-        // CONSERVATORY EXPANSIONS: 819875–819879
-        // GameObjectName = AccessDoor._id (IdHandler string, must be confirmed
-        // via F9 → Dumps → "Dump Access Doors" while in the Conservatory).
-        // Placeholders below will be replaced once the IDs are dumped in-game.
+        // CONSERVATORY EXPANSIONS: 819875–819879 — GameObjectName = AccessDoor._id
         // =================================================================
         new(LocationConstants.ConservatoryExpansion_Gully,     "Conservatory Expansion: The Gully",     LocationType.ConservatoryExpansion, "zoneConservatory", "door1733849867"), // zoneConservatory_Arboretum
         new(LocationConstants.ConservatoryExpansion_Tidepools, "Conservatory Expansion: The Tidepools", LocationType.ConservatoryExpansion, "zoneConservatory", "door0129604684"), // zoneConservatory_Pools
@@ -926,11 +828,8 @@ public static class LocationTable
         new(LocationConstants.ConservatoryExpansion_Digsite,   "Conservatory Expansion: The Digsite",   LocationType.ConservatoryExpansion, "zoneConservatory", "door1356553442"), // zoneConservatory_Digsite
 
         // =================================================================
-        // REGION GATE SWITCHES: 819843–819845 (locations/bundled mode only)
-        // Detection lives in RegionTable/RegionGateActivatePatch (EV/SS) and
-        // PlortDoorPoller (PB) — these rows exist for scouting and GetById only,
-        // and are EXCLUDED from _byGameObjectName (PB shares its posKey with the
-        // "Plort Door - Ember Valley 4" row above).
+        // REGION GATE SWITCHES: 819843–819845 (locations/bundled mode) — scouting and GetById
+        // only. Excluded from _byGameObjectName: PB shares its posKey with "Plort Door - Ember Valley 4".
         // =================================================================
         new(LocationConstants.RegionGate_EmberValley,      "Region Gate - Ember Valley",      LocationType.RegionGate, "zoneFields",       "ruinSwitch"),
         new(LocationConstants.RegionGate_StarlightStrand,  "Region Gate - Starlight Strand",  LocationType.RegionGate, "zoneFields",       "ruinSwitch (2)"),
@@ -938,14 +837,9 @@ public static class LocationTable
 
         // =================================================================
         // POLESTAR PROVISIONS SHOP: 819926-820074 + 820081-820096 (165, randomize_shop)
-        // 819926-820009: always-available base items (84).
-        // 820010-820074: only appear in the shop after visiting their zone —
-        // the apworld gives them matching regional logic (docs/shop-location-logic.md).
-        // GameObjectName = ShopRuntimeItem.AssetGuid (stable addressables GUID);
-        // EntryName = GadgetDefinition asset name (debugging only).
-        // Checked via TryGetShopByAssetGuid() in ShopPatch. Only the per-seed
-        // random subset chosen by the apworld is active (IsLocationInSeed).
-        // Source: docs/dumps/1.2/shop.txt (2026-07-09), in-game category order.
+        // 819926-820009 always stocked; 820010-820074 appear after visiting their zone
+        // (docs/shop-location-logic.md). GameObjectName = AssetGuid; EntryName = asset name.
+        // In-game category order, from docs/dumps/1.2/shop.txt.
         // =================================================================
         new(LocationConstants.PolestarShop_PinkAnemoneCluster, "Polestar Provisions: Pink Anemone Cluster", LocationType.PolestarShop, "", "007be6eaa1e0cdf46824dd2344cfee3a", "PinkAnemoneCluster"),  // 20nb
         new(LocationConstants.PolestarShop_Seashells, "Polestar Provisions: Seashells", LocationType.PolestarShop, "", "2f6abf164c092244999fd36fc11001de", "Seashells"),  // 20nb
@@ -1105,9 +999,8 @@ public static class LocationTable
         new(LocationConstants.PolestarShop_TallIndigoCypress, "Polestar Provisions: Tall Indigo Cypress", LocationType.PolestarShop, "", "6497fe4cc7110324cbcacf0c2858559c", "TallIndigoCypress"),  // 40nb
         new(LocationConstants.PolestarShop_LavaLampGrey, "Polestar Provisions: Shadow Lava Lamp", LocationType.PolestarShop, "", "0e4bb9bdf192b0945abf54de809608b9", "LavaLampGrey"),  // 500nb
 
-        // Vac palettes (1.3). Sold as ShopItemType.PALETTE, a type new in 1.3; confirmed in-game
-        // that a palette purchase routes its reward through AcquisitionUtility.Acquire_SpawnOrStore,
-        // so AcquisitionSuppressPatch blocks the vanilla palette exactly as it does any other reward.
+        // Vac palettes (1.3). Rewards route through Acquire_SpawnOrStore like any other, so
+        // AcquisitionSuppressPatch covers them.
         new(LocationConstants.PolestarShop_VacPalette_Blue, "Polestar Provisions: Blue Vac Style", LocationType.PolestarShop, "", "555ed98a3ef2cf341926bbd7828460a4", "VacPalette_Blue"),  // 100nb
         new(LocationConstants.PolestarShop_VacPalette_Purple, "Polestar Provisions: Purple Vac Style", LocationType.PolestarShop, "", "ced4508c5c195f74e8ff3e49471e6b81", "VacPalette_Purple"),  // 150nb
         new(LocationConstants.PolestarShop_VacPalette_Green, "Polestar Provisions: Green Vac Style", LocationType.PolestarShop, "", "9eec905352f0ab84cbc1ad308508c175", "VacPalette_Green"),  // 200nb
@@ -1131,10 +1024,8 @@ public static class LocationTable
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// Keyed by <c>GameObjectName</c> (posKey or gameObject.name).
-    /// Covers: TreasurePod, Gordo, MapNode, GhostlyDrone, ShadowPlortDoor, PuzzleDoor.
-    /// Excludes ResearchDrone, SlimepediaEntry (EntryName lookup), FabricatorCraft,
-    /// and all Conversation types (ConversationDebugName lookup).
+    /// Keyed by <c>GameObjectName</c>, for world-object types. Asset-keyed types, conversations
+    /// and the region gates are excluded.
     /// </summary>
     private static readonly Dictionary<string, LocationInfo> _byGameObjectName
         = All.Where(l => l.Type != LocationType.ResearchDrone
@@ -1152,27 +1043,17 @@ public static class LocationTable
                       && l.Type != LocationType.RegionGate)              // detected via RegionTable/PlortDoorPoller; PB posKey duplicates PlortDoor_EmberValley_4
              .ToDictionary(l => l.GameObjectName);
 
-    /// <summary>
-    /// Keyed by <c>IdentifiableType.name</c> (e.g. "PinkPlort").
-    /// Used by <c>PlortMarketPatch</c> to map a sold plort type to its location check.
-    /// </summary>
+    /// <summary>Keyed by plort <c>IdentifiableType.name</c>.</summary>
     private static readonly Dictionary<string, LocationInfo> _byPlortName
         = All.Where(l => l.Type == LocationType.PlortMarket)
              .ToDictionary(l => l.GameObjectName);
 
-    /// <summary>
-    /// Keyed by <c>ShopRuntimeItem.AssetGuid</c> (addressables GUID).
-    /// Used by <c>ShopPatch</c> to map a purchased Polestar Provisions item to its location.
-    /// </summary>
+    /// <summary>Keyed by <c>ShopRuntimeItem.AssetGuid</c>.</summary>
     private static readonly Dictionary<string, LocationInfo> _byShopAssetGuid
         = All.Where(l => l.Type == LocationType.PolestarShop)
              .ToDictionary(l => l.GameObjectName);
 
-    /// <summary>
-    /// Keyed by conversation debug name (e.g. "ViktorGift1_TeleporterPink").
-    /// Covers all three conversation types: ConversationKeyGift, ConversationDecoGift,
-    /// ConversationNonGift. Used by <c>ConversationRecordedPatch</c>.
-    /// </summary>
+    /// <summary>Keyed by conversation debug name, all conversation types.</summary>
     private static readonly Dictionary<string, LocationInfo> _byConversationDebugName
         = All.Where(l => l.Type == LocationType.ConversationConditional
                       || l.Type == LocationType.ConversationKeyGift
@@ -1181,9 +1062,8 @@ public static class LocationTable
              .ToDictionary(l => l.GameObjectName);
 
     /// <summary>
-    /// Keyed by entry asset name. Used by ResearchDrone and SlimepediaEntry locations.
-    /// FabricatorCraft entries are excluded even though they have a non-null EntryName —
-    /// those are duplicate-keyed by design and handled by a separate mechanism.
+    /// Keyed by <c>EntryName</c>. Excludes FabricatorCraft, whose names repeat per tier
+    /// (see <see cref="GetFabricatorCrafts"/>).
     /// </summary>
     private static readonly Dictionary<string, LocationInfo> _byEntryName
         = All.Where(l => (l.Type == LocationType.ResearchDrone
@@ -1202,24 +1082,15 @@ public static class LocationTable
     // Lookup methods
     // -------------------------------------------------------------------------
 
-    /// <summary>
-    /// Look up by <c>GameObjectName</c> / posKey.
-    /// Used by TreasurePod, Gordo, MapNode, GhostlyDrone, ShadowPlortDoor, and PuzzleDoor patches.
-    /// </summary>
+    /// <summary>Look up by <c>GameObjectName</c> / posKey.</summary>
     public static bool TryGetByObjectName(string name, out LocationInfo? info)
         => _byGameObjectName.TryGetValue(name, out info);
 
-    /// <summary>
-    /// Look up a Research Drone location by its <c>ResearchDroneEntry</c> asset name.
-    /// Used only by <c>ResearchDronePatch</c>.
-    /// </summary>
+    /// <summary>Look up by <c>EntryName</c>.</summary>
     public static bool TryGetByEntryName(string entryName, out LocationInfo? info)
         => _byEntryName.TryGetValue(entryName, out info);
 
-    /// <summary>
-    /// Look up a Plort Market location by the <c>IdentifiableType.name</c> of the plort sold
-    /// (e.g. "PinkPlort"). Used only by <c>PlortMarketPatch</c>.
-    /// </summary>
+    /// <summary>Look up a Plort Market location by plort type name.</summary>
     public static bool TryGetPlortMarketByPlortName(string plortName, out LocationInfo? info)
         => _byPlortName.TryGetValue(plortName, out info);
 
@@ -1230,17 +1101,9 @@ public static class LocationTable
         => _byShopAssetGuid.TryGetValue(assetGuid, out info);
 
     /// <summary>
-    /// The <c>PediaEntry.name</c> values AP has locations for in a Slimepedia category
-    /// (<see cref="LocationType.SlimepediaEntry"/> / <c>SlimepediaResourceEntry</c> /
-    /// <c>SlimepediaRadiantEntry</c>).
-    /// <para>
-    /// The slimepedia goal is defined against THIS list, not the game's runtime category
-    /// contents. The game's categories include entries AP has no location for — confirmed
-    /// via docs/dumps/1.2/Pedia.txt: 'Resources' has 55 entries vs AP's 54 (the extra is
-    /// <c>Sprinkles</c>, post-game Sanctuary content) and 'Slimes' has 30 vs AP's 29 (the
-    /// extra is the <c>RadiantSlime</c> concept entry). Requiring those would gate the
-    /// goal behind content the seed never hands out a check or hint for.
-    /// </para>
+    /// The pedia entry names AP has locations for in a Slimepedia category. The slimepedia goal
+    /// is scoped to this, never the game's runtime categories, which can hold entries with no
+    /// AP location.
     /// </summary>
     public static IReadOnlyCollection<string> SlimepediaEntryNames(LocationType type)
         => All.Where(l => l.Type == type && !string.IsNullOrEmpty(l.EntryName))
@@ -1248,10 +1111,7 @@ public static class LocationTable
               .ToHashSet();
 
     /// <summary>
-    /// All sellable plort <c>IdentifiableType.name</c> values (the 25 Plort Market types),
-    /// ordered by location ID (stable rarity-grouped order for UI display).
-    /// Used by GoalHandler's plort_seller goal as the base scope before exclusions and by
-    /// the pause-menu plort sales panel.
+    /// The 25 Plort Market plort names in location-ID order — the plort_seller goal's base scope.
     /// </summary>
     public static IReadOnlyList<string> AllPlortMarketPlortNames { get; }
         = All.Where(l => l.Type == LocationType.PlortMarket)
@@ -1259,26 +1119,17 @@ public static class LocationTable
              .Select(l => l.GameObjectName)
              .ToList();
 
-    /// <summary>
-    /// Returns all Fabricator craft entries for a given upgrade type, in ID order.
-    /// Used by FabricatorPatch to assign sequential check IDs.
-    /// </summary>
+    /// <summary>All Fabricator craft entries for an upgrade, in ID order (one per tier).</summary>
     public static IReadOnlyList<LocationInfo> GetFabricatorCrafts(string upgradeName)
         => All.Where(l => l.Type == LocationType.FabricatorCraft && l.EntryName == upgradeName)
               .OrderBy(l => l.Id)
               .ToList();
 
-    /// <summary>
-    /// Look up a conversation location by its debug name (e.g. "ViktorGift1_TeleporterPink").
-    /// Used by <c>ConversationRecordedPatch</c> after <c>FixedConversation.RecordPlayed()</c>.
-    /// </summary>
+    /// <summary>Look up a conversation location by debug name.</summary>
     public static bool TryGetByConversation(string debugName, out LocationInfo? info)
         => _byConversationDebugName.TryGetValue(debugName, out info);
 
-    /// <summary>
-    /// Returns true if a conversation location of the given type should be checked
-    /// under the current <see cref="ConversationCheckMode"/>.
-    /// </summary>
+    /// <summary>Whether a conversation type is a check under the current <see cref="ConversationCheckMode"/>.</summary>
     public static bool IsConversationIncluded(LocationType type, ConversationCheckMode mode)
         => mode switch
         {

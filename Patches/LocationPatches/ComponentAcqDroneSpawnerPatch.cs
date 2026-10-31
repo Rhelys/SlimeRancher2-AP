@@ -4,27 +4,14 @@ using UnityEngine;
 
 namespace SlimeRancher2AP.Patches.LocationPatches;
 
-// NOTE (2026-05-16, v0.4.4): Harmony patch on ComponentAcqDroneSpawner.HandleSpawnQueryComplete removed.
-//
-// HandleSpawnQueryComplete(bool) has CallerCount(0). Its native prologue changed in the
-// 5/13/2026 game update, causing a HarmonyX trampoline crash on zone load.
-//
-// REPLACEMENT (2026-06-13): ApUpdateBehaviour retries ForceSpawnAll() every 3 seconds for
-// up to 60 seconds after each scene change, because SR2's additive sub-scenes (zoneConservatory,
-// zoneFields_Area1, etc.) finish loading several seconds after SceneContext.Player becomes available.
-// SpawnDrone() has CallerCount(4) and is safe to invoke, but has no built-in dedup guard —
-// calling it twice on the same spawner creates a duplicate drone. We track instance IDs in
-// _alreadySpawned to ensure each spawner is called exactly once per scene load.
-
 /// <summary>
-/// Forces all uncollected ghostly drone spawners in the current scene to spawn their drones
-/// immediately, bypassing the vanilla spawn query (which waits for a WorldSwitch to be DOWN —
-/// a condition that AP region-gate blocking prevents from ever being met).
+/// Spawns uncollected ghostly drones directly. Their vanilla spawn query waits on a WorldSwitch
+/// that AP gate blocking can keep UP forever. (HandleSpawnQueryComplete can't be patched since
+/// 5/13.) Retried from ApUpdateBehaviour after each scene change.
 /// </summary>
 internal static class ComponentAcqDroneSpawnerFix
 {
-    // Instance IDs of spawners we have already called SpawnDrone() on this scene load.
-    // Cleared by ApUpdateBehaviour on every scene change.
+    // SpawnDrone has no dedup — calling it twice spawns a duplicate. Cleared per scene.
     private static readonly HashSet<int> _alreadySpawned = new();
 
     internal static void ClearSpawnedSet() => _alreadySpawned.Clear();
@@ -38,7 +25,7 @@ internal static class ComponentAcqDroneSpawnerFix
     }
 
 #if DEBUG
-    /// <summary>Guard-free version for the debug panel — works without an active AP session.</summary>
+    /// <summary>Debug panel: no session needed.</summary>
     internal static void ForceSpawnAllDebug() => ForceSpawnAllUnchecked();
 #endif
 

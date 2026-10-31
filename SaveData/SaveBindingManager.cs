@@ -4,13 +4,9 @@ using System.Text.Json.Serialization;
 namespace SlimeRancher2AP.SaveData;
 
 /// <summary>
-/// Reads and writes a small JSON sidecar file per SR2 save slot that ties that slot
-/// to a specific Archipelago session.  The file lives at:
-///   BepInEx/config/SlimeRancher2-AP/SaveSlot_{n}_binding.json
-///
-/// The binding contains everything needed to auto-reconnect when the slot is loaded,
-/// plus the AP seed for cross-validation.  A slot without a binding is treated as a
-/// vanilla save — no AP logic is applied.
+/// Per-save-slot JSON sidecar (<c>BepInEx/config/SlimeRancher2-AP/SaveSlot_{n}_binding.json</c>)
+/// tying the slot to an AP session: connection details for auto-reconnect, and the seed. No
+/// binding = vanilla save.
 /// </summary>
 public static class SaveBindingManager
 {
@@ -39,7 +35,7 @@ public static class SaveBindingManager
         return Path.Combine(dir, $"SaveSlot_{slotIndex}_binding.json");
     }
 
-    /// <summary>Loads the binding for <paramref name="slotIndex"/>, or null if none exists.</summary>
+    /// <summary>The slot's binding, or null.</summary>
     public static SaveBinding? Load(int slotIndex)
     {
         var path = BindingPath(slotIndex);
@@ -56,7 +52,6 @@ public static class SaveBindingManager
         }
     }
 
-    /// <summary>Persists a binding for <paramref name="slotIndex"/>.</summary>
     public static void Save(int slotIndex, SaveBinding binding)
     {
         var dir = Path.Combine(BepInEx.Paths.ConfigPath, "SlimeRancher2-AP");
@@ -75,10 +70,8 @@ public static class SaveBindingManager
         }
     }
 
-    /// <summary>Returns true if a binding file exists for <paramref name="slotIndex"/>.</summary>
     public static bool Exists(int slotIndex) => File.Exists(BindingPath(slotIndex));
 
-    /// <summary>Removes the binding for <paramref name="slotIndex"/> (e.g. on save-delete).</summary>
     public static void Delete(int slotIndex)
     {
         var path = BindingPath(slotIndex);

@@ -15,69 +15,29 @@ using UnityEngine.Localization.Components;
 namespace SlimeRancher2AP.Patches.UiPatches;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// OptionsMenuPatch — injects an "Archipelago" tab into the native Options menu.
-//
-// HOW THE OPTIONS SYSTEM WORKS (confirmed from ILSpy):
-//   - OptionsConfiguration : ListAsset<OptionsItemCategory> holds all normal tabs
-//     (Audio, Video, Controls, Gameplay…).
-//   - OptionsUIRoot.BindCategories(OptionsConfiguration, OptionsAboutCategory)
-//     is called once from LateStart; it maps every IOptionsCategory to a
-//     CategoryViewModel and drives the tab bar via categoryAdapter.
-//   - When the player clicks a tab → SwapCategory(int, bool) → BindItemCategory(category)
-//     switches the right-panel item list to that category's OptionsItemDefinitions.
-//   - The special "About" tab is handled separately via BindAboutCategory().
-//
-// OUR APPROACH:
-//   1. Prefix  BindCategories  — create a blank OptionsItemCategory ScriptableObject
-//      and append it to config's _items list *before* binding runs, so it gets a
-//      tab slot.  Access to the list uses raw IL2CPP field access on the parent
-//      ListAsset<T> class (field name "_items" — Unity convention).
-//
-//   2. Postfix BindCategories  — after tabs are rendered, find the last
-//      CategoryTabViewHolder, disable its LocalizeStringEvent, and set the label
-//      text to "Archipelago" directly (same technique as FabricatorDetailsPatch).
-//
-//   3. Postfix BindItemCategory — show ConnectionUI when our tab is selected;
-//      hide it for every other tab.
-//
-//   4. Postfix Close — hide ConnectionUI when the options menu is closed.
-//
-// KNOWN RISKS / TODOs:
-//   - "_items" field name on ListAsset<T> is inferred from Unity convention.
-//     If GetIl2CppField returns IntPtr.Zero the mod logs a warning; no crash.
-//   - We pass a blank LocalizedString() (IsEmpty == true) for _title; Unity
-//     Localization returns "" gracefully for empty refs.  The Postfix then writes
-//     the real text after the tab is rendered.
-//   - Cursor handling: ConnectionUI.Show() doesn't save/restore cursor state.
-//     If needed, add cursor save/restore as in DebugPanel.
+// Injects an "Archipelago" tab into the Options menu:
+//   1. BindCategories Prefix  — append a blank category to the config's list, so it gets a tab.
+//   2. BindCategories Postfix — label the tab and give it the AP logo.
+//   3. BindItemCategory / SwapCategory / Close — show ConnectionUI on our tab, hide it otherwise.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// <summary>
-/// Prefix + Postfix on OptionsUIRoot.BindCategories — injects the AP tab.
-/// Parameter positions (__0, __1) used because private-method param names
-/// are not guaranteed to match IL2CPP interop naming.
+/// Injects the AP tab. Positional params (__0): private-method names aren't reliable in interop.
 /// </summary>
 [HarmonyPatch(typeof(OptionsUIRoot), "BindCategories")]
 internal static class OptionsMenuInjectionPatch
 {
-    /// <summary>The category instance we injected; null until first inject.</summary>
     internal static OptionsItemCategory? ApCategory { get; private set; }
 
-    // 0-based index of our category in the OptionsConfiguration list, recorded at
-    // injection time so the Postfix and SwapCategory patch can identify our tab.
+    // Our category's index in the config list — and so of its tab.
     internal static int OurCategoryIndex { get; private set; } = -1;
 
-    // Cached logo sprite — loaded once from the embedded PNG resource.
     private static Sprite? _logoSprite;
 
-    /// <summary>
-    /// Returns the Archipelago logo sprite, loading it from the embedded resource on first call.
-    /// Shared with <see cref="NewGameLoadGamePatch"/> for save-slot icon injection.
-    /// </summary>
+    /// <summary>The AP logo sprite (embedded resource), shared across the mod's UI.</summary>
     internal static Sprite? GetLogoSprite()
     {
-        // Use explicit Unity null check (not ??=): ??= uses C# reference equality and misses
-        // Unity engine objects that were destroyed by UnloadUnusedAssets between scenes.
+        // Not ??=: that misses a sprite Unity destroyed between scenes.
         if (_logoSprite == null)
             _logoSprite = LoadLogoSprite();
         return _logoSprite;
@@ -86,10 +46,9 @@ internal static class OptionsMenuInjectionPatch
     private static void Prefix(OptionsUIRoot __instance, OptionsConfiguration __0)
     {
         if (!Plugin.Instance.ModEnabled) return;
-        if (ApCategory != null) return;   // already injected this session
+        if (ApCategory != null) return;   // already injected
 
-        // Create a blank OptionsItemCategory ScriptableObject.
-        // _title defaults to an empty (IsEmpty) LocalizedString — safe to render.
+        // Its empty _title renders as ""; the Postfix writes the label.
         var cat = ScriptableObject.CreateInstance<OptionsItemCategory>();
         ApCategory = cat;
 
@@ -101,10 +60,7 @@ internal static class OptionsMenuInjectionPatch
         if (!Plugin.Instance.ModEnabled) return;
         if (ApCategory == null || OurCategoryIndex < 0) return;
 
-        // After BindCategories the tab bar has been populated.
-        // CategoryTabViewHolder components are created 1-to-1 with OptionsItemCategories,
-        // in the same order.  Our category is at OurCategoryIndex, so its holder is at
-        // the same position (About tab uses a different holder type and is excluded).
+        // Tab holders are created 1:1 and in order with the categories (About uses another type).
         var holders = __instance.GetComponentsInChildren<CategoryTabViewHolder>(includeInactive: true);
         if (holders == null || OurCategoryIndex >= holders.Length)
         {
@@ -115,24 +71,20 @@ internal static class OptionsMenuInjectionPatch
 
         var ourHolder = holders[OurCategoryIndex];
 
-        // Disable the LocalizeStringEvent so it can't overwrite our text.
+        // Freeze localization so it can't overwrite our text.
         if (ourHolder.titleTextString != null)
             ourHolder.titleTextString.enabled = false;
 
         if (ourHolder.titleText != null)
             ourHolder.titleText.text = "Archipelago";
 
-        // Set the Archipelago logo on the icon Image only.
-        // unselectedSprite / selectedSprite drive the tab *background* — leave those
-        // alone so the native selection highlight still works correctly.
+        // Icon only — the selected/unselected sprites are the tab background.
         var logoSprite = GetLogoSprite();
         if (logoSprite != null && ourHolder.icon != null)
         {
             ourHolder.icon.sprite         = logoSprite;
             ourHolder.icon.preserveAspect = true;
-            // Force white (full opacity) — native tab icons inherit a colour tint from
-            // the selection state machine; without this the sprite renders invisible or
-            // heavily tinted when the tab is unselected.
+            // White, or the selection tint can hide it.
             ourHolder.icon.color          = Color.white;
             ourHolder.icon.enabled        = true;
         }
@@ -141,21 +93,16 @@ internal static class OptionsMenuInjectionPatch
     }
 
     /// <summary>
-    /// Appends <paramref name="cat"/> to the OptionsConfiguration's category list
-    /// via raw IL2CPP field access.
-    ///
-    /// OptionsConfiguration : ListAsset&lt;OptionsItemCategory&gt;.
-    /// The list field "_items" is on the generic ListAsset&lt;T&gt; base class.
-    /// We resolve it via il2cpp_class_get_parent + GetIl2CppField.
+    /// Appends <paramref name="cat"/> to the config's list, a field on the generic
+    /// ListAsset&lt;T&gt; base, reached by raw IL2CPP field access.
     /// </summary>
     private static void TryInjectIntoConfig(OptionsConfiguration config, OptionsItemCategory cat)
     {
         try
         {
             var configClassPtr = Il2CppClassPointerStore<OptionsConfiguration>.NativeClassPtr;
-            // Walk up one level to ListAsset<OptionsItemCategory> where _items lives.
             var parentClassPtr  = IL2CPP.il2cpp_class_get_parent(configClassPtr);
-            // Field name confirmed at runtime: "items" (not "_items") on ListAsset<T>.
+            // "items", not "_items" (confirmed at runtime).
             var itemsFieldPtr   = IL2CPP.GetIl2CppField(parentClassPtr, "items");
 
             if (itemsFieldPtr == IntPtr.Zero)
@@ -177,8 +124,6 @@ internal static class OptionsMenuInjectionPatch
                 return;
             }
 
-            // All IL2CPP interop types expose an (IntPtr pointer) ctor for wrapping
-            // a native pointer in a managed object — use that instead of Il2CppObjectPool.
             var list = new Il2CppSystem.Collections.Generic.List<OptionsItemCategory>(listNativePtr);
             list.Add(cat);
             OurCategoryIndex = list.Count - 1;
@@ -191,11 +136,7 @@ internal static class OptionsMenuInjectionPatch
         }
     }
 
-    /// <summary>
-    /// Loads the Archipelago logo from the embedded PNG resource and returns a Sprite.
-    /// Resource name: "SlimeRancher2-AP.logo.png" (LogicalName set in csproj).
-    /// Returns null and logs a warning if the resource is missing or fails to decode.
-    /// </summary>
+    /// <summary>Loads the embedded "SlimeRancher2-AP.logo.png" as a Sprite, or null.</summary>
     private static Sprite? LoadLogoSprite()
     {
         try
@@ -211,9 +152,7 @@ internal static class OptionsMenuInjectionPatch
             var bytes = new byte[stream.Length];
             _ = stream.Read(bytes, 0, bytes.Length);
 
-            // ImageConversion.LoadImage is stripped from this game's IL2CPP build (the game
-            // never calls it, so the IL2CPP linker removes it).  Decode the PNG ourselves
-            // using .NET BCL's DeflateStream, then push the raw RGBA bytes into the texture.
+            // ImageConversion.LoadImage is stripped from this build — decode it ourselves.
             var rgba = DecodePngToRgba(bytes, out int w, out int h);
             if (rgba == null)
             {
@@ -223,14 +162,11 @@ internal static class OptionsMenuInjectionPatch
 
             var tex = new Texture2D(w, h, TextureFormat.RGBA32, mipChain: false);
 
-            // Attempt A: LoadRawTextureData — takes raw RGBA bytes directly.
-            // May be stripped if the game doesn't use it; wrapped in try/catch.
+            // Attempt A: LoadRawTextureData (may be stripped).
             var loaded = false;
             try
             {
-                // Bulk-copy via the managed-array constructor. The previous per-element loop
-                // crossed the interop boundary once per byte, which at the original 2034×2112
-                // was 17.2 million writes and ~450 ms of main-thread stall.
+                // One bulk copy — per-byte interop writes stalled ~450 ms.
                 var raw = new Il2CppStructArray<byte>(rgba);
                 tex.LoadRawTextureData(raw);
                 tex.Apply();
@@ -242,13 +178,11 @@ internal static class OptionsMenuInjectionPatch
                 Logger.Warning($"[AP] LoadRawTextureData unavailable ({rawEx.Message}) — trying SetPixels32");
             }
 
-            // Attempt B: SetPixels32 — the game uses dynamic textures, so this is almost
-            // certainly not stripped.
+            // Attempt B: SetPixels32.
             if (!loaded)
             {
                 try
                 {
-                    // Build managed-side, then hand over in one copy — same reasoning as above.
                     var managed = new Color32[w * h];
                     for (int i = 0; i < managed.Length; i++)
                         managed[i] = new Color32(rgba[i*4], rgba[i*4+1], rgba[i*4+2], rgba[i*4+3]);
@@ -270,8 +204,7 @@ internal static class OptionsMenuInjectionPatch
                 return null;
             }
 
-            // DontUnloadUnusedAsset prevents Unity from destroying these runtime-created objects
-            // during scene transitions (e.g. Resources.UnloadUnusedAssets after quit-to-menu).
+            // Survive Resources.UnloadUnusedAssets between scenes.
             tex.hideFlags = HideFlags.DontUnloadUnusedAsset;
             var sprite = Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.5f), 100f);
             if (sprite != null) sprite.hideFlags = HideFlags.DontUnloadUnusedAsset;
@@ -285,23 +218,15 @@ internal static class OptionsMenuInjectionPatch
     }
 
     // ── PNG decoder ──────────────────────────────────────────────────────────────
-    // ImageConversion.LoadImage is stripped from this game's IL2CPP build (the game
-    // uses AssetBundles and never calls LoadImage, so the IL2CPP linker removes it).
-    // We decode PNGs ourselves using only .NET BCL APIs (no external dependencies).
-    // Supports 8-bit RGB and RGBA PNGs — the only formats the logo will ever be.
-    // Output: raw RGBA32 bytes, bottom-row-first (Unity texture origin = bottom-left).
 
     /// <summary>
-    /// Decodes an 8-bit RGB or RGBA PNG file into a raw RGBA32 byte array
-    /// (4 bytes per pixel, rows ordered bottom-to-top for Unity's texture origin).
-    /// Returns null on any parse or decompression error.
+    /// Decodes an 8-bit RGB/RGBA PNG to RGBA32, bottom row first (Unity's origin). Null on error.
     /// </summary>
     private static byte[]? DecodePngToRgba(byte[] png, out int width, out int height)
     {
         width = height = 0;
         try
         {
-            // Verify PNG signature
             if (png.Length < 8 ||
                 png[0] != 0x89 || png[1] != 0x50 || png[2] != 0x4E || png[3] != 0x47 ||
                 png[4] != 0x0D || png[5] != 0x0A || png[6] != 0x1A || png[7] != 0x0A)
@@ -347,8 +272,7 @@ internal static class OptionsMenuInjectionPatch
                 return null;
             }
 
-            // Decompress: IDAT stream is zlib-wrapped DEFLATE.
-            // Skip 2-byte zlib header (CMF + FLG) before feeding to DeflateStream.
+            // IDAT is zlib-wrapped DEFLATE; skip the 2-byte zlib header.
             var idatData = idatBuf.ToArray();
             byte[] filtered;
             using (var ms  = new System.IO.MemoryStream(idatData, 2, idatData.Length - 2))
@@ -360,8 +284,7 @@ internal static class OptionsMenuInjectionPatch
                 filtered = out_.ToArray();
             }
 
-            // Reconstruct PNG scanline filters and build RGBA output.
-            // Output is written bottom-row-first for Unity's bottom-left texture origin.
+            // Undo the scanline filters.
             var rgba    = new byte[w * h * 4];
             int stride  = w * channels;
             var prior   = new byte[stride]; // reconstructed previous row (starts as zeros)
@@ -390,7 +313,6 @@ internal static class OptionsMenuInjectionPatch
                 }
                 System.Array.Copy(current, prior, stride);
 
-                // Write into output buffer bottom-row-first
                 int dstRow = (h - 1 - y) * w * 4;
                 for (int x = 0; x < w; x++)
                 {
@@ -430,10 +352,8 @@ internal static class OptionsMenuInjectionPatch
 }
 
 /// <summary>
-/// Prefix on BindItemCategory — intercepts tab selection.
-/// When our tab is selected, skip the original entirely (it would crash trying to
-/// call BindOptionsDetailsView on our empty category) and show ConnectionUI instead.
-/// When any other tab is selected, let the original run and hide ConnectionUI.
+/// On our tab, shows ConnectionUI and skips the original (it would throw on the empty
+/// category); on others, hides ConnectionUI.
 /// </summary>
 [HarmonyPatch(typeof(OptionsUIRoot), "BindItemCategory")]
 internal static class OptionsMenuTabSelectedPatch
@@ -448,25 +368,21 @@ internal static class OptionsMenuTabSelectedPatch
 
             if (isOurTab)
             {
-                // Hide the native items panel and the About panel (separate GameObject on
-                // OptionsUIRoot — activated by BindAboutCategory, not cleared otherwise).
+                // The About panel is separate and nothing else clears it.
                 __instance.itemsPanel.SetActive(false);
                 if (__instance.aboutPanel != null)
                     __instance.aboutPanel.SetActive(false);
                 Plugin.Instance.ConnectionUi?.Show(
                     __instance.itemsPanel.transform.parent,
                     __instance.itemsPanel);
-                return false;   // skip original — empty category would throw
+                return false;
             }
 
-            // Switching to any other tab: hide our panel and ensure itemsPanel is visible
-            // so the original BindItemCategory can populate it normally.
             Plugin.Instance.ConnectionUi?.Hide();
             __instance.itemsPanel.SetActive(true);
         }
         catch (Exception ex)
         {
-            // Never let our code silently swallow other tabs — log and fall through.
             Logger.Error($"[AP] OptionsMenuTabSelectedPatch.Prefix: {ex.Message}");
         }
 
@@ -475,19 +391,8 @@ internal static class OptionsMenuTabSelectedPatch
 }
 
 /// <summary>
-/// Postfix on OptionsUIRoot.Close — hide ConnectionUI when the options menu closes
-/// so it doesn't linger in-game.
-/// </summary>
-/// <summary>
-/// Prefix on SwapCategory — called for EVERY tab click, including the About tab
-/// (which has its own BindAboutCategory path that bypasses BindItemCategory).
-/// When switching to any tab other than ours, hide our panel and ensure itemsPanel
-/// is active before the original runs.  When switching to ours, do nothing here —
-/// BindItemCategory's Prefix handles the show logic.
-///
-/// Note: keyboard/gamepad Q/E navigation is blocked separately in
-/// CheckThenSwapCategoryPatch. SwapCategory itself must NOT block direct tab clicks,
-/// which arrive here without going through CheckThenSwapCategory.
+/// Hides ConnectionUI when leaving our tab — including for About, which bypasses
+/// BindItemCategory. Must never block: direct tab clicks arrive here.
 /// </summary>
 [HarmonyPatch(typeof(OptionsUIRoot), "SwapCategory",
     new System.Type[] { typeof(int), typeof(bool) })]
@@ -517,10 +422,6 @@ internal static class OptionsMenuSwapCategoryPatch
     }
 }
 
-/// <summary>
-/// Postfix on OptionsUIRoot.Close — hide ConnectionUI when the options menu closes
-/// so it doesn't linger in-game.
-/// </summary>
 [HarmonyPatch(typeof(OptionsUIRoot), nameof(OptionsUIRoot.Close))]
 internal static class OptionsMenuClosePatch
 {
@@ -531,15 +432,8 @@ internal static class OptionsMenuClosePatch
 }
 
 /// <summary>
-/// Prefix on OptionsUIRoot.CheckThenSwapCategory — suppresses Q/E keyboard tab
-/// navigation only when the player is actively typing in one of the AP input fields.
-///
-/// Blocking on IsVisible alone was too broad: in the in-game pause menu, direct tab
-/// clicks also go through CheckThenSwapCategory (unlike the main menu which routes
-/// clicks through SwapCategory), so blocking on visibility prevented clicking away.
-///
-/// We now only block when a TMP_InputField has focus, which is true during keyboard
-/// entry but false when the user clicks a tab button.
+/// Blocks Q/E tab navigation while an AP input field has focus. Only then: in the pause menu,
+/// tab clicks come through here too.
 /// </summary>
 [HarmonyPatch(typeof(OptionsUIRoot), nameof(OptionsUIRoot.CheckThenSwapCategory))]
 internal static class OptionsMenuBlockTabNavWhileTypingPatch
@@ -549,7 +443,6 @@ internal static class OptionsMenuBlockTabNavWhileTypingPatch
         if (Plugin.Instance.ConnectionUi?.IsVisible != true)
             return true;
 
-        // Block only when an input field is focused (user is typing Q/E, not clicking a tab).
         var selected = EventSystem.current?.currentSelectedGameObject;
         if (selected != null && selected.GetComponent<TMP_InputField>() != null)
             return false;

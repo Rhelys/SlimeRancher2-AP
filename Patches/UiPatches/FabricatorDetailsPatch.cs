@@ -5,34 +5,7 @@ using TMPro;
 
 namespace SlimeRancher2AP.Patches.UiPatches;
 
-/// <summary>
-/// Overrides the Fabricator item detail panel text to display Archipelago location/item
-/// information instead of the game's default upgrade name and description.
-/// </summary>
-/// <remarks>
-/// <para>
-/// Patched method: <c>FabricatorItemDetails.SetItem(IFabricatableItem)</c> — called whenever
-/// the player selects a different item in the Fabricator grid. Non-virtual; safe to Postfix.
-/// </para>
-/// <para>
-/// Strategy: the original method populates two <c>LocalizeStringEvent</c> components
-/// (<c>_name</c> and <c>_description</c>) which drive their child TMP_Text objects via Unity
-/// Localization. We disable those components (freezing their output) and write our own text
-/// directly to the TMP_Text. Components are re-enabled when a non-upgrade item (e.g. gadgets)
-/// is selected so their names display correctly.
-/// </para>
-/// <para>
-/// Title displayed: the AP location name for the <em>next uncrafted</em> level of this upgrade
-/// (determined by <c>CurrentUpgradeLevel</c>, which tracks crafted count, not AP-granted count).
-/// Description: the AP item name at that location (from scout cache), or "Archipelago check"
-/// if scout data is not yet available.
-/// </para>
-/// </remarks>
-/// <summary>
-/// Re-runs the display override after a craft completes so the panel advances to the
-/// next uncrafted check rather than staying stale. <c>ItemCrafted</c> fires on the
-/// same instance and with the same item that was just crafted.
-/// </summary>
+/// <summary>Refreshes the details panel after a craft, so it moves on to the next check.</summary>
 [HarmonyPatch(typeof(FabricatorItemDetails), nameof(FabricatorItemDetails.ItemCrafted))]
 internal static class FabricatorItemCraftedPatch
 {
@@ -40,6 +13,10 @@ internal static class FabricatorItemCraftedPatch
         => FabricatorDetailsPatch.UpdateDisplay(__instance, item);
 }
 
+/// <summary>
+/// The Fabricator details panel shows the next unsent craft check's name and its scouted item,
+/// via the freeze-localization technique (see <c>ShopUiHelper</c>). Unfrozen for non-upgrades.
+/// </summary>
 [HarmonyPatch(typeof(FabricatorItemDetails), nameof(FabricatorItemDetails.SetItem))]
 internal static class FabricatorDetailsPatch
 {
@@ -48,25 +25,20 @@ internal static class FabricatorDetailsPatch
 
     internal static void UpdateDisplay(FabricatorItemDetails __instance, IFabricatableItem item)
     {
-        // Cast to MonoBehaviour so we can toggle .enabled and call GetComponent
-        // without requiring a direct reference to the Unity.Localization assembly.
+        // As MonoBehaviour — avoids referencing Unity.Localization.
         var nameEvent = (UnityEngine.MonoBehaviour?)__instance._name;
         var descEvent = (UnityEngine.MonoBehaviour?)__instance._description;
 
-        // Try to cast to a player upgrade — null for gadgets and other non-upgrade fabricatables
         var upgradeItem = item?.TryCast<PlayerUpgradeFabricatableItem>();
 
         if (upgradeItem == null)
         {
-            // Not an upgrade slot — re-enable localization so gadget names display correctly
             if (nameEvent != null) nameEvent.enabled = true;
             if (descEvent != null) descEvent.enabled = true;
             return;
         }
 
-        // Only override when connected; otherwise preserve normal display. Craft locations are
-        // AP checks regardless of randomize_fabricator, so the AP name/description is correct
-        // in both modes — in a non-randomized seed it simply names the player's own upgrade.
+        // Connected only. Correct in both fabricator modes — crafts are always checks.
         if (!Plugin.Instance.ApClient.IsConnected)
         {
             if (nameEvent != null) nameEvent.enabled = true;
@@ -77,9 +49,7 @@ internal static class FabricatorDetailsPatch
         var upgradeName = upgradeItem.UpgradeDefinition?.name;
         if (string.IsNullOrEmpty(upgradeName)) return;
 
-        // All checks for this upgrade type in ascending ID order (= ascending level order).
-        // Some UpgradeDefinitions (e.g. ResourceNodeHarvester, AmmoCapacity) are vanilla-only
-        // and intentionally absent from our AP location pool — silently fall back to normal display.
+        // In level order; upgrades with no AP crafts keep the vanilla display.
         var crafts = LocationTable.GetFabricatorCrafts(upgradeName);
         if (crafts.Count == 0)
         {
@@ -88,12 +58,9 @@ internal static class FabricatorDetailsPatch
             return;
         }
 
-        // Use IsChecked (same logic as FabricatorPatch) rather than CurrentUpgradeLevel.
-        // In a multiworld the player crafts an upgrade for someone else's world, so their
-        // own upgrade level never increments — CurrentUpgradeLevel would stay stuck at 0.
+        // By sent checks, not upgrade level — a craft for another world never raises it.
         var next = crafts.FirstOrDefault(l => !Plugin.Instance.SaveManager.IsChecked(l.Id));
 
-        // Resolve the location to display: next unchecked, or last entry if all are done.
         var display    = next ?? crafts[^1];
         bool allSent   = next == null;
 
@@ -118,11 +85,9 @@ internal static class FabricatorDetailsPatch
             description = allSent ? "All upgrade checks sent." : "Archipelago check";
         }
 
-        // Freeze localization components so they don't overwrite us on the next localization tick
         if (nameEvent != null) nameEvent.enabled = false;
         if (descEvent != null) descEvent.enabled = false;
 
-        // Get the TMP_Text driven by each LocalizeStringEvent (on the same GameObject)
         var nameTmp = nameEvent?.GetComponent<TMP_Text>();
         var descTmp = descEvent?.GetComponent<TMP_Text>();
 

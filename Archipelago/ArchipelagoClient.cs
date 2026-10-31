@@ -13,24 +13,19 @@ using System.Threading.Tasks;
 namespace SlimeRancher2AP.Archipelago;
 
 /// <summary>
-/// Manages the lifecycle of the Archipelago session: connect, disconnect, item queue, and
-/// location check sending. All network operations are run off-thread; item processing is
-/// dispatched back to the Unity main thread via ProcessItemQueue().
+/// The Archipelago session: connect, disconnect, item queue, location checks. Network work runs
+/// off-thread; items are applied on the main thread by ProcessItemQueue().
 /// </summary>
 public class ArchipelagoClient
 {
     public ArchipelagoSession? Session    { get; private set; }
     public SlotData?           SlotData   { get; private set; }
 
-    /// <summary>
-    /// Restores slot data from the persisted copy for an offline session. No-op when a live
-    /// connection has already supplied it, or when nothing has been persisted yet.
-    /// </summary>
+    /// <summary>Restores persisted slot data for an offline session. No-op while connected.</summary>
     public void RestorePersistedSlotData()
     {
-        // Guard on the connection, not on SlotData being null. Loading save A offline and then
-        // save B offline would otherwise keep A's options, because SlotData is already non-null
-        // — silently applying the wrong seed's settings to a different slot.
+        // Guard on the connection, not SlotData == null: offline save A then save B would
+        // otherwise keep A's options.
         if (IsConnected) return;
 
         var json = Plugin.Instance.SaveManager.SlotDataJson;
@@ -60,57 +55,30 @@ public class ArchipelagoClient
     public event Action?         OnConnected;
     public event Action?         OnDisconnected;
 
-    // Queue holds (item, index) tuples. Index is the library's canonical 0-based position
-    // (ReceivedItemsHelper.Index captured before DequeueItem) — matches the AP server's
-    // own position counter regardless of when the handler fires or how many items are batched.
-    // Used to skip items already applied in a previous session (reconnect dedup).
+    // (item, AP position) pairs; the position matches AllItemsReceived and drives dedup.
     private readonly Queue<(ItemInfo item, int index)> _itemQueue = new();
     private readonly object _queueLock = new();
-    // _receivedCount is a plain sequential counter: how many items we have personally
-    // dequeued from the ReceivedItemsHelper across all OnItemReceived calls this session.
-    // It starts at 0 (reset by Disconnect → set by Connect → resets Disconnect again).
-    // Each item's 0-based AP position = _receivedCount before the dequeue (then we ++).
-    // This matches AllItemsReceived indexing exactly, regardless of whether items arrive
-    // one-at-a-time or in a batch (the library delivers them in order).
-    //
-    // Note: helper.Index is NOT used for per-item positions because it tracks total items
-    // received by the helper (1-based count), not each item's individual position. In a
-    // batch of N items, helper.Index equals N for all N dequeues — wrong for our purposes.
+    // Items dequeued from the helper this session; an item's AP position is the value before
+    // its dequeue. Not helper.Index — that is the batch total, the same for every item in it.
     private volatile int _receivedCount = 0;
 
-    // Number of items in AllItemsReceived at login time (after the sanity check + historical
-    // replay).  Any item whose index >= _snapshotCount is a *live* item generated after
-    // login and must always be queued — even if the saved watermark is stale/high.
-    // This prevents the race where OnConnected writes _lastItemIdx=9017 from the config
-    // before ForceLastItemIndex(0) corrects it, causing a fast live item to be skipped.
+    // AllItemsReceived count at login. A position at or above it is a live item, queued even
+    // when the saved watermark is stale.
     private volatile int _snapshotCount = 0;
 
-    // The watermark as it stood at connect time, AFTER the stale-watermark sanity check
-    // (and after ForceLastItemIndex reset it to -1 if necessary).  Used as the threshold
-    // for the secondary dedup in ProcessItemQueue so that a stale on-disk watermark (e.g.
-    // 9018 from a previous AP slot) does not cause freshly-replayed historical items
-    // (indices 0..N) to be incorrectly skipped.  The live LastItemIndex can drift upward
-    // as items are applied, but this snapshot never changes for the lifetime of the session.
+    // The watermark at connect, after the stale-watermark reset. Threshold for the secondary
+    // dedup in ProcessItemQueue; fixed for the session while LastItemIndex advances.
     private volatile int _connectTimeWatermark = -1;
 
-    // In-memory scout cache — populated after connect, then refreshed from server.
-    // Also readable from ApSaveManager for offline sessions.
     private Dictionary<long, ScoutedItemInfo>? _liveScoutCache;
 
-    // Actions that must run on the Unity main thread: the post-login init and ALL UI event
-    // callbacks (OnConnected / OnConnectionFailed / OnDisconnected — their handlers touch
-    // TMP_Text and other Unity APIs that are not thread-safe).
-    // Producers: the connection Task and the socket-closed callback (network threads).
-    // Consumer: ProcessItemQueue (main thread), which drains this queue every frame BEFORE
-    // the connection/session guards so failure and disconnect notifications still fire
-    // while offline. ConcurrentQueue provides the happens-before ordering the old volatile
-    // single-slot field relied on.
+    // Work for the main thread from network threads: post-login init and every UI event
+    // (their handlers touch Unity). Drained by ProcessItemQueue before its connection guards,
+    // so failure and disconnect notices still fire offline.
     private readonly System.Collections.Concurrent.ConcurrentQueue<Action> _mainThreadActions = new();
 
-// When true, ProcessItemQueue will run ValidateAndRepairUpgrades() once as soon as
-    // UpgradeHandler is non-null (i.e., the scene has loaded far enough).  Set on every
-    // connect so that if the SR2 save is behind the AP watermark (e.g. the game crashed
-    // before the autosave after items were applied), the correct levels are restored.
+    // Set on connect: run ValidateAndRepairUpgrades once the handler exists, restoring levels
+    // if the save fell behind the watermark (e.g. a crash before autosave).
     private volatile bool _pendingUpgradeValidation;
 
     /// <summary>Seconds to wait for UpgradeModel.Push before reconciling regardless.</summary>
@@ -119,22 +87,16 @@ public class ArchipelagoClient
     /// <summary>Deadline for the Push wait; 0 when no validation is pending.</summary>
     private float _upgradeRestoreDeadline;
 
-    /// <summary>
-    /// Returns scout info for a location.  Checks the live cache first (online),
-    /// then falls back to the persisted data from the last successful scout (offline).
-    /// </summary>
+    /// <summary>Live scout info for a location, or null (offline callers use ApSaveManager.GetScout).</summary>
     public ScoutedItemInfo? GetScoutedItem(long locationId)
         => _liveScoutCache != null && _liveScoutCache.TryGetValue(locationId, out var info) ? info : null;
 
-    // Location IDs that exist in the connected seed. Captured once on login; volatile
-    // reference swap keeps reads safe from any thread. Null when disconnected.
+    // The seed's location IDs, captured on login; null when disconnected.
     private volatile HashSet<long>? _seedLocations;
 
     /// <summary>
-    /// True when <paramref name="locationId"/> exists in the connected seed. Optional
-    /// location pools (e.g. the Polestar shop subset) contain every possible location in
-    /// the mod's table, but the apworld only creates the subset chosen for this seed —
-    /// events for the rest must stay vanilla. Returns false while disconnected.
+    /// True when the location exists in the connected seed. Optional pools (e.g. the shop
+    /// subset) must leave the rest vanilla. False while disconnected.
     /// </summary>
     public bool IsLocationInSeed(long locationId)
         => _seedLocations?.Contains(locationId) ?? false;
@@ -145,10 +107,7 @@ public class ArchipelagoClient
 
     public void Connect(ArchipelagoData data)
     {
-        // Always disconnect before reconnecting — resets _receivedCount, _snapshotCount,
-        // clears the item queue, and resets the save-manager session pointer.
-        // Previously guarded by "if (Session != null)" but that skipped the reset on the
-        // very first connection (Session==null) leaving stale state from any previous run.
+        // Unconditionally, so even the first connect starts from clean state.
         Disconnect();
 
         Task.Run(() =>
@@ -157,8 +116,7 @@ public class ArchipelagoClient
             {
                 Session = ArchipelagoSessionFactory.CreateSession(data.Uri, data.Port);
 
-                // Wire up socket error / close handlers before login.
-                // ItemReceived is registered AFTER login (see below) — not before.
+                // ItemReceived is registered after login, below.
                 Session.Socket.ErrorReceived += (ex, msg) =>
                     Logger.Error($"[AP] Socket error: {msg} — {ex?.Message}");
                 Session.Socket.SocketClosed += reason =>
@@ -182,15 +140,12 @@ public class ArchipelagoClient
                     data.Team = Session.ConnectionInfo.Team;
                     data.Slot = Session.ConnectionInfo.Slot;
 
-                    // Persist the seed so the next reconnect can read it.
                     data.SaveSeedToConfig(Plugin.Instance.Config);
 
                     SlotData = SlotData.Parse(success.SlotData);
 
-                    // Persist the raw slot data so the next offline session can reload the
-                    // options. Without it, every option-gated check (pods, gordos, drones,
-                    // shop, market) sees SlotData == null offline and bails, so an offline
-                    // session records nothing and the watermark can never reconcile it.
+                    // Persisted so offline sessions have the options — without them every
+                    // option-gated check bails.
                     try
                     {
                         Plugin.Instance.SaveManager.PersistSlotData(
@@ -214,20 +169,10 @@ public class ArchipelagoClient
                         DeathLink.Enable();
                     }
 
-                    // File I/O — safe on background thread.
-                    // This sets LastItemIndex to the saved watermark for this seed+slot.
+                    // Loads LastItemIndex for this seed+slot (file I/O, fine off-thread).
                     Plugin.Instance.SaveManager.OnConnected(data.Seed, data.SlotName);
 
-                    // Replay historical items from AllItemsReceived.
-                    //
-                    // AllItemsReceived contains items accumulated in the current session
-                    // connection (populated during TryConnectAndLogin with AllItems).
-                    // ItemReceived only fires for live items received AFTER login, not for
-                    // these historical ones — so we process them here instead.
-                    //
-                    // _receivedCount is set to snapshot.Count so that live items arriving
-                    // via OnItemReceived get sequential indices starting immediately after
-                    // the historical range.
+                    // Queue history above the watermark.
                     var snapshot = Session.Items.AllItemsReceived.ToList();
                     int savedWatermark = Plugin.Instance.SaveManager.LastItemIndex;
 
@@ -236,17 +181,9 @@ public class ArchipelagoClient
                         $"snapshot.Count={snapshot.Count} — " +
                         $"expect {System.Math.Max(0, snapshot.Count - (savedWatermark + 1))} item(s) to replay");
 
-                    // Sanity-check: the watermark should never exceed the highest item
-                    // position the server has on record (snapshot.Count - 1).  If it does,
-                    // the saved value is stale — either from a fresh SR2 save on an old AP
-                    // slot, a server reset that truncated history, or manually-sent fix items
-                    // that now sit in the snapshot at indices below the old watermark.
-                    //
-                    // Reset to -1 (replay ALL snapshot items) rather than snapshot.Count-1
-                    // (skip all).  Resetting to snapshot.Count-1 would silently drop any
-                    // manually-sent fix items that are at idx < old watermark.  Replaying
-                    // from -1 is safe: upgrades/gadgets/regions are idempotent; filler may
-                    // be duplicated in the edge case but that is preferable to missing items.
+                    // A watermark beyond the server's history is stale (old slot, truncated
+                    // history). Replay everything rather than skip everything: non-ephemerals
+                    // are idempotent, and a duplicate is better than a missing item.
                     if (savedWatermark >= snapshot.Count)
                     {
                         Logger.Warning(
@@ -256,8 +193,6 @@ public class ArchipelagoClient
                         savedWatermark = -1;
                     }
 
-                    // Freeze the effective watermark for this session's secondary dedup.
-                    // savedWatermark is now either the disk value or -1 (if sanity-check reset it).
                     _connectTimeWatermark = savedWatermark;
 
                     int enqueued = 0;
@@ -269,19 +204,9 @@ public class ArchipelagoClient
                             enqueued++;
                         }
 
-                        // Re-queue any items that were deferred last session (rate-limited traps,
-                        // held conservatory expansions) and whose watermark has already advanced
-                        // past their index.
-                        //
-                        // Scenario: trap at idx=6 was deferred; live item at idx=7 was applied
-                        // (advancing the watermark to 7); then the game disconnected before the
-                        // trap could fire.  Without this, idx=6 would be permanently lost on
-                        // reconnect (below watermark=7, not in ephemeral set).
-                        //
-                        // We only need to re-queue deferred items at or below savedWatermark;
-                        // those above the watermark are already handled by the replay loop above.
-                        // Indices outside the server history (e.g. debug-panel grants that used
-                        // the internal 9000+ counter) are stale — prune them from the set.
+                        // Re-queue items deferred last session that the watermark has since
+                        // passed (a parked trap, a held expansion) — otherwise they are lost.
+                        // Indices outside the server history are stale; prune them.
                         var pendingDeferred = Plugin.Instance.SaveManager.GetPendingDeferredItems();
                         int deferredRequeued = 0;
                         foreach (var deferredIdx in pendingDeferred.ToList())
@@ -306,30 +231,20 @@ public class ArchipelagoClient
                                 $"(below watermark={savedWatermark}, will apply this session).");
                         enqueued += deferredRequeued;
                     }
-                    // _receivedCount stays at 0 (reset by Disconnect at the top of Connect).
-                    // It is a plain dequeue counter — assigned sequentially as OnItemReceived
-                    // pulls items from the helper.  Starting from 0 ensures the positions
-                    // match AllItemsReceived 0-based indexing regardless of batch vs single.
-                    _snapshotCount = snapshot.Count; // live-item boundary: pos >= this means freshly generated
+                    // _receivedCount stays 0, so OnItemReceived's positions match AllItemsReceived.
+                    _snapshotCount = snapshot.Count;
                     Logger.Info(
                         $"[AP] Historical replay: {snapshot.Count} item(s) in history, " +
                         $"watermark={savedWatermark}, {enqueued} new item(s) queued.");
                     Logger.Info(
                         $"[AP] Counters frozen: _receivedCount={_receivedCount} (starts at 0), _snapshotCount={_snapshotCount}");
 
-                    // Register ItemReceived NOW so only live (post-login) items come through.
-                    // _receivedCount is already set to snapshot.Count, so new items get
-                    // sequential indices starting from there.
                     Logger.Info("[AP] Registering ItemReceived handler...");
                     Session.Items.ItemReceived += OnItemReceived;
                     Logger.Info("[AP] ItemReceived handler registered.");
 
-                    // Snapshot the seed's location set. Optional-location features (Polestar
-                    // shop subset) consult this to decide whether a game event is a check in
-                    // THIS seed — sending a check for an ID absent from the seed is an error.
                     _seedLocations = new HashSet<long>(Session.Locations.AllLocations);
 
-                    // Flush offline checks and start scout from the background thread.
                     FlushPendingChecks();
                     var capturedSession = Session;
                     _ = ScoutAllLocationsAsync(capturedSession);
@@ -337,20 +252,14 @@ public class ArchipelagoClient
                     Logger.Info(
                         $"[AP] Connected as '{data.SlotName}' (slot {data.Slot}, seed {data.Seed})");
 
-                    // Schedule upgrade validation: once the scene and UpgradeHandler are ready,
-                    // ProcessItemQueue will call ValidateAndRepairUpgrades() to fix any discrepancy
-                    // between the SR2 save levels and what the AP server has delivered.
                     _pendingUpgradeValidation = true;
 
-                    // GoalHandler.Initialize(), WeatherPatch, and OnConnected touch Unity APIs — defer to main thread.
+                    // These touch Unity — main thread.
                     _mainThreadActions.Enqueue(() =>
                     {
                         GoalHandler.Initialize();
                         WeatherPatch.OnSlotDataReceived(); // applies WeatherFrequencyMultiplier to the persistent WeatherRegistry
                         Patches.EconomyPatches.PlortMarketModePatch.OnSlotDataReceived(); // saturates the market when plort_market_mode is active
-                        // Bundled mode: verify every unlocked region has its zone teleporter
-                        // blueprint — heals saves where a bundled grant was lost mid-scene-load
-                        // in a previous session (the access item never replays below the watermark).
                         ItemHandler.ScheduleBundledTeleporterValidation();
                         OnConnected?.Invoke();
                     });
@@ -359,7 +268,6 @@ public class ArchipelagoClient
                 {
                     var errors = string.Join(", ", failure.Errors);
                     Logger.Error($"[AP] Login failed: {errors}");
-                    // OnConnectionFailed also touches UI — defer to main thread.
                     _mainThreadActions.Enqueue(() => OnConnectionFailed?.Invoke(errors));
                     Session = null;
                 }
@@ -367,8 +275,6 @@ public class ArchipelagoClient
             catch (Exception ex)
             {
                 Logger.Error($"[AP] Connection exception: {ex.Message}");
-                // Running on the connection Task's thread — defer the UI callback like the
-                // LoginFailure path does (handlers set TMP_Text, which is main-thread-only).
                 var message = ex.Message;
                 _mainThreadActions.Enqueue(() => OnConnectionFailed?.Invoke(message));
                 Session = null;
@@ -376,11 +282,7 @@ public class ArchipelagoClient
         });
     }
 
-    /// <summary>
-    /// Schedules <see cref="ItemHandler.ValidateAndRepairUpgrades"/> to run on the next
-    /// <see cref="ProcessItemQueue"/> frame in which <see cref="ItemHandler.UpgradeHandler"/>
-    /// is non-null.  Safe to call from any thread (volatile write).
-    /// </summary>
+    /// <summary>Schedules <see cref="ItemHandler.ValidateAndRepairUpgrades"/>. Any thread.</summary>
     public void ScheduleUpgradeValidation() => _pendingUpgradeValidation = true;
 
     public void Disconnect()
@@ -397,10 +299,7 @@ public class ArchipelagoClient
         PrismacoreFulfiller.Reset();
         GoalHandler.Reset();   // persisted goal state lives in the save manager, reset below
         ItemHandler.ClearHeldDroneModules();
-        // Unregister and close the socket before nulling Session.
-        // Without DisconnectAsync the underlying WebSocket stays open and the AP
-        // server never sees the client leave — it only observes the tag change from
-        // DeathLink.Disable() above.
+        // Close the socket explicitly, or the server never sees the client leave.
         if (Session != null)
         {
             Session.Items.ItemReceived -= OnItemReceived;
@@ -424,9 +323,7 @@ public class ArchipelagoClient
         ItemHandler.ResetUpgradeTracking();
         ItemHandler.ResetRegionTeleporterRetries();
         lock (_queueLock) { _itemQueue.Clear(); }
-        // Reset the save-manager session pointer so HasActiveSession returns false.
-        // Without this, a reconnect would see the previous session's _saveFile as
-        // still valid and process items before the new OnConnected completes.
+        // Or a reconnect would apply items into the old save file before OnConnected finishes.
         Plugin.Instance.SaveManager.ResetSession();
         Logger.Info("[AP] Disconnected.");
     }
@@ -435,19 +332,12 @@ public class ArchipelagoClient
     // Scout — runs after connect to cache what item lives at each location
     // -------------------------------------------------------------------------
 
-    /// <summary>
-    /// Scouts every location in the game and persists the results so that
-    /// location-check notifications work even in offline sessions.
-    /// Runs off the main thread; safe to fire-and-forget.
-    /// </summary>
+    /// <summary>Scouts the seed's locations and persists them for offline check notifications.</summary>
     private async Task ScoutAllLocationsAsync(ArchipelagoSession session)
     {
         try
         {
-            // Only scout locations that exist in THIS seed. The local table always contains
-            // every possible location, but disabled options remove locations from the seed —
-            // scouting unknown IDs can fail the entire batch (one catch covers the whole call),
-            // silently degrading every check notification for the session.
+            // Only IDs in this seed — one unknown ID fails the whole batch.
             var serverLocations = new HashSet<long>(session.Locations.AllLocations);
             var ids = Data.LocationTable.All
                           .Select(l => l.Id)
@@ -469,7 +359,6 @@ public class ArchipelagoClient
 
             _liveScoutCache = result;
 
-            // Convert to persisted format and save to disk so offline sessions can use it.
             var mySlotName = session.Players.GetPlayerInfo(session.ConnectionInfo.Slot)?.Name ?? "";
             var persisted  = new Dictionary<long, ApSaveManager.PersistedScout>(result.Count);
             foreach (var kv in result)
@@ -499,11 +388,7 @@ public class ArchipelagoClient
     // Pending check flush — called right after reconnect
     // -------------------------------------------------------------------------
 
-    /// <summary>
-    /// Re-sends all locally-tracked checked locations to the server.
-    /// Idempotent: the server ignores already-completed locations.
-    /// This catches any checks made while offline.
-    /// </summary>
+    /// <summary>Re-sends every locally checked location (covers offline checks); idempotent.</summary>
     private void FlushPendingChecks()
     {
         if (Session == null) return;
@@ -525,51 +410,22 @@ public class ArchipelagoClient
     // Items
     // -------------------------------------------------------------------------
 
-    /// <summary>
-    /// Called on the network thread for every item received (including historical replay on reconnect).
-    /// Assigns a local index based on receipt order and skips items already applied.
-    /// </summary>
+    /// <summary>Network thread. Assigns each item its AP position and queues those not yet applied.</summary>
     private void OnItemReceived(ReceivedItemsHelper helper)
     {
-        // Log on EVERY call so we can see silent/unexpected invocations.
         Logger.Info(
             $"[AP] OnItemReceived-ENTER: _receivedCount={_receivedCount}, _snapshotCount={_snapshotCount}");
 #if DEBUG
         SlimeRancher2AP.Utils.DebugTrace.Once("[BG] OnItemReceived — first call (background thread)");
 #endif
-        // Drain the ENTIRE helper queue, not just the first item.
-        //
-        // The AP server may bundle multiple items into a single ReceivedItems packet
-        // (e.g. when a live check and another player's check resolve simultaneously).
-        // In that case the library fires ItemReceived ONCE with all pending items in
-        // the helper queue.  Dequeuing only the first item silently drops the rest —
-        // they remain in the helper with no further event fired this session.
-        //
-        // Draining fully is safe for both library behaviours:
-        //  • One event per item  — loop runs once, exits; next event drains its item.
-        //  • One event per batch — loop drains all items in the batch correctly.
+        // Drain everything: one event can carry a whole batch, and nothing fires again for
+        // items left in the helper.
         while (helper.Any())
         {
-            // pos is the 0-based AP position of this item, matching AllItemsReceived[pos].
-            // We assign it by reading _receivedCount BEFORE incrementing — this is a plain
-            // sequential counter (reset to 0 each Connect via Disconnect()) that advances
-            // by 1 for each item dequeued, regardless of how many arrive per call.
-            //
-            // This is correct for both delivery patterns:
-            //   • One event per item  — pos = 0,1,2,… across separate calls, one item each.
-            //   • Batch event         — pos = 0,1,2,3 within a single call for 4 items.
-            // In either case, pos matches AllItemsReceived[pos], giving correct dedup.
-            //
-            // We do NOT use helper.Index for per-item positions because helper.Index tracks
-            // the total count of items received by the helper (incremented when the network
-            // packet arrives, not when we dequeue). In a batch of N items, helper.Index
-            // equals N for every dequeue in the loop — the same value for all N items —
-            // making it useless as a per-item discriminator.
+            // Position = AllItemsReceived index (see _receivedCount).
             int pos  = _receivedCount++;
             var item = helper.DequeueItem();
             var watermark  = Plugin.Instance.SaveManager.LastItemIndex;
-            // pos >= _snapshotCount means this item was generated AFTER login — it is a live
-            // item and must always be queued, even if the saved watermark is stale.
             bool isLiveItem = (pos >= _snapshotCount);
             if (isLiveItem || pos > watermark)
             {
@@ -585,17 +441,10 @@ public class ArchipelagoClient
         }
     }
 
-    /// <summary>
-    /// Processes items from the queue on the Unity main thread (called from ApUpdateBehaviour.Update).
-    /// Also drains any deferred post-login actions (GoalHandler init, UI callbacks) that
-    /// were queued from the network thread to avoid calling Unity APIs off the main thread.
-    /// </summary>
+    /// <summary>Per-frame, main thread: runs deferred main-thread actions, then applies queued items.</summary>
     public void ProcessItemQueue()
     {
-        // Drain deferred main-thread actions (post-login init, UI event callbacks) before the
-        // connection/session guards below — disconnect and connection-failure notifications
-        // must fire even when we are no longer connected. Each action is isolated so one
-        // throwing handler cannot swallow the rest of the queue.
+        // Before the guards, so disconnect/failure notices fire offline. Each isolated.
         while (_mainThreadActions.TryDequeue(out var action))
         {
             try { action(); }
@@ -605,42 +454,21 @@ public class ArchipelagoClient
             }
         }
 
-        // Do not process items until the save file is open.
-        //
-        // SaveManager.OnConnected (which sets _saveFile) runs on the background thread
-        // concurrently with this method.  If we drain the queue before OnConnected
-        // completes, calls like UnlockRegion() silently no-op because _saveFile is null,
-        // causing region unlocks to be lost across scene reloads.
-        //
-        // The background thread always sets _saveFile BEFORE enqueueing the post-login action
-        // (ConcurrentQueue.Enqueue provides the happens-before), so by the time the action
-        // above fires, HasActiveSession is guaranteed to be true.  Items are therefore held
-        // for at most one extra Update() frame beyond the frame the action fires — negligible.
+        // Wait for the save file: SaveManager.OnConnected opens it on the connection thread,
+        // and writes before then (e.g. UnlockRegion) silently no-op.
         if (!IsConnected || !Plugin.Instance.SaveManager.HasActiveSession) return;
 
-        // Don't drain the item queue until the game scene has a live Player object.
-        // Every Apply method needs SceneContext/GadgetDirector/UpgradeHandler, none of which
-        // exist on the main menu or save-select screen.  Holding items here (rather than
-        // dequeuing → failing → requeueing every frame) eliminates the per-frame log spam
-        // while the player is still in the pre-game UI.
+        // Hold items on the menus rather than fail and requeue every frame.
         if (SceneContext.Instance?.Player == null) return;
 
-        // Hold items unless the loaded save is the one associated with this AP slot —
-        // items must never be delivered into an unrelated save (SaveGuard warns the player).
+        // Never deliver into a save not bound to this slot.
         if (!SaveGuard.IsSaveTrusted()) return;
 
 #if DEBUG
         SlimeRancher2AP.Utils.DebugTrace.Once("ProcessItemQueue.1 — entered while connected");
 #endif
-        // Drain the queue into a local list under the lock, then process OUTSIDE the lock.
-        //
-        // If we called ItemHandler.Apply() while holding _queueLock and Apply() decided to
-        // requeue the item (e.g. SceneContext is null in the main menu), RequeueItem() would
-        // re-acquire the reentrant lock and enqueue the item back — causing the while loop to
-        // pick it up immediately and loop forever, freezing the main thread.
-        //
-        // Draining first (O(N) under lock) ensures the queue is empty before we process.
-        // Any requeue during processing safely lands in the now-empty queue for the next frame.
+        // Drain under the lock, apply outside it: a requeue during Apply would otherwise be
+        // picked straight back up, looping forever.
         List<(ItemInfo item, int index)> pending;
         lock (_queueLock)
         {
@@ -655,27 +483,9 @@ public class ArchipelagoClient
         SlimeRancher2AP.Utils.DebugTrace.Once("ProcessItemQueue.5 — exited lock");
 #endif
 
-        // Upgrade validation: compares expected levels (from the AP snapshot) against actual SR2
-        // model levels and applies any correction — handles the case where SR2 was behind due to
-        // a crash.
-        //
-        // Waits for UpgradeModel.Push as well as the handler. Auto-connect finishes before the
-        // handler is even constructed, so without the restore signal this could run against an
-        // empty model, read every upgrade as level -1 and re-apply the whole set from the
-        // snapshot — discarding anything the watermark does not account for.
-        //
-        // The wait is bounded: if Push never fires (a save with no upgrades may not call it) we
-        // reconcile anyway once the grace period is up, rather than skipping reconciliation
-        // entirely.
-        //
-        // A freshly created save is exempt from the wait entirely — it never routes through
-        // BeginLoad and has nothing to restore, so Push is never called and waiting only delays
-        // reconciliation by the full grace period before warning about a model that is correctly
-        // empty. See ItemHandler.NoRestoreExpected.
-        //
-        // unscaledTime, not time: the grace period is wall-clock, and Time.time stalls whenever
-        // the game sets timeScale to 0 (pause, scene load). That stretched the observed timeout
-        // to ~36s of real time on a new game.
+        // Upgrade validation waits for UpgradeModel.Push (see ItemHandler.UpgradesRestored),
+        // except on a fresh save, and at most the grace period — a save with no upgrades may
+        // never Push. unscaledTime: Time.time stalls while timeScale is 0.
         if (_pendingUpgradeValidation && ItemHandler.UpgradeHandler != null)
         {
             if (_upgradeRestoreDeadline <= 0f)
@@ -706,9 +516,7 @@ public class ArchipelagoClient
                 $"_snapshotCount={_snapshotCount}, _connectTimeWatermark={_connectTimeWatermark}");
 #endif
 
-        // Per-frame time budget: stop processing items after 8ms so we don't stall the main
-        // thread when many items arrive at once (e.g. 100+ items on goal completion).
-        // Remaining items are requeued and processed across subsequent frames.
+        // 8 ms per frame, so a big release doesn't stall the game; the rest waits a frame.
         const double MaxMsPerFrame = 8.0;
         var sw = System.Diagnostics.Stopwatch.StartNew();
 
@@ -718,26 +526,9 @@ public class ArchipelagoClient
 #if DEBUG
             SlimeRancher2AP.Utils.DebugTrace.Once($"ProcessItemQueue.3 — first dequeued item id={entry.item.ItemId} idx={entry.index}");
 #endif
-            // Secondary dedup: skip items whose index is at or below the connect-time watermark.
-            //
-            // OnItemReceived uses _lastItemIdx as a gate, but that field starts at -1 and
-            // is only loaded from disk once SaveManager.OnConnected runs.  On a reconnect,
-            // all historical items replay before OnConnected completes, so items with
-            // index <= the saved watermark can sneak into the queue.  Checking again here
-            // (with the frozen connect-time watermark) prevents double-grants.
-            //
-            // We use _connectTimeWatermark (the disk watermark AFTER the stale-watermark sanity
-            // check, i.e. -1 if ForceLastItemIndex reset it) rather than the live LastItemIndex.
-            // Using the live value caused items to be wrongly skipped when the disk watermark
-            // was stale from an old AP slot (e.g. 9018) even though the sanity check had already
-            // reset it to -1 so all historical items should replay.
-            // Exceptions:
-            //  • live items (idx >= _snapshotCount) were generated after login and must always
-            //    be applied even if the saved watermark is stale.
-            //  • deferred items (in the persisted deferred set) were re-queued at connect time
-            //    precisely BECAUSE they sit at or below the watermark without ever having been
-            //    applied (rate-limited trap, held expansion) — skipping them here would defeat
-            //    that safety net and lose the item permanently.
+            // Secondary dedup: OnItemReceived can queue history before OnConnected loads the
+            // watermark. Uses the connect-time value (after the stale reset), not the live one.
+            // Live items always apply; deferred items sit below the watermark by design.
             bool isLiveItem     = (entry.index >= _snapshotCount);
             bool isDeferredItem = Plugin.Instance.SaveManager.IsDeferredItem(entry.index);
             if (!isLiveItem && !isDeferredItem && entry.index <= _connectTimeWatermark)
@@ -753,10 +544,7 @@ public class ArchipelagoClient
             }
             catch (Exception ex)
             {
-                // An unhandled exception inside Apply would normally abort the foreach,
-                // silently dropping every remaining item in `pending` (they've already been
-                // dequeued and are not going back into the queue).  Catching here lets the
-                // loop continue and logs enough detail to diagnose the root cause.
+                // Don't let one item's exception drop the rest of `pending`.
                 Logger.Error(
                     $"[AP] Exception applying item {entry.item.ItemName} " +
                     $"(id={entry.item.ItemId}, idx={entry.index}): {ex}");
@@ -765,7 +553,6 @@ public class ArchipelagoClient
             SlimeRancher2AP.Utils.DebugTrace.Once($"ProcessItemQueue.4 — Apply returned for first item idx={entry.index}");
 #endif
 
-            // Check time budget after each item. Requeue any unprocessed items for next frame.
             if (sw.Elapsed.TotalMilliseconds > MaxMsPerFrame && i < pending.Count - 1)
             {
                 int remaining = pending.Count - i - 1;
@@ -789,19 +576,8 @@ public class ArchipelagoClient
     }
 
     /// <summary>
-    /// Clears the item queue and re-enqueues every item in the server's AllItemsReceived
-    /// snapshot starting from index 0, then resets the watermark to -1.
-    ///
-    /// Used when the player starts a <b>new SR2 game</b> while connected to an AP slot that
-    /// already has history (e.g. start items, or a previously-played SR2 run on the same slot).
-    /// Without this, the watermark from the previous run prevents items 0..watermark from
-    /// being applied to the fresh SR2 save — the player would start with missing items.
-    ///
-    /// Ephemerals (filler, traps) that are already in <c>_ephemeralSet</c> are skipped to
-    /// avoid refiring one-shot effects from a previous run on the same AP slot.
-    /// For a genuinely new AP slot, <c>_ephemeralSet</c> is empty, so all items replay.
-    ///
-    /// Must be called on the main thread (from a Harmony Prefix/Postfix or game event).
+    /// For a new SR2 game on a slot with history: resets the watermark and requeues every item,
+    /// skipping one-shot items already applied in an earlier run. Main thread.
     /// </summary>
     public void RequestFullReplay()
     {
@@ -812,12 +588,7 @@ public class ArchipelagoClient
         }
 
         Plugin.Instance.SaveManager.ForceLastItemIndex(-1);
-        // Also reset _connectTimeWatermark: the secondary dedup in ProcessItemQueue uses
-        // this frozen value to skip items that were already applied before this session.
-        // After RequestFullReplay resets the watermark to -1, we must lower the threshold
-        // here too — otherwise ProcessItemQueue's secondary dedup would kill items at
-        // indices 0.._connectTimeWatermark (the old connect-time value), which are exactly
-        // the items we just re-queued for the fresh SR2 save.
+        // Or the secondary dedup would drop exactly the items requeued below.
         _connectTimeWatermark = -1;
 
         var snapshot = Session.Items.AllItemsReceived.ToList();
@@ -827,8 +598,6 @@ public class ArchipelagoClient
             _itemQueue.Clear();
             for (int i = 0; i < snapshot.Count; i++)
             {
-                // Skip ephemerals already applied in a previous SR2 run on this AP slot.
-                // Non-ephemerals (upgrades, gadgets, regions) are idempotent and always queued.
                 var itemInfo = Data.ItemTable.Get(snapshot[i].ItemId);
                 bool isEph = itemInfo?.Type is Data.ItemType.Filler or Data.ItemType.Trap;
                 if (isEph && Plugin.Instance.SaveManager.IsEphemeralApplied(i))
@@ -847,30 +616,22 @@ public class ArchipelagoClient
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// Records a location check locally and, if connected, reports it to the AP server.
-    /// Safe to call offline — checks accumulate locally and are flushed on the next connect.
-    /// Idempotent: already-checked locations are silently skipped.
-    /// Shows a notification via StatusHUD based on persisted or live scout data.
-    /// </summary>
-    /// <summary>
-    /// <c>Environment.TickCount</c> of the most recent location check sent by the player.
-    /// Read by <c>TrapHandler.IsTrapAllowed</c> to hold traps briefly after a check so a
-    /// trap rewarded by that check can't interrupt the interaction that produced it.
-    /// Initialized far in the past so the grace window is inactive before the first check.
+    /// <c>Environment.TickCount</c> of the last check, for the trap post-check grace.
+    /// Starts an hour in the past so the grace is inactive.
     /// </summary>
     internal static int LastCheckSentTickMs = System.Environment.TickCount - 3_600_000;
 
+    /// <summary>
+    /// Records a check locally and sends it if connected; offline checks are flushed on the
+    /// next connect. Idempotent. Shows a notification from scout data.
+    /// </summary>
     public void SendCheck(long locationId)
     {
         if (!Plugin.Instance.ModEnabled) return;
-        // IsSaveBound, not HasActiveSession: a check made while offline is still a real
-        // check. It is marked locally, persisted, and flushed by FlushPendingChecks on the
-        // next connect — which is what advances the watermark.
+        // IsSaveBound, not HasActiveSession: offline checks are real checks.
         if (!Plugin.Instance.SaveManager.IsSaveBound) return;
         if (Plugin.Instance.SaveManager.IsChecked(locationId)) return;
 
-        // A save that is not associated with this AP slot must not send checks — its game
-        // events belong to a different playthrough (SaveGuard has already warned the player).
         if (!SaveGuard.IsSaveTrusted())
         {
             Logger.Warning($"[AP] SendCheck({locationId}) ignored — current save is not associated with this AP slot.");
@@ -893,13 +654,9 @@ public class ArchipelagoClient
         }
     }
 
-    /// <summary>
-    /// Shows a StatusHUD notification for a location check, using scout data to describe
-    /// what item was found and for whom.
-    /// </summary>
+    /// <summary>Notifies what a check held and for whom, from persisted scout data.</summary>
     private void ShowCheckNotification(long locationId)
     {
-        // Try live cache first (fresh from server), then fall back to persisted data.
         string message;
 
         var persisted = Plugin.Instance.SaveManager.GetScout(locationId);
@@ -925,7 +682,6 @@ public class ArchipelagoClient
         }
         else
         {
-            // No scout data — fall back to location name from table or raw ID.
             var info = Data.LocationTable.GetById(locationId);
             message = info != null
                 ? $"Checked {info.Name}"

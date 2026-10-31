@@ -6,13 +6,8 @@ using System.Text.Json.Serialization;
 namespace SlimeRancher2AP.SaveData;
 
 /// <summary>
-/// Persists Archipelago randomizer progress to a per-seed BepInEx ConfigFile.
-/// One file per {seed}_{slotName} combination so different seeds/slots don't conflict.
-/// Changes are batched and written by Flush() at most once per frame (see the _dirty field).
-///
-/// Scout data (what item lives at each location) is stored alongside as a separate JSON
-/// file so it persists across offline sessions and enables location-check notifications
-/// without a live AP connection.
+/// Persists AP progress to one BepInEx ConfigFile per {seed}_{slotName}, written by Flush() at
+/// most once per frame. Scout data sits beside it as JSON, for offline check notifications.
 /// </summary>
 public class ApSaveManager
 {
@@ -27,14 +22,7 @@ public class ApSaveManager
         /// <summary>ItemFlags.NeverExclude — Archipelago's "useful" tier.</summary>
         [JsonPropertyName("useful")] public bool   IsUseful      { get; init; }
 
-        /// <summary>
-        /// Human-readable Archipelago tier for this item: Progression, Useful, Trap or Filler.
-        /// </summary>
-        /// <remarks>
-        /// Trap is checked before progression: a trap is never also progression, and reading
-        /// "Progression" on a trap would be actively misleading to someone deciding whether to
-        /// spend Newbucks on it.
-        /// </remarks>
+        /// <summary>Display tier; Trap is tested first so a trap never reads as Progression.</summary>
         public string Tier =>
             IsTrap        ? "Trap"
           : IsProgression ? "Progression"
@@ -65,8 +53,7 @@ public class ApSaveManager
     private ConfigEntry<bool>?   _goalReached;
     private ConfigEntry<string>? _labyrinthGatesOpened;
 
-    // In-memory mirror of _plortsSold, keyed by IdentifiableType.name (e.g. "PinkPlort").
-    private readonly Dictionary<string, long> _plortsSoldMap = new();
+    private readonly Dictionary<string, long> _plortsSoldMap = new();   // by plort type name
 
     private readonly HashSet<long>   _checkedSet      = new();
     private readonly HashSet<string> _regionSet       = new();
@@ -74,18 +61,10 @@ public class ApSaveManager
     private readonly HashSet<int>    _ephemeralSet    = new();
     // Labyrinth beam-gate keys ("scene:switchName") seen opening, for the labyrinth_open goal.
     private readonly HashSet<string> _labyrinthGateSet = new();
-    // Indices of items that were received but could not be applied yet and whose application
-    // may outlive the session: rate-limited traps parked in TrapHandler's deferred queues, and
-    // conservatory expansions held until the player presses the terminal / the door's sub-scene
-    // loads.  Persisted so that if the game disconnects while an item is deferred (and the
-    // watermark has already advanced past its index), the item is re-queued on the next
-    // session reconnect instead of being silently lost below the watermark.
+    // Received items still waiting to apply (parked traps, held expansions). Persisted so a
+    // disconnect after the watermark passes them re-queues them instead of losing them.
     private readonly HashSet<int>    _deferredSet     = new();
-    // volatile: _lastItemIdx and _sessionActive are written on the background thread
-    // (OnConnected / ResetSession) and read on the main thread (LoadGamePatch) and the
-    // network-callback thread (OnItemReceived). Without volatile the JIT / CPU is free to
-    // cache these in a register or L1 cache, causing the main thread to see stale values
-    // and the HasActiveSession guard to fail to block PreloadLastItemIndex.
+    // volatile: written on the connection thread, read on the main and network threads.
     private volatile int  _lastItemIdx      = -1;
     private volatile bool _sessionActive    = false;
     private volatile bool _saveBound       = false;
@@ -93,20 +72,13 @@ public class ApSaveManager
     private int  _shopCatalogsHeldVal = 0;
     private bool _goalReachedVal = false;
 
-    // Write batching. Mutators only change the in-memory state and set _dirty; Flush() writes
-    // everything to disk in one Save, once per frame (ApUpdateBehaviour), before the session
-    // pointer is torn down (ResetSession), and on quit. Previously every change rewrote the
-    // whole file — twice, since SaveOnConfigSet was left on — so a burst of received items or a
-    // plort-market sale cost dozens of full-file writes on the main thread.
-    //
-    // _dirty is volatile because ForceLastItemIndex / PersistSlotData run on the connection
-    // thread. _ioLock keeps Flush from serializing the sets while LoadSaveState (also on the
-    // connection thread) is rebuilding them or binding a new file.
+    // Mutators set _dirty; Flush() writes everything in one Save — per frame, before
+    // ResetSession, and on quit. _dirty is volatile (some mutators run on the connection
+    // thread); _ioLock stops Flush racing LoadSaveState.
     private volatile bool _dirty;
     private bool _warnedFlushFailure;
     private readonly object _ioLock = new();
 
-    // Scout data — loaded from JSON on connect, updated after fresh server scout.
     private Dictionary<long, PersistedScout> _scoutData = new();
     private string? _scoutFilePath;
 
@@ -115,43 +87,26 @@ public class ApSaveManager
     // -------------------------------------------------------------------------
 
     public int  LastItemIndex   => _lastItemIdx;
-    /// <summary>Cumulative newbucks earned this AP run (tracked via PlayerState.AddCurrency Postfix).</summary>
+    /// <summary>Newbucks earned in-game this AP run (the "newbucks" goal counter).</summary>
     public long NewbucksEarned  => _newbucksEarnedVal;
 
     /// <summary>
-    /// Progressive Shop Catalog copies applied to this save.
+    /// Shop Catalog copies applied. Persisted because the server snapshot reads 0 offline;
+    /// <see cref="Archipelago.ShopCatalogHandler"/> uses it as a floor.
     /// </summary>
-    /// <remarks>
-    /// Persisted rather than derived from the server snapshot alone: the shop can be opened
-    /// offline, and a snapshot read with no session returns 0 — which would hide every wave
-    /// the player has already earned. <see cref="Archipelago.ShopCatalogHandler"/> uses this
-    /// as a floor under the snapshot count.
-    /// </remarks>
     public int  ShopCatalogsHeld => _shopCatalogsHeldVal;
 
-    /// <summary>
-    /// True once <see cref="OnConnected"/> has started processing the current session.
-    /// Set volatile so the main-thread guard in LoadGamePatch always sees the up-to-date
-    /// value written by the background connection thread.
-    /// </summary>
+    /// <summary>True once <see cref="OnConnected"/> has started for the current session.</summary>
     public bool HasActiveSession => _sessionActive;
 
     /// <summary>
-    /// True when this save's AP config file is bound — either by a live connection or by
-    /// <see cref="BindOfflineSave"/>. Guards anything that must behave identically online and
-    /// offline: recording location checks, and suppressing vanilla fabricator grants.
+    /// True when the AP save file is bound, online or offline (<see cref="BindOfflineSave"/>).
+    /// Gates what must work offline too — recording checks, suppressing vanilla fabricator
+    /// grants — unlike <see cref="HasActiveSession"/>.
     /// </summary>
-    /// <remarks>
-    /// Distinct from <see cref="HasActiveSession"/> on purpose. Gating check-recording and
-    /// grant-suppression on a live connection meant an offline craft handed the player the
-    /// upgrade for real AND recorded no check, so the multiworld's copy of that upgrade was
-    /// still out there and the watermark could never reconcile it.
-    /// </remarks>
     public bool IsSaveBound => _saveBound;
 
-    /// <summary>
-    /// Raw slot data JSON from the last successful connect, or empty when never connected.
-    /// </summary>
+    /// <summary>Slot data JSON from the last connect, or empty.</summary>
     public string SlotDataJson => _slotDataJson?.Value ?? "";
 
     /// <summary>Persists the raw slot data so an offline session can reload the options.</summary>
@@ -166,7 +121,7 @@ public class ApSaveManager
         }
     }
 
-    /// <summary>All locally-tracked checked location IDs (for flush-on-reconnect).</summary>
+    /// <summary>Every locally checked location ID.</summary>
     public IReadOnlyCollection<long> CheckedLocations => _checkedSet;
 
     public ApSaveManager(ConfigFile pluginConfig)
@@ -179,31 +134,19 @@ public class ApSaveManager
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// Pre-loads <see cref="LastItemIndex"/> from the on-disk config file for the given
-    /// seed + slot BEFORE the AP session connects. This prevents a race condition where
-    /// <c>Session.Items.ItemReceived</c> fires (replaying historical items) during
-    /// <c>TryConnectAndLogin</c> before <c>OnConnected</c> has had a chance to read the
-    /// saved index, causing already-applied items to be enqueued and then requeued forever
-    /// when the scene is not yet ready.
-    ///
-    /// Safe to call even if the file does not exist yet (first-time connect for this slot).
+    /// Loads <see cref="LastItemIndex"/> before connecting, so history replayed during login is
+    /// not queued (and requeued forever) before <c>OnConnected</c> reads it. Fine if no file exists.
     /// </summary>
     public void PreloadLastItemIndex(string seed, string slotName)
     {
-        // Do NOT overwrite the watermark if a session is already active.
-        // OnConnected already set _lastItemIdx correctly for the running session.
-        // Overwriting it here (e.g. when LoadGamePatch fires for a different save slot
-        // while a session is live) would corrupt the in-memory watermark and cause newly
-        // received items to be skipped as "already applied".
+        // Never overwrite a live session's watermark (e.g. LoadGamePatch for another save).
         var safeSlot  = string.Concat(slotName.Split(Path.GetInvalidFileNameChars()));
         var dir       = Path.Combine(BepInEx.Paths.ConfigPath, "SlimeRancher2-AP");
         var cfgPath   = Path.Combine(dir, $"AP_{seed}_{safeSlot}.cfg");
 
         if (HasActiveSession)
         {
-            // Read what the file says so we can log it — but do NOT apply it.
-            // If this ever shows a value that matches the mysterious 9009 jump, the culprit is
-            // PreloadLastItemIndex being called mid-session by LoadGamePatch or similar.
+            // Log what the file says, but don't apply it.
             if (File.Exists(cfgPath))
             {
                 try
@@ -236,7 +179,6 @@ public class ApSaveManager
 
         try
         {
-            // Read only the LastItemIndex entry to avoid full config deserialization.
             var tempFile = new ConfigFile(cfgPath, false);
             var entry    = tempFile.Bind("Progress", "LastItemIndex", -1,
                 "Index of last applied item (dedup key for reconnect)");
@@ -252,25 +194,16 @@ public class ApSaveManager
     }
 
     /// <summary>
-    /// Clears the active-session state so <see cref="HasActiveSession"/> returns false.
-    /// Must be called whenever the AP connection is dropped (explicit disconnect or
-    /// before a reconnect attempt) so that <c>ProcessItemQueue</c> does not process
-    /// items against a stale save file from the previous connection.
-    ///
-    /// Flushes pending changes to disk first, then resets the in-memory pointers.
-    /// Also resets <see cref="LastItemIndex"/> to -1 so that
-    /// <see cref="PreloadLastItemIndex"/> can set it cleanly for the new session.
+    /// Flushes, then unbinds the save file and resets the watermark to -1, so nothing applies
+    /// against the previous connection's file. Call on every disconnect.
     /// </summary>
     public void ResetSession()
     {
-        // Write out anything changed since the last frame BEFORE dropping the file pointer —
-        // otherwise this frame's checks / watermark advance would be lost on disconnect.
         Flush();
 
         lock (_ioLock)
         {
-            // Clear the session flag FIRST so HasActiveSession returns false immediately,
-            // preventing any concurrent LoadGamePatch from seeing a half-torn-down session.
+            // Flag first, so nothing sees a half-torn-down session.
             _sessionActive           = false;
             _saveBound               = false;
             _saveFile                = null;
@@ -291,8 +224,7 @@ public class ApSaveManager
             _labyrinthGateSet.Clear();
             _lastItemIdx             = -1;
             _dirty                   = false;
-            // Keep _checkedSet, _regionSet, _visitedZoneSet, _scoutData in memory —
-            // they'll be re-loaded from the correct file by the next OnConnected call.
+            // The other sets are reloaded by the next bind.
         }
     }
 
@@ -302,11 +234,7 @@ public class ApSaveManager
 
     private void MarkDirty() => _dirty = true;
 
-    /// <summary>
-    /// Writes all pending changes to the save file in a single save. No-op when nothing
-    /// changed. Called every frame from <c>ApUpdateBehaviour.Update</c>, from
-    /// <see cref="ResetSession"/>, and on application quit. Main thread.
-    /// </summary>
+    /// <summary>Writes pending changes in one save; no-op when clean. Main thread.</summary>
     public void Flush()
     {
         if (!_dirty) return;
@@ -342,10 +270,7 @@ public class ApSaveManager
         }
     }
 
-    /// <summary>
-    /// The SR2 save-game name this AP slot is bound to, or "" when no save has been
-    /// associated yet. Read/written by <c>SaveGuard</c>.
-    /// </summary>
+    /// <summary>The SR2 save this slot is bound to, or "" (see <c>SaveGuard</c>).</summary>
     public string AssociatedSaveName => _associatedSaveName?.Value ?? "";
 
     /// <summary>Binds this AP slot to <paramref name="saveName"/> (persisted).</summary>
@@ -359,30 +284,18 @@ public class ApSaveManager
         }
     }
 
-    /// <summary>
-    /// Called after a successful AP login. Opens (or creates) the save file keyed
-    /// to this specific seed + slot combination and deserializes stored progress.
-    /// Also loads persisted scout data if available.
-    /// </summary>
+    /// <summary>After login: binds the seed+slot save file and loads its progress.</summary>
     public void OnConnected(string seed, string slotName)
     {
-        // Mark session active FIRST — before reading _lastItemIdx from disk — so that any
-        // concurrent main-thread call to PreloadLastItemIndex sees HasActiveSession=true
-        // and exits immediately, rather than overwriting the watermark we're about to load.
+        // Active first, so a concurrent PreloadLastItemIndex backs off.
         _sessionActive = true;
         LoadSaveState(seed, slotName);
     }
 
     /// <summary>
-    /// Binds the save file for an AP-bound save WITHOUT a server connection, so an offline
-    /// session can still record checks and keep the fabricator's vanilla-grant suppression on.
+    /// Binds the save file without a connection, so offline play records checks and keeps
+    /// fabricator suppression. Leaves <see cref="HasActiveSession"/> false.
     /// </summary>
-    /// <remarks>
-    /// Deliberately does not set <see cref="HasActiveSession"/> — nothing that needs a live
-    /// server should start working just because the save is bound. Checks made here are marked
-    /// locally, persisted, and flushed by FlushPendingChecks on the next connect, which is what
-    /// advances the watermark.
-    /// </remarks>
     public void BindOfflineSave(string seed, string slotName)
     {
         if (_sessionActive) return;   // a live session already owns the binding
@@ -392,10 +305,7 @@ public class ApSaveManager
             "locally and flushed on the next connect.");
     }
 
-    /// <summary>
-    /// Binds the per-slot config file and deserializes all persisted progress into memory.
-    /// Shared by <see cref="OnConnected"/> and <see cref="BindOfflineSave"/>.
-    /// </summary>
+    /// <summary>Binds the per-slot file and loads its progress.</summary>
     private void LoadSaveState(string seed, string slotName)
     {
         lock (_ioLock) { LoadSaveStateLocked(seed, slotName); }
@@ -412,8 +322,7 @@ public class ApSaveManager
         var baseName = $"AP_{seed}_{safeSlot}";
         _saveFile     = new ConfigFile(Path.Combine(dir, baseName + ".cfg"), true)
         {
-            // Writes are batched through Flush(); without this every .Value assignment
-            // would rewrite the whole file on its own.
+            // Writes go through Flush().
             SaveOnConfigSet = false,
         };
         _scoutFilePath = Path.Combine(dir, baseName + "_scouts.json");
@@ -455,32 +364,27 @@ public class ApSaveManager
             "Comma-separated Grey Labyrinth beam gates seen opening ('scene:switch'), so the " +
             "labyrinth_open goal can be completed across sessions");
 
-        // Deserialize checked locations
         _checkedSet.Clear();
         foreach (var s in (_checkedLocations.Value ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries))
             if (long.TryParse(s, out var id)) _checkedSet.Add(id);
 
-        // Deserialize unlocked regions
         _regionSet.Clear();
         foreach (var r in (_unlockedRegions.Value ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries))
             if (!string.IsNullOrWhiteSpace(r)) _regionSet.Add(r);
 
-        // Deserialize visited zones
         _visitedZoneSet.Clear();
         foreach (var z in (_visitedZones.Value ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries))
             if (!string.IsNullOrWhiteSpace(z)) _visitedZoneSet.Add(z);
 
-        // Deserialize applied ephemeral item indices
         _ephemeralSet.Clear();
         foreach (var s in (_appliedEphemeralIndices.Value ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries))
             if (int.TryParse(s, out var idx)) _ephemeralSet.Add(idx);
 
-        // Deserialize pending deferred item indices
         _deferredSet.Clear();
         foreach (var s in (_deferredItemIndices.Value ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries))
             if (int.TryParse(s, out var idx)) _deferredSet.Add(idx);
 
-        // Deserialize per-type plort sale counters ("PinkPlort:12,RockPlort:3,...")
+        // "PinkPlort:12,RockPlort:3,..."
         _plortsSoldMap.Clear();
         foreach (var pair in (_plortsSold.Value ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries))
         {
@@ -489,7 +393,6 @@ public class ApSaveManager
                 _plortsSoldMap[pair[..sep]] = sold;
         }
 
-        // Deserialize labyrinth gate keys
         _labyrinthGateSet.Clear();
         foreach (var g in (_labyrinthGatesOpened.Value ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries))
             if (!string.IsNullOrWhiteSpace(g)) _labyrinthGateSet.Add(g);
@@ -500,7 +403,6 @@ public class ApSaveManager
         _shopCatalogsHeldVal = _shopCatalogsHeld?.Value ?? 0;
         Logger.Info($"[AP] OnConnected: _lastItemIdx loaded from disk = {_lastItemIdx}");
 
-        // Load persisted scout data (may not exist on first connect)
         _scoutData.Clear();
         LoadScoutFile();
 
@@ -538,15 +440,11 @@ public class ApSaveManager
         MarkDirty();
     }
 
-    /// <summary>
-    /// Records that the player has physically visited the given SceneGroup for the first time.
-    /// Persisted (on the next Flush) so the teleport trap can use this data across sessions.
-    /// No-op if <paramref name="sgRef"/> has already been recorded or if no save file is open.
-    /// </summary>
+    /// <summary>Records a first visit to a SceneGroup (the teleport trap's pool).</summary>
     public void MarkZoneVisited(string sgRef)
     {
-        if (!_visitedZoneSet.Add(sgRef)) return;   // already recorded
-        if (_saveFile == null) return;              // no open save file — in-memory only
+        if (!_visitedZoneSet.Add(sgRef)) return;
+        if (_saveFile == null) return;              // in-memory only
         MarkDirty();
         Logger.Info($"[AP] Zone visited (first time): '{sgRef}'");
     }
@@ -560,8 +458,7 @@ public class ApSaveManager
         }
         if (idx <= _lastItemIdx)
         {
-            // Log when the new index is suspiciously far below the current watermark —
-            // this should only happen by a few units at most during normal operation.
+            // Normally off by a few at most.
             if (_lastItemIdx - idx > 100)
                 Logger.Warning(
                     $"[AP] UpdateLastItemIndex({idx}) SKIPPED — current watermark={_lastItemIdx} " +
@@ -573,17 +470,9 @@ public class ApSaveManager
         MarkDirty();
     }
 
-    /// <summary>
-    /// Returns true if the filler or trap at the given server item index was already
-    /// applied in a previous session. Used to suppress replay of one-shot effects
-    /// (Newbucks grants, craft caches, traps) when the watermark is reset.
-    /// </summary>
+    /// <summary>True if the one-shot item at this index was already applied (survives watermark resets).</summary>
     public bool IsEphemeralApplied(int idx) => _ephemeralSet.Contains(idx);
 
-    /// <summary>
-    /// Records that the filler or trap at the given server item index was successfully
-    /// applied. Persisted on the next Flush so it survives crashes and reconnects.
-    /// </summary>
     public void MarkEphemeralApplied(int idx)
     {
         if (_saveFile == null || !_ephemeralSet.Add(idx)) return;
@@ -594,42 +483,24 @@ public class ApSaveManager
     // Deferred item persistence
     // -------------------------------------------------------------------------
 
-    /// <summary>
-    /// Returns the set of item indices that were received but have not yet been applied
-    /// (rate-limited traps, held conservatory expansions). Used at reconnect to re-queue
-    /// items whose watermark was already advanced past them before they could apply.
-    /// </summary>
+    /// <summary>Received-but-unapplied item indices (see <c>_deferredSet</c>).</summary>
     public IReadOnlyCollection<int> GetPendingDeferredItems() => _deferredSet;
 
-    /// <summary>True if the item at <paramref name="idx"/> is pending in the deferred set.</summary>
     public bool IsDeferredItem(int idx) => _deferredSet.Contains(idx);
 
-    /// <summary>
-    /// Records that the item at <paramref name="idx"/> was received but its application is
-    /// deferred (trap rate-limit, expansion held for the terminal check or sub-scene load).
-    /// Persisted on the next Flush (and always before a disconnect) so it is not lost.
-    /// </summary>
     public void AddDeferredItem(int idx)
     {
         if (_saveFile == null || !_deferredSet.Add(idx)) return;
         MarkDirty();
     }
 
-    /// <summary>
-    /// Removes <paramref name="idx"/> from the deferred set once the item has been applied
-    /// (or confirmed already-applied). No-op if the index is not in the set.
-    /// </summary>
     public void RemoveDeferredItem(int idx)
     {
         if (_saveFile == null || !_deferredSet.Remove(idx)) return;
         MarkDirty();
     }
 
-    /// <summary>
-    /// Forcibly sets <see cref="LastItemIndex"/> to <paramref name="idx"/>, even if lower
-    /// than the current value. Used to correct a corrupted/stale watermark (e.g. when the
-    /// saved value exceeds the actual number of items the AP server has on record).
-    /// </summary>
+    /// <summary>Sets the watermark even if lower — to correct a stale one.</summary>
     public void ForceLastItemIndex(int idx)
     {
         Logger.Info($"[AP] ForceLastItemIndex: {_lastItemIdx} → {idx}");
@@ -638,10 +509,6 @@ public class ApSaveManager
         MarkDirty();
     }
 
-    /// <summary>
-    /// Adds <paramref name="amount"/> to the lifetime newbucks-earned counter and persists it.
-    /// Called from the <c>PlayerState.AddCurrency</c> Postfix whenever newbucks are added.
-    /// </summary>
     public void AccumulateNewbucks(int amount)
     {
         if (_saveFile == null || amount <= 0) return;
@@ -649,9 +516,6 @@ public class ApSaveManager
         MarkDirty();
     }
 
-    /// <summary>
-    /// Records one more Progressive Shop Catalog copy and persists it.
-    /// </summary>
     public void AccumulateShopCatalog()
     {
         if (_saveFile == null) return;
@@ -659,10 +523,6 @@ public class ApSaveManager
         MarkDirty();
     }
 
-    /// <summary>
-    /// Adds <paramref name="count"/> to the per-type plorts-sold counter and persists it.
-    /// Called from the <c>PlortEconomyDirector.RegisterSold</c> Postfix (plort_seller goal).
-    /// </summary>
     public void AccumulatePlortSold(string plortName, int count)
     {
         if (_saveFile == null || _plortsSold == null || count <= 0 || string.IsNullOrEmpty(plortName))
@@ -671,7 +531,6 @@ public class ApSaveManager
         MarkDirty();
     }
 
-    /// <summary>Plorts of <paramref name="plortName"/> sold so far this AP run.</summary>
     public long PlortsSold(string plortName) => _plortsSoldMap.GetValueOrDefault(plortName);
 
     // -------------------------------------------------------------------------
@@ -681,7 +540,6 @@ public class ApSaveManager
     /// <summary>True once this slot's goal has been met in game (persisted).</summary>
     public bool GoalReached => _goalReachedVal;
 
-    /// <summary>Records that the goal has been met. Persisted on the next Flush.</summary>
     public void MarkGoalReached()
     {
         if (_saveFile == null || _goalReachedVal) return;
@@ -689,13 +547,9 @@ public class ApSaveManager
         MarkDirty();
     }
 
-    /// <summary>True if the labyrinth beam gate <paramref name="key"/> has been seen opening.</summary>
     public bool IsLabyrinthGateOpened(string key) => _labyrinthGateSet.Contains(key);
 
-    /// <summary>
-    /// Records a labyrinth beam gate as opened. Returns true when newly recorded, false when it
-    /// was already known or no save is bound.
-    /// </summary>
+    /// <summary>Returns true only when newly recorded.</summary>
     public bool MarkLabyrinthGateOpened(string key)
     {
         if (_saveFile == null || !_labyrinthGateSet.Add(key)) return false;
@@ -707,17 +561,9 @@ public class ApSaveManager
     // Scout data
     // -------------------------------------------------------------------------
 
-    /// <summary>
-    /// Returns persisted scout info for a location, or null if not available.
-    /// Used by SendCheck to show check notifications even when offline.
-    /// </summary>
     public PersistedScout? GetScout(long locationId)
         => _scoutData.TryGetValue(locationId, out var s) ? s : null;
 
-    /// <summary>
-    /// Replaces the scout cache with fresh data from the AP server and persists it.
-    /// Called from <see cref="ArchipelagoClient"/> after ScoutAllLocationsAsync completes.
-    /// </summary>
     public void UpdateAndSaveScoutData(Dictionary<long, PersistedScout> data)
     {
         _scoutData = data;
@@ -737,11 +583,7 @@ public class ApSaveManager
     // Deletion
     // -------------------------------------------------------------------------
 
-    /// <summary>
-    /// Deletes both the progress config file and the scout JSON file for the given seed +
-    /// slot combination.  Called from <c>DeleteGamePatch</c> when an AP-linked save slot is
-    /// erased so that no stale data accumulates in the config directory.
-    /// </summary>
+    /// <summary>Deletes the slot's progress and scout files (from <c>DeleteGamePatch</c>).</summary>
     public static void DeleteSaveData(string seed, string slotName)
     {
         var safeSlot = string.Concat(slotName.Split(Path.GetInvalidFileNameChars()));

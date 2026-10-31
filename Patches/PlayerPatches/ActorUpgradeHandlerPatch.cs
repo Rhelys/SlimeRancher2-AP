@@ -8,29 +8,19 @@ using SlimeRancher2AP.Patches.LocationPatches;
 namespace SlimeRancher2AP.Patches.PlayerPatches;
 
 /// <summary>
-/// Keeps <c>ItemHandler._upgradeLevels</c> in sync by intercepting every upgrade level change,
-/// including save-data restoration on game load.
-/// <c>OnUpgradeChanged</c> is non-virtual (private in original C#), so it is safe to patch.
+/// Tracks every per-upgrade level change into <c>ItemHandler._upgradeLevels</c>, and marks the
+/// modifier recompute it triggers. Non-virtual, so safe to patch.
 /// </summary>
 [HarmonyPatch(typeof(ActorUpgradeHandler), "OnUpgradeChanged")]
 internal static class UpgradeLevelTrackingPatch
 {
     /// <summary>
-    /// True while the handler is responding to an upgrade change — i.e. recomputing the stat
-    /// modifiers for the new level.
+    /// True while stat modifiers are recomputed. <see cref="UpgradeModelGetLevelPatch"/> must
+    /// return the real level then, or owned upgrades get no modifiers and stop working.
     /// </summary>
-    /// <remarks>
-    /// <see cref="UpgradeModelGetLevelPatch"/> must return the REAL level during this window.
-    /// The recompute reads levels back out of the model to decide which modifiers to apply; if
-    /// it sees the Fabricator checked count instead (-1 for anything the player has not crafted)
-    /// it applies nothing, and an upgrade the player owns silently stops working. Observed as a
-    /// jetpack that stopped functioning the moment an unrelated Energy Tank was granted.
-    ///
-    /// Latent until the mod started writing UpgradeModel: nothing used to trigger a recompute.
-    /// </remarks>
     internal static bool IsApplyingModifiers => _modifierDepth > 0;
 
-    /// <summary>Nesting depth — SetModifiersFromModel may raise per-upgrade changes inside it.</summary>
+    /// <summary>A depth, not a bool: SetModifiersFromModel raises per-upgrade changes inside itself.</summary>
     private static int _modifierDepth;
 
     internal static void BeginModifierRecompute() => _modifierDepth++;
@@ -50,27 +40,17 @@ internal static class UpgradeLevelTrackingPatch
         try
         {
             if (!Plugin.Instance.ModEnabled) return;
-            try { ItemHandler.TrackUpgradeLevel(definition.name, toLevel); } catch { /* guard against partially-initialised UpgradeDefinition during scene load */ }
+            try { ItemHandler.TrackUpgradeLevel(definition.name, toLevel); } catch { /* half-initialised definition during scene load */ }
         }
         finally { EndModifierRecompute(); }
     }
 }
 
 /// <summary>
-/// Widens the modifier-recompute suppression window to cover
-/// <c>ActorUpgradeHandler.SetModifiersFromModel</c>.
+/// Extends the recompute window over <c>SetModifiersFromModel</c> — save restore
+/// (<c>UpgradeModel.Push</c>) rebuilds modifiers there without raising per-upgrade changes.
+/// CallerCount(1), safe.
 /// </summary>
-/// <remarks>
-/// Guarding <c>OnUpgradeChanged</c> alone was not enough. Save restore goes through
-/// <c>UpgradeModel.Push</c>, which does NOT raise a per-upgrade change event — confirmed in a
-/// log where UpgradeLevelTrackingPatch first fired on a later item grant, well after the model
-/// had been restored. The handler instead rebuilds every modifier from the model in one pass
-/// here, reading each level back through <c>GetUpgradeLevel</c>. With the Fabricator override
-/// live that reads -1 for anything uncrafted, so a correctly-restored model produced no
-/// modifiers at all and owned upgrades did nothing.
-///
-/// CallerCount(1), so it is a safe patch target.
-/// </remarks>
 [HarmonyPatch(typeof(ActorUpgradeHandler), nameof(ActorUpgradeHandler.SetModifiersFromModel))]
 internal static class SetModifiersFromModelPatch
 {
@@ -79,60 +59,37 @@ internal static class SetModifiersFromModelPatch
 }
 
 /// <summary>
-/// Blocks <c>UpgradeModel.IncrementUpgradeLevel</c> in AP mode unless the call
-/// originates from <c>ItemHandler.ApplyUpgrade</c> (the AP item pipeline).
-/// </summary>
-/// <remarks>
-/// The Fabricator calls <c>IncrementUpgradeLevel</c> directly — possibly deferred into a
-/// coroutine after <c>FabricateAndSpendCost</c> returns, so a time-limited flag on the
-/// Fabricator method is not reliable. Instead we invert the guard: all increments are
-/// blocked while AP mode is active <em>except</em> those explicitly wrapped by
-/// <c>ItemHandler.IsApplyingItem = true</c>. This is timing-independent.
-/// Save-data restoration is safe because <c>HasActiveSession</c> is false during game load.
-/// <c>IncrementUpgradeLevel</c> is non-virtual, so Harmony patches it safely.
+/// Blocks every <c>IncrementUpgradeLevel</c> in AP mode except AP grants
+/// (<c>ItemHandler.IsApplyingItem</c>) — the Fabricator's vanilla grant may run deferred, so
+/// an allow-list is the timing-proof guard. Save restore uses <c>Push</c>, not this.
 /// </summary>
 [HarmonyPatch(typeof(UpgradeModel), nameof(UpgradeModel.IncrementUpgradeLevel))]
 internal static class FabricatorUpgradeBlockPatch
 {
     /// <summary>
-    /// Set to <c>true</c> the first time <c>IncrementUpgradeLevel</c> is blocked during an
-    /// active Fabricator craft.  This marks the transition from the "pre-increment cost-check
-    /// phase" to the "post-increment display-refresh phase" inside <c>FabricateAndSpendCost</c>,
-    /// so <see cref="UpgradeModelGetLevelPatch"/> knows it is safe to add the optimistic +1.
-    /// Reset to <c>false</c> at the start of each new craft in
-    /// <see cref="FabricatorPatch.Prefix"/>.
+    /// Set when a craft's increment is blocked: the cost-check phase is over, so
+    /// <see cref="UpgradeModelGetLevelPatch"/> may add the optimistic +1. Reset per craft.
     /// </summary>
     internal static bool WasCraftBlocked { get; set; }
 
     private static bool Prefix()
     {
         if (!FabricatorPatch.IsEnabled)
-            return true;              // no AP session — vanilla behaviour, allow all
-        bool allow = ItemHandler.IsApplyingItem; // true = AP pipeline grant → allow
+            return true;
+        bool allow = ItemHandler.IsApplyingItem;
         if (!allow && FabricatorPatch.IsCrafting)
-            WasCraftBlocked = true;   // transition: cost-check phase → display-refresh phase
+            WasCraftBlocked = true;
         return allow;
     }
 }
 
 /// <summary>
-/// Caches the player's ActorUpgradeHandler by hooking CheckUpgradePropertiesAreAvailable.
+/// Caches the player's ActorUpgradeHandler via <c>CheckUpgradePropertiesAreAvailable</c>
+/// (non-virtual, called once at construction).
 /// </summary>
 /// <remarks>
-/// <para>
-/// Both the constructor and virtual methods (InitModel, SetModel) are unsafe patch targets on
-/// IL2CPP non-MonoBehaviour types:
-/// - Constructors: the Harmony fallback path does not fire for them in practice.
-/// - Virtual methods: Harmony patches the vtable slot at the interface level, so the Postfix
-///   fires with whatever type is at that vtable position — causing an AccessViolationException
-///   when Il2CppObjectPool tries to cast the wrong pointer to ActorUpgradeHandler.
-/// </para>
-/// <para>
-/// <c>CheckUpgradePropertiesAreAvailable()</c> is non-virtual (no vtable dispatch) and has
-/// CallerCount=1 (called exactly once, from within or immediately after the constructor).
-/// Patching it is safe: the trampoline is installed only in ActorUpgradeHandler's own method
-/// table, so __instance is always a valid ActorUpgradeHandler pointer.
-/// </para>
+/// Not the constructor (the hook never fires) nor InitModel/SetModel: patching a virtual
+/// slot fires for other types and crashes on the cast.
 /// </remarks>
 [HarmonyPatch(typeof(ActorUpgradeHandler), nameof(ActorUpgradeHandler.CheckUpgradePropertiesAreAvailable))]
 internal static class ActorUpgradeHandlerCachePatch
@@ -142,15 +99,13 @@ internal static class ActorUpgradeHandlerCachePatch
 #if DEBUG
         SlimeRancher2AP.Utils.DebugTrace.All("ActorUpgradeHandlerCachePatch.Postfix — entry");
 #endif
-        if (ItemHandler.UpgradeHandler == __instance) return; // same instance, nothing to do
+        if (ItemHandler.UpgradeHandler == __instance) return;
 
         bool isReplacement = ItemHandler.UpgradeHandler != null;
         ItemHandler.UpgradeHandler = __instance;
         Logger.Info($"[AP] ActorUpgradeHandler {(isReplacement ? "re-cached (new instance after scene reload)" : "cached")} via CheckUpgradePropertiesAreAvailable Postfix");
 
-        // If this is a replacement (scene reload while connected), the old validation flag
-        // was already consumed for the previous handler.  Schedule a fresh validation so
-        // AP-applied upgrades are re-applied against the new model.
+        // A new handler (scene reload) needs its own validation pass.
         if (isReplacement && Plugin.Instance.ApClient.IsConnected)
         {
             Plugin.Instance.ApClient.ScheduleUpgradeValidation();
@@ -160,49 +115,24 @@ internal static class ActorUpgradeHandlerCachePatch
 }
 
 /// <summary>
-/// Overrides <c>UpgradeModel.GetUpgradeLevel</c> in AP mode so the Fabricator's right-side
-/// detail panel (crafting cost, recipe) reflects the AP checks-sent level rather than the
-/// actual persisted model level.
+/// Makes <c>UpgradeModel.GetUpgradeLevel</c> return the Fabricator checked count, so the
+/// Fabricator shows the next uncrafted tier.
 /// </summary>
 /// <remarks>
-/// <para>
-/// <c>PurchaseCost</c> and <c>Recipe</c> are virtual getters whose native IL2CPP
-/// implementations read <c>UpgradeModel.GetUpgradeLevel</c> directly — patching
-/// <c>get_CurrentUpgradeLevel</c> or <c>get_NextUpgradeLevelDefinition</c> has no effect
-/// there.  A native detour on <c>GetUpgradeLevel</c> intercepts all 20 call sites,
-/// including native IL2CPP code.
-/// </para>
-/// <para>
-/// Two call sites must NOT receive the overridden level:
-/// <list type="number">
-///   <item><b>Fabricator cost-check phase</b> — inside <c>FabricateAndSpendCost</c>, before
-///         <c>IncrementUpgradeLevel</c> is called.  The game uses this to decide which
-///         tier's materials to spend.  Returning the AP-tracked level here would make it
-///         demand the NEXT tier's materials and fail the craft.  Guard:
-///         <c>IsCrafting &amp;&amp; !WasCraftBlocked</c> → return vanilla.</item>
-///   <item><b>AP item pipeline</b> — <c>ItemHandler.ApplyUpgrade</c> reads the real model
-///         level to compute <c>targetLevel</c>.  Guard: <c>IsApplyingItem</c> → return
-///         vanilla.  <c>IsApplyingItem</c> is set true immediately before this read and
-///         cleared immediately after.</item>
-/// </list>
-/// Everywhere else — including the post-craft <c>ItemCrafted</c> display refresh that fires
-/// after <c>FabricateAndSpendCost</c> returns — the override is active and returns the
-/// correct AP checks-sent level.
-/// </para>
+/// A global native detour — cost and recipe getters read the level natively, past any managed
+/// patch. It lies to the game, so every read that makes a real decision is exempted below. If
+/// a fourth exemption is ever needed, invert this to apply only to the Fabricator UI instead.
 /// </remarks>
 [HarmonyPatch(typeof(UpgradeModel), nameof(UpgradeModel.GetUpgradeLevel))]
 internal static class UpgradeModelGetLevelPatch
 {
     private static bool Prefix(UpgradeDefinition definition, ref int __result)
     {
-        // Block during AP item application: ApplyUpgrade needs the real model level to
-        // compute the correct targetLevel.
+        // Exempt: the AP item pipeline.
         if (ItemHandler.IsApplyingItem)
             return true;
 
-        // Block while the handler is recomputing stat modifiers in response to an upgrade
-        // change. That recompute reads levels back out of the model; handing it the Fabricator
-        // checked count makes it apply no modifier at all, so an owned upgrade stops working.
+        // Exempt: modifier recompute.
         if (UpgradeLevelTrackingPatch.IsApplyingModifiers)
             return true;
 
@@ -213,47 +143,27 @@ internal static class UpgradeModelGetLevelPatch
         if (string.IsNullOrEmpty(upgradeName)) return true;
 
         var crafts = LocationTable.GetFabricatorCrafts(upgradeName);
-        if (crafts.Count == 0) return true; // upgrade not tracked in AP — vanilla behaviour
+        if (crafts.Count == 0) return true; // not an AP upgrade
 
         int checkedCount = crafts.Count(l => Plugin.Instance.SaveManager.IsChecked(l.Id));
 
-        // The optimistic +1 counts the craft in flight so the display advances in the same
-        // frame. It must NOT apply during the cost-check phase — IsCrafting is set but
-        // IncrementUpgradeLevel has not been blocked yet, so the craft has not happened and
-        // counting it reports a level one too high.
-        //
-        // That phase used to return the real model level instead. Harmless when it was
-        // written: AP grants only wrote stat modifiers, so the model sat at -1 and this read
-        // as "nothing crafted". Once grants started writing UpgradeModel for real, an
-        // AP-granted upgrade reported its true level here, and the native
-        // NextUpgradeLevelExists check (level + 1 >= LevelCount) refused the craft outright —
-        // no materials spent, no check sent. Every single-tier upgrade was uncraftable the
-        // moment AP delivered it, and multi-tier ones broke once AP had delivered every tier.
+        // The optimistic +1 counts the craft in flight, but not in the cost-check phase (the
+        // craft hasn't happened yet). That phase must see the checked count too, never the real
+        // level — an owned upgrade would read as maxed and the craft be refused.
         bool costCheckPhase = FabricatorPatch.IsCrafting
                               && !FabricatorUpgradeBlockPatch.WasCraftBlocked;
         if (!costCheckPhase && FabricatorPatch.CraftingUpgradeName == upgradeName)
             checkedCount++;
 
-        // Return pure checked count, independent of the AP-granted model level.
-        // PlayerUpgradeObtainedQueryComponent.IsSatisfied (Prismacore fight prereq) is patched
-        // separately to use ItemHandler.GetTrackedLevel so it isn't affected by this change.
         __result = checkedCount - 1;
         return false;
     }
 }
 
 /// <summary>
-/// Ensures <c>PlayerUpgradeObtainedQueryComponent.IsSatisfied</c> uses the actual AP-granted
-/// model level rather than the Fabricator checked count.
+/// Makes <c>PlayerUpgradeObtainedQueryComponent</c> (e.g. Gigi's Water Tank check) see the real
+/// level, not <see cref="UpgradeModelGetLevelPatch"/>'s checked count.
 /// </summary>
-/// <remarks>
-/// In AP mode <see cref="UpgradeModelGetLevelPatch"/> returns
-/// <c>checkedCount - 1</c> from <c>UpgradeModel.GetUpgradeLevel</c>.  For an AP-granted upgrade
-/// that hasn't been crafted at the Fabricator (checkedCount = 0), that returns −1, which would
-/// cause prerequisite checks like the Prismacore fight to consider the upgrade absent even though
-/// the player physically has it.  This patch bypasses the override for that specific query by
-/// reading <c>ItemHandler.GetTrackedLevel</c> — the actual in-model level — directly.
-/// </remarks>
 [HarmonyPatch(typeof(PlayerUpgradeObtainedQueryComponent), "IsSatisfied")]
 internal static class UpgradeObtainedQueryPatch
 {
@@ -263,15 +173,7 @@ internal static class UpgradeObtainedQueryPatch
         var def = __instance._upgradeDefinition;
         if (def == null || string.IsNullOrEmpty(def.name)) return true;
 
-        // Read the REAL model level, not just the tracked cache.
-        //
-        // The cache is cleared on disconnect and only repopulated from AP items inside the
-        // watermark, so an upgrade the SR2 save genuinely holds can be missing from it — and
-        // this query would then deny an upgrade the player is carrying. Reported in the wild as
-        // "the hologram keeps saying I need a water tank even though I have one".
-        //
-        // GetRealModelLevel suppresses UpgradeModelGetLevelPatch for the read, which would
-        // otherwise return the Fabricator checked count instead of the real level.
+        // The model level too, not just the cache — the cache can miss what the save holds.
         int level = System.Math.Max(
             ItemHandler.GetRealModelLevel(def),
             ItemHandler.GetTrackedLevel(def.name));
