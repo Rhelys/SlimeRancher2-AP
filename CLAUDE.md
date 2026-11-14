@@ -74,7 +74,7 @@ ApUpdateBehaviour           ← Injected MonoBehaviour for per-frame queue proce
 
 ### Data Flow
 
-1. **Connection**: `ConnectionUI` → `ArchipelagoClient.Connect()` (off-thread, `Task.Run`) → `TryConnectAndLogin` → `OnConnected`
+1. **Connection**: `ConnectionUI` → `ArchipelagoClient.Connect()` (off-thread, `Task.Run`) → `ConnectAndLogin` → `OnConnected`. `ConnectAndLogin` is the mod's bounded replacement for the library's `TryConnectAndLogin`, which can hang forever (see "Never send synchronously").
 2. **Items received**: AP server → `session.Items.ItemReceived` (network thread) → `_itemQueue` → `ApUpdateBehaviour.Update()` → `ItemHandler.Apply()` (main thread only)
 3. **Location checks**: Game event → Harmony Postfix patch → `ArchipelagoClient.SendCheck(id)` → `session.Locations.CompleteLocationChecks()`
 4. **DeathLink**: Player death → `PlayerDeathPatch` → `DeathLinkHandler.SendDeath()` | Received death → `_pendingDeaths` queue → `ProcessDeathQueue()` (main thread) → `KillPlayer()`
@@ -83,6 +83,45 @@ ApUpdateBehaviour           ← Injected MonoBehaviour for per-frame queue proce
 ### Reconnect / Item Deduplication
 
 `session.Items.ItemReceived` replays **all historical items** on reconnect (due to `ItemsHandlingFlags.AllItems`). Items with `item.Index <= ApSaveManager.LastItemIndex` are skipped. `LastItemIndex` is updated and persisted after each successful grant.
+
+Login queues history above the watermark from the `AllItemsReceived` snapshot. `OnItemReceived`
+then **skips every position below the snapshot count** — the helper hands the same history over
+again on its first event, and queuing it twice applied items twice (an item arriving during a load
+screen triggered it). It queues a new position only above the watermark.
+
+**Automatic reconnect** (`ArchipelagoClient`, "Automatic reconnect" region): a socket that drops
+after a successful login is retried on a 2/5/10/20/30 s backoff. The dead session stays installed
+during the outage — `IsConnected` is false, but the save stays bound (checks are recorded offline)
+and its item history still answers count queries. A successful retry swaps the new session in
+place (`InstallReconnectedSession`): same seed required, items from the outage queued, offline
+checks flushed, nothing else torn down. A full `Connect()` would drop the save binding and every
+in-memory hold for the length of the outage. `Disconnect()` cancels retries and bumps a generation
+counter, so a login still in flight is discarded instead of installed. A refused login or a
+different seed stops retrying; a network error keeps going.
+
+**`SocketClosed` does not fire on an abrupt drop.** When the server dies without a close handshake,
+MultiClient.Net's receive loop raises only `ErrorReceived` and exits. `WatchSocket()` (every
+frame, from `ProcessItemQueue`) catches it by reading `Socket.Connected` on the installed session.
+`_closeHandledFor` makes sure the event and the watchdog act on a given drop only once.
+
+**Never send synchronously.** MultiClient.Net's `SendPacket` is `SendMultiplePacketsAsync(...).Wait()`.
+On a socket that is no longer open, the send loop throws `ArchipelagoSocketClosedException`,
+leaves the wait pending and exits, so the caller blocks **forever**. That covers every sync
+wrapper: `CompleteLocationChecks`, `SetGoalAchieved`/`SetClientState`, `Say`, and
+`DeathLinkService.EnableDeathLink`/`DisableDeathLink`, which send a `ConnectUpdate`. Use the
+`*Async` forms through `ObserveSend`. Checks and the goal are persisted and re-sent on
+connect, so a lost send is harmless. Drop a dead session's `DeathLinkHandler`; don't
+`Disable()` it, because doing that hung the reconnect thread after the session swap.
+`DeathLinkHandler.Enable()` runs its tag update on a fire-and-forget task, and `Disable()` has been
+removed. No synchronous send is left on any mod thread.
+
+The library's own login has the same flaw. In `TryConnectAndLogin`, two 4 s timers race, and a
+cancelled connect reads as `IsCompleted`. It then calls `LoginAsync`, whose sync send waits on a
+send loop that never started. That has been seen in game: a retry never returned, and all retries
+stopped. `ConnectAndLogin` uses `ConnectAsync` and checks `Status == RanToCompletion`. It refuses
+a different seed from RoomInfo before logging in, runs `LoginAsync` on its own task with a bounded
+wait, and rejects a login whose socket is already closed. `TickReconnect` also abandons any attempt
+still running after 30 s (by bumping `_generation`) as a safety net.
 
 ---
 
@@ -117,7 +156,7 @@ Quick reference only — verify against the apworld before relying on a range.
 | 819200–819224 | Shadow Plort Doors (25, Grey Labyrinth) |
 | 819250–819267 | Gordo Slimes (17; 819251 unused) |
 | 819300–819316 | Map Data Nodes (17) |
-| 819350–819379 | Slimepedia — Slimes (30; 819379 = Radiant Slimes concept entry, gated by `randomize_slimepedia_radiant`) |
+| 819350–819379 | Slimepedia — Slimes (30, `randomize_slimepedia_slimes`, default on; 819379 = Radiant Slimes concept entry, gated by `randomize_slimepedia_radiant` alone) |
 | 819400–819437 | Fabricator — Vacpack Upgrade crafts (38) |
 | 819450–819472 | Research Drones (23) |
 | 819473–819479, 819490–819495, 820075–820080 | Research Drone Archives (19 — every drone except the 4 in Powderfall Bluffs) |
@@ -146,11 +185,13 @@ Quick reference only — verify against the apworld before relying on a range.
 | 819515–819529 | Progressive Vacpack Upgrades |
 | 819537 | Quantum Drone Station (×19, with ghostly drones; blueprint+station first copy, then modules) |
 | 819540–819557 | Gadgets (zone/home teleporters, warp depots, functional) |
-| 819558–819560 | Gadgets — Dash Pad, Spring Pad, Portable Water Tap (always in pool) |
-| 819561 | Disruption Detector (×3, prismacore/slimepedia goals) |
-| 819563–819564 | Gadgets — Refinery Link, Portable Fabricator (always in pool, one each; Mochi's vanilla Refinery Link gift is always suppressed) |
+| 819558–819560 | Gadgets — Dash Pad, Spring Pad, Portable Water Tap (optional: pooled while slots remain, like the Warp Depots and Dream Lantern T2 — apworld `_OPTIONAL_ITEM_NAMES`) |
+| 819561 | Disruption Detector (one copy, whenever the Grey Labyrinth is in scope; optional — after the Warp Depots in `_OPTIONAL_ITEM_NAMES`) |
+| 819563–819564 | Gadgets — Refinery Link, Portable Fabricator (one each, optional — pooled while slots remain; Mochi's vanilla Refinery Link gift is always suppressed, so a seed that drops it has none) |
 | 819565–819569 | Harmonizer items, one per bell (`randomize_harmonizers`; progression only for the fight goals) |
 | 819570 | Nullifier (whenever the Grey Labyrinth is in scope; grants the `Harmonizer` gadget blueprint) |
+| 819571–819575 | Treasure Pod Keys (`treasure_pod_keys`: 819571 global; 819572–819575 per zone — RF (also the Conservatory's pods), EV, SS, PB) |
+| 819576 | Drone Access Key (`drone_access_key`; global only — every Research Drone and archive page) |
 | 819580–819605 | Filler (Newbucks / Plort / Craft Caches) |
 | 819610–819611 | Slime Ring (filler), Weather Change (useful) |
 | 819612–819616 | Traps (Tarr Spawn, Teleport, Tarr Rain, Vac Spew, Vac Fill) |
@@ -426,7 +467,7 @@ The goal keys (from `options.py` `Goal.current_key`, sent verbatim in slot data)
 | Open Grey Labyrinth | `"labyrinth_open"` | ✅ **Verified in-game.** `InvisibleSwitchPatch` on `energyBeamReceiver` fires for `zoneStrandLabyrinthGate` and `zoneGorgeGateTransfer`; both must go DOWN. Opened gates are persisted (`ApSaveManager.LabyrinthGatesOpened`), so the two can open in different sessions, online or offline. |
 | Newbucks Milestone | `"newbucks"` | ✅ **Verified in-game.** `NewbucksEarnings` (`PlayerStateCurrencyPatch.cs`) accumulates every in-game Newbucks payout into the persisted `ApSaveManager.NewbucksEarned` counter (the game's own `AmountEverCollected` is vestigial and never updated); `GoalHandler.Tick()` polls it against `newbucks_goal_amount`. **Two levels:** payouts go through `PlayerState.AddCurrency`, but a Quantum Cloud sale passes a **null** currency there (resolved to Newbucks inside the original), so it can only be identified at `PlayerModel.AddCurrency`. Both are hooked; PlayerState announces each write it handled and the model-level hook takes only the rest. The same split applies to `newbucks_multiplier`. Counts offline too, on a bound and trusted save. |
 | Stabilize Prismacore | `"prismacore"` | ✅ **Verified in-game.** `CoreRoomControllerPatch` Postfix on `CoreRoomController.UpdateState` fires the goal on `POST_FIGHT` (boss complete, core stabilized). `PRE_FIGHT` fires on scene load and is ignored. |
-| Complete the Slimepedia | `"slimepedia"` | ✅ **Verified in-game.** `GoalHandler.Tick()` polls the Slimes / Resources / Radiant Slimes `PediaRuntimeCategory` groups — only categories enabled by the `randomize_slimepedia*` options count, and entries excluded by `disable_tarr` / `exclude_rng_slimes` / `exclude_weather_checks` are skipped (matching the apworld's location-pool exclusions). **Scope is the AP location table, never `PediaRuntimeCategory.AllUnlocked()`** — the game's categories can also grow at runtime via `OnPediaEntriesRegistered`/`AddDynamicItem`, and the old `AllUnlocked()` fast path made the goal unachievable by requiring entries with no AP location. `RadiantSlime` (819379) and `Sprinkles` (819684) are now real locations gated by `exclude_rng_slimes` and `randomize_sanctuary` respectively. Use F9 → "Log Slimepedia Goal Progress" to see exactly which tracked entries remain locked. |
+| Complete the Slimepedia | `"slimepedia"` | ✅ **Verified in-game.** `GoalHandler.Tick()` polls the Slimes / Resources / Radiant Slimes `PediaRuntimeCategory` groups — Slimes always counts (the apworld forces `randomize_slimepedia_slimes` on for this goal; never key the Slimes category — its early entries are where location keys usually land), Resources and Radiant only when `randomize_slimepedia_resources` / `randomize_slimepedia_radiant` are on, and entries excluded by `disable_tarr` / `exclude_rng_slimes` / `exclude_weather_checks` are skipped (matching the apworld's location-pool exclusions). **Scope is the AP location table, never `PediaRuntimeCategory.AllUnlocked()`** — the game's categories can also grow at runtime via `OnPediaEntriesRegistered`/`AddDynamicItem`, and the old `AllUnlocked()` fast path made the goal unachievable by requiring entries with no AP location. `RadiantSlime` (819379) and `Sprinkles` (819684) are now real locations gated by `exclude_rng_slimes` and `randomize_sanctuary` respectively. Use F9 → "Log Slimepedia Goal Progress" to see exactly which tracked entries remain locked. |
 | Plort Seller | `"plort_seller"` | ✅ **Verified in-game.** Sell N of EACH in-scope plort type (N from slot data `plort_goal_amount`, rolled per seed between the min/max options). Scope: all 25 Plort Market types (5 GL plorts included — GL locations are in the pool for this goal) minus `exclude_rng_slimes` (Gold, Yolky) and `exclude_weather_checks` (Dervish, Tangle). Per-type counters accumulated by `PlortMarketPatch` (`PlortEconomyDirector.RegisterSold` Postfix) into persisted `ApSaveManager` state; `GoalHandler.Tick()` polls. Pause menu shows the goal line (target + types complete) plus a left-side panel listing every in-scope plort with sold/target, green when reached (`PauseMenuGoalDisplay`). |
 | Prismacore Hunt | `"prisma_shard_hunt"` | ✅ **Verified in-game.** Same victory condition as `prismacore` (`CoreRoomControllerPatch` on `POST_FIGHT`) with an entry requirement: `PrismacoreGatePatch` blocks `BossFightController.TryToStartFight` until `PrismaShardHandler.IsEncounterUnlocked`. Collecting shards does not win — it only unlocks the fight. Counts come from `Session.Items.AllItemsReceived`, cached and invalidated on receipt (plus a DEBUG-only offset so the debug panel can grant testable shards, which the server snapshot cannot). `PrismacoreFulfiller` satisfies the vanilla prerequisites once the shards are in. See **Prismacore encounter prerequisites** below. |
 
@@ -449,6 +490,15 @@ prologues changed → trampoline crashes), so some detection is done by **pollin
   `SendCheck` idempotency is the dedup.
 - **Identity**: `_researchDroneEntry.name` (stable asset name) → `LocationTable`
 - **Location IDs**: 819450–819472
+- **Drone Access Key** (`drone_access_key`): `ResearchDroneInputPatch` refuses a locked drone
+  with a Prefix on `BaseUIInteractable.OnInteractInput`, **before** the drone's own
+  `OnInteract` runs. Blocking any later is too late: confirmed in game, the drone's
+  `OnInteract` sets `ResearchDroneModel.read = true` and `_state = ACTIVATED` before it calls
+  the base `UIActivator.OnInteract`. `ResearchDroneInteractPatch` (on that base method) sends a
+  keyed drone's check when it is opened with the key — with the option on, the poll skips every
+  drone, since `ACTIVATED` proves nothing — and warns if it ever has to act as the lock. The
+  archive patch holds its checks without the key. F9 → Dumps → "Dump Research Drone State"
+  shows each drone's state, `read` flag and drone event records.
 
 ### Research Drone Archives (19 of 23 drones) ✅ — set is COMPLETE
 - **File**: `ResearchDroneArchivePatch.cs` — Postfix on `ResearchDroneUI.ToggleArchive`;
@@ -517,6 +567,23 @@ text. Driven by the apworld's `item_notifications` option (`none` / `progression
 - Hooked at the single success path in `ItemHandler.Apply` (where the watermark advances), not
   at the individual `Notify()` call sites, so a requeued item cannot announce itself twice.
 - Test without a server: F9 → Misc → "Test: Major popup" / "Test: Burst of 8".
+
+## Location Keys (`Archipelago/LocationKeys.cs`)
+
+Gates a whole category of checks behind key items — one key per category ("global") or one per
+zone ("zones"; the Conservatory counts as Rainbow Fields). Currently Treasure Pods
+(`treasure_pod_keys`, items 819571–819575) and Research Drones plus their archive pages
+(`drone_access_key`, item 819576, global only — one `Gate` row per location type, no zone keys).
+Received keys are stored by item name in the save's unlocked-access set, so they hold offline.
+Item type `ItemType.LocationKey`.
+
+To key another category: add the option and items in the apworld (with `add_rule` on each
+location), add a `Gate` row (location type, slot-data mode, global key, zone keys), and have that
+category's patch ask `LocationKeys.MissingKey(info)` before sending its check. Treasure pods
+and Research Drones **block** the interaction (Prefix returns false) and show "X is locked /
+Requires: key". A category whose hook fires only after the fact (Slimepedia, gordos, map nodes,
+market sales) cannot block — it will need a persisted "held check" that sends when the key arrives,
+which does not exist yet.
 
 ## Stubs / Known Incomplete Work
 

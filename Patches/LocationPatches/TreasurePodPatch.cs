@@ -12,7 +12,8 @@ namespace SlimeRancher2AP.Patches.LocationPatches;
 /// reward fields are cleared first, so the delayed award grants nothing. Pods are identified by
 /// position (<see cref="WorldUtils.PositionKey"/>): their names describe contents, not identity.
 /// Regular pods open through <c>TreasurePodUIInteractable</c>; ghostly drone nodes still call
-/// <c>TreasurePod.Activate()</c>.
+/// <c>TreasurePod.Activate()</c>. With <c>treasure_pod_keys</c>, a regular pod whose key has not
+/// been received stays shut (<see cref="Archipelago.LocationKeys"/>).
 /// </summary>
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -22,31 +23,42 @@ namespace SlimeRancher2AP.Patches.LocationPatches;
 [HarmonyPatch(typeof(TreasurePodUIInteractable), nameof(TreasurePodUIInteractable.OnInteract))]
 internal static class TreasurePodUIInteractablePatch
 {
-    private static void Prefix(TreasurePodUIInteractable __instance)
+    private static bool Prefix(TreasurePodUIInteractable __instance)
     {
         if (!Plugin.Instance.ModEnabled || !Plugin.Instance.SaveManager.IsSaveBound)
-            return;
+            return true;
         if (SceneContext.Instance?.PlayerState?._model == null)
-            return;
+            return true;
         if (Plugin.Instance.ApClient.SlotData?.RandomizePods != true)
-            return;
+            return true;
 
         var pod = __instance.treasurePod;
-        if (pod == null) return;
+        if (pod == null) return true;
 
         var posKey = WorldUtils.PositionKey(pod.gameObject);
         if (!LocationTable.TryGetByObjectName(posKey, out var info) || info == null)
         {
             Logger.Warning(
                 $"[AP] Unknown TreasurePod at key '{posKey}' (go='{pod.gameObject.name}') — run AP-Dump and add to LocationTable");
-            return;   // unknown pod — fall back to vanilla so the player isn't stuck
+            return true;   // unknown pod — fall back to vanilla so the player isn't stuck
         }
 
         if (Plugin.Instance.SaveManager.IsChecked(info.Id))
-            return;   // already checked (scene-state restore) — vanilla grant is safe
+            return true;   // already checked (scene-state restore) — vanilla grant is safe
+
+        // Locked: leave the pod shut and name the key it needs.
+        if (Archipelago.LocationKeys.MissingKey(info) is long keyId)
+        {
+            var keyName = ItemTable.Get(keyId)?.Name ?? "Treasure Pod Key";
+            Logger.Info($"[AP] Treasure pod locked: {info.Name} — '{keyName}' not yet received");
+            UI.ApPopup.ShowThrottled($"pod-key-{keyId}", "Treasure Pod is locked",
+                                     "Archipelago", $"Requires: {keyName}");
+            return false;
+        }
 
         TreasurePodRewardSuppressor.SuppressVanillaRewards(pod);
         Plugin.Instance.ApClient.SendCheck(info.Id);
+        return true;
     }
 }
 

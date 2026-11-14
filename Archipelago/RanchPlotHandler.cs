@@ -228,11 +228,14 @@ public static class RanchPlotHandler
 
     /// <summary>
     /// True when the empty plot may be built on; otherwise <paramref name="blockMessage"/> says
-    /// why. Unknown areas fail open, so a new ranch area isn't bricked.
+    /// why (for the log) and <paramref name="popup"/> holds the player-facing text. Unknown areas
+    /// fail open, so a new ranch area isn't bricked.
     /// </summary>
-    public static bool CanBuildOnPlot(LandPlot plot, out string blockMessage)
+    public static bool CanBuildOnPlot(LandPlot plot, out string blockMessage,
+                                      out (string Title, string Intro) popup)
     {
         blockMessage = "";
+        popup = ("", "");
 
         string? regionCell = null;
         try { regionCell = plot._region?.name; } catch { }
@@ -247,6 +250,9 @@ public static class RanchPlotHandler
         blockMessage =
             $"AP: {area} plots in use: {built}/{unlocked} unlocked - " +
             $"find more \"Ranch Plot: {area}\" items (or demolish a building)";
+        popup = (unlocked == 0 ? $"{area} plots are locked (0/0)"
+                               : $"{area} plots full ({built}/{unlocked})",
+                 $"Requires: Ranch Plot: {area}");
         return false;
     }
 

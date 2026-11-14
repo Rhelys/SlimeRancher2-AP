@@ -140,7 +140,7 @@ public class DebugPanel : MonoBehaviour
         y = ItemBtn(x, y, "Progressive Energy Tank",        ItemTable.ProgressiveEnergyTank);
         y = ItemBtn(x, y, "Progressive Extra Tank",         ItemTable.ProgressiveExtraTank);
         y = ItemBtn(x, y, "Progressive Jetpack",            ItemTable.ProgressiveJetpack);
-        y = ItemBtn(x, y, "Progressive Water Tank",         ItemTable.ProgressiveWaterTank);
+        y = ItemBtn(x, y, "Water Tank",                     ItemTable.WaterTank);
         y = ItemBtn(x, y, "Progressive Dash Boots",         ItemTable.ProgressiveDashBoots);
         y = ItemBtn(x, y, "Progressive Tank Booster",       ItemTable.ProgressiveTankBooster);
         y = ItemBtn(x, y, "Progressive Power Injector",     ItemTable.ProgressivePowerInjector);
@@ -210,6 +210,16 @@ public class DebugPanel : MonoBehaviour
             ItemHandler.DebugGrantRadiantProjectorUnit();
         y += BtnH + Gap;
         GUI.color = Color.white;
+
+        y = SectionLabel(x, y, $"Treasure Pod Keys  (mode: {Plugin.Instance.ApClient.SlotData?.TreasurePodKeys ?? "-"})");
+        y = ItemBtn(x, y, "Treasure Pod Key",                     ItemTable.TreasurePodKey);
+        y = ItemBtn(x, y, "Treasure Pod Key - Rainbow Fields",    ItemTable.TreasurePodKeyRainbowFields);
+        y = ItemBtn(x, y, "Treasure Pod Key - Ember Valley",      ItemTable.TreasurePodKeyEmberValley);
+        y = ItemBtn(x, y, "Treasure Pod Key - Starlight Strand",  ItemTable.TreasurePodKeyStarlightStrand);
+        y = ItemBtn(x, y, "Treasure Pod Key - Powderfall Bluffs", ItemTable.TreasurePodKeyPowderfallBluffs);
+
+        y = SectionLabel(x, y, $"Drone Access Key  (on: {Plugin.Instance.ApClient.SlotData?.DroneAccessKey.ToString() ?? "-"})");
+        y = ItemBtn(x, y, "Drone Access Key",                     ItemTable.DroneAccessKey);
     }
 
     private float DrawPageFiller(float x, float y)
@@ -583,6 +593,9 @@ public class DebugPanel : MonoBehaviour
         y += BtnH + Gap;
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Research Drone Archives"))
             LocationDumper.DumpResearchDroneArchives();
+        y += BtnH + Gap;
+        if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Research Drone State (read flags)"))
+            LocationDumper.DumpResearchDroneState();
         y += BtnH + Gap;
         if (GUI.Button(new Rect(x, y, PanelW, BtnH), "Dump Land Plots (open a plot UI once first)"))
             LocationDumper.DumpLandPlots();

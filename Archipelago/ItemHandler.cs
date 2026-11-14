@@ -128,6 +128,7 @@ public static class ItemHandler
             case ItemType.Trap:                  ApplyTrap(item, null, itemIndex);             break; // return ignored — debug path has no requeue
             case ItemType.RanchPlot:             ApplyRanchPlot(item, null, itemIndex);        break;
             case ItemType.Harmonizer:            HarmonizerHandler.Apply(item, null, itemIndex); break;
+            case ItemType.LocationKey:           ApplyLocationKey(item);                       break;
 #if DEBUG
             case ItemType.ShopCatalog:
                 // Persisted count, so the debug grant uses the live path.
@@ -248,6 +249,9 @@ public static class ItemHandler
                 if (!HarmonizerHandler.Apply(item, apItem, itemIndex))
                     advanceWatermark = false;
                 break;
+            case ItemType.LocationKey:
+                ApplyLocationKey(item);   // always succeeds — writes config, never requeues
+                break;
             case ItemType.PrismaShard:
                 // Counter only — invalidate so the next gate check recounts.
                 PrismaShardHandler.MarkDirty();
@@ -256,8 +260,10 @@ public static class ItemHandler
                     $"{PrismaShardHandler.Required}");
                 break;
             case ItemType.ShopCatalog:
-                // Counter only. Persisted because the server snapshot reads 0 offline.
-                Plugin.Instance.SaveManager.AccumulateShopCatalog();
+                // Counter only. Persisted because the server snapshot reads 0 offline. Set from
+                // the copies up to this one, not incremented: a replay must not count it twice.
+                Plugin.Instance.SaveManager.RaiseShopCatalogsHeld(
+                    CopiesReceivedThrough(ItemTable.ProgressiveShopCatalog, itemIndex));
                 ShopCatalogHandler.MarkDirty();
                 {
                     int held     = ShopCatalogHandler.Held;
@@ -289,6 +295,21 @@ public static class ItemHandler
         }
     }
 
+    /// <summary>
+    /// Copies of <paramref name="itemId"/> in the server history at positions 0..<paramref name="itemIndex"/>.
+    /// At least 1 — the caller is applying one, even if the history is not in reach.
+    /// </summary>
+    private static int CopiesReceivedThrough(long itemId, int itemIndex)
+    {
+        var snapshot = Plugin.Instance.ApClient.Session?.Items?.AllItemsReceived;
+        if (snapshot == null) return 1;
+
+        int count = 0;
+        for (int i = 0; i <= itemIndex && i < snapshot.Count; i++)
+            if (snapshot[i].ItemId == itemId) count++;
+        return System.Math.Max(count, 1);
+    }
+
     // -------------------------------------------------------------------------
 
     // Region access item name → zone teleporter GadgetDefinition name (bundled and auto modes).
@@ -299,6 +320,12 @@ public static class ItemHandler
         ["Powderfall Bluffs Access"] = "TeleporterZoneBluffs",
         // Grey Labyrinth has no region access item yet — add when implemented
     };
+
+    private static void ApplyLocationKey(Data.ItemInfo item)
+    {
+        LocationKeys.Grant(item);
+        Notify($"Received: {item.Name}");
+    }
 
     private static void ApplyRegionAccess(Data.ItemInfo item)
     {
@@ -411,11 +438,12 @@ public static class ItemHandler
 
     /// <summary>
     /// Called by <c>AccessDoorPurchasePatch</c> after the check is sent; opens a door whose
-    /// item was held waiting for it.
+    /// item was held waiting for it. Returns true when an item was held — the door opened, or
+    /// opens once its sub-scene loads — so the caller doesn't call it locked.
     /// </summary>
-    internal static void TriggerPendingDoorUnlock(string doorId)
+    internal static bool TriggerPendingDoorUnlock(string doorId)
     {
-        if (!_pendingDoorUnlocks.TryGetValue(doorId, out var pending)) return;
+        if (!_pendingDoorUnlocks.TryGetValue(doorId, out var pending)) return false;
         _pendingDoorUnlocks.Remove(doorId);
 
         var door = Resources.FindObjectsOfTypeAll<AccessDoor>()
@@ -426,7 +454,7 @@ public static class ItemHandler
             if (!_pendingExpansions.Exists(e => e.doorId == doorId))
                 _pendingExpansions.Add((doorId, pending.itemName, pending.itemIndex));
             Logger.Info($"[AP] TriggerPendingDoorUnlock: door '{doorId}' not in scene — promoted to expansion poll");
-            return;
+            return true;
         }
 
         OpenDoor(door, doorId, pending.itemName);
@@ -435,6 +463,7 @@ public static class ItemHandler
             Plugin.Instance.SaveManager.UpdateLastItemIndex(pending.itemIndex);
             Plugin.Instance.SaveManager.RemoveDeferredItem(pending.itemIndex);
         }
+        return true;
     }
 
     /// <summary>
@@ -461,6 +490,15 @@ public static class ItemHandler
         // Terminal not pressed yet — hold the door (see _pendingDoorUnlocks).
         if (!Plugin.Instance.SaveManager.IsChecked(locInfo.Id))
         {
+            // A second copy of an item already holding this door: that copy opens it, so this
+            // one is done. Holding it too would leave it deferred until the next connect.
+            if (itemIndex >= 0 && _pendingDoorUnlocks.TryGetValue(doorId, out var holder)
+                && holder.itemIndex >= 0 && holder.itemIndex != itemIndex)
+            {
+                Logger.Info($"[AP] Expansion '{item.Name}' (idx={itemIndex}) is a duplicate — door '{doorId}' already held.");
+                return true;
+            }
+
             // A real index replaces a -1 debug entry.
             if (!_pendingDoorUnlocks.TryGetValue(doorId, out var existing) || existing.itemIndex < 0)
                 _pendingDoorUnlocks[doorId] = (item.Name, itemIndex);
@@ -476,6 +514,11 @@ public static class ItemHandler
                              .FirstOrDefault(d => d._id == doorId);
         if (door == null)
         {
+            // Duplicate copy of an expansion already waiting on this door (see above).
+            if (itemIndex >= 0 && _pendingExpansions.Exists(
+                    e => e.doorId == doorId && e.itemIndex >= 0 && e.itemIndex != itemIndex))
+                return true;
+
             if (!_pendingExpansions.Exists(e => e.doorId == doorId))
                 _pendingExpansions.Add((doorId, item.Name, itemIndex));
             if (itemIndex >= 0)
@@ -795,7 +838,7 @@ public static class ItemHandler
         ItemTable.ProgressiveEnergyTank        => "EnergyCapacity",
         ItemTable.ProgressiveExtraTank         => "AmmoSlots",
         ItemTable.ProgressiveJetpack           => "Jetpack",
-        ItemTable.ProgressiveWaterTank         => "LiquidSlot",
+        ItemTable.WaterTank                    => "LiquidSlot",
         ItemTable.ProgressiveDashBoots         => "RunEfficiency",
         ItemTable.ProgressiveTankBooster       => "AmmoCapacity",
         ItemTable.ProgressivePowerInjector     => "EnergyDelay",
@@ -1020,8 +1063,8 @@ public static class ItemHandler
         [ItemTable.SpringPad]          = "SpringPad",
         [ItemTable.PortableWaterTap]   = "PortableWaterTap",
 
-        // Always in the pool. Refinery Link's vanilla source (Mochi's intro call) is always
-        // suppressed — see ConversationActiveTrackerPatch.AlwaysApGiftAssets.
+        // Optional pool items (dropped if a seed is short). Refinery Link's vanilla source (Mochi's
+        // intro call) is always suppressed — see ConversationActiveTrackerPatch.AlwaysApGiftAssets.
         [ItemTable.RefineryLink]       = "RefineryLink",
         [ItemTable.PortableFabricator] = "PortableFabricator",
 
@@ -1029,7 +1072,7 @@ public static class ItemHandler
         // source, Gigi's kiosk, is a check whenever this item is in the pool (KioskRewardPatch).
         [ItemTable.Nullifier] = "Harmonizer",
 
-        // ×3 for prismacore/slimepedia goals; duplicates hit GrantSingleGadget's guard.
+        // One copy, whenever the Grey Labyrinth is in scope (optional — dropped if a seed is short).
         [ItemTable.DisruptionDetector] = "PrismaDisruptionDetector",
 
         // Radiant Projector Blueprint
@@ -1885,6 +1928,8 @@ public static class TrapHandler
             _weatherResetAt = -1f;
         }
 
+        TickPendingExpels(sceneReady);
+
         // Promote at most one trap per ready group per frame, keeping each group's spacing.
         if (_sceneReadySince >= 0f)
         {
@@ -1922,6 +1967,8 @@ public static class TrapHandler
             {
                 case ItemTable.TrapTarrSpawn:
                 case ItemTable.TrapTeleport:
+                // Vac Spew/Fill still fire: Fill only writes slot data, and Spew is paced
+                // (VacExpelPerFrame), so neither can stall the game however full the pack.
                 case ItemTable.TrapTarrRain:
                 case ItemTable.WeatherChange:
                     Logger.Info($"[AP] Trap id={trapItemId} suppressed — goal already complete");
@@ -2157,7 +2204,14 @@ public static class TrapHandler
     // Vacpack Spew trap
     // -------------------------------------------------------------------------
 
-    /// <summary>Expels the whole vacpack into the world, then clears every slot.</summary>
+    // Each expelled item is a live actor. A full late-game pack is 700 (7 slots x 100), and
+    // spawning that in one frame froze the game for ~50 s. So the pack is drained a few items
+    // per frame, like holding the trigger. Each item leaves its slot only as it is thrown:
+    // an interrupted spew (zone change) leaves the rest in the pack, never loses it.
+    private const int VacExpelPerFrame = 3;
+    private static readonly List<(int slot, int remaining)> _pendingExpels = new();
+
+    /// <summary>Starts draining every occupied slot; <see cref="TickPendingExpels"/> does the throwing.</summary>
     private static bool ApplyVacExpelTrap(ApItemInfo? apItem, int itemIndex)
     {
         if (!IsTrapAllowed(TrapGroup.Spawn, "VacExpel"))
@@ -2170,28 +2224,87 @@ public static class TrapHandler
         if (vac == null || ammo == null)
             return Requeue(apItem, itemIndex, "scene not ready");
 
-        var slots   = ammo.Slots;
-        int expelled = 0;
-
+        var slots = ammo.Slots;
+        int total = 0;
         for (int i = 0; i < slots.Count; i++)
         {
             var slot = slots[i];
             if (slot == null || slot.Id == null || slot.Count <= 0) continue;
 
-            int  count = slot.Count;
-            var  meta  = slot.Metadata;
-
-            for (int j = 0; j < count; j++)
-                vac.Expel(meta, false, 0f, false);
-
-            ammo.Clear(i);
-            expelled += count;
+            // A second spew while one is draining just tops up that slot's budget.
+            int existing = _pendingExpels.FindIndex(p => p.slot == i);
+            if (existing >= 0) _pendingExpels[existing] = (i, slot.Count);
+            else               _pendingExpels.Add((i, slot.Count));
+            total += slot.Count;
         }
 
         _lastGroupFiredAt[(int)TrapGroup.Spawn] = UnityEngine.Time.time;
-        Logger.Info($"[AP] VacpackSpewTrap: expelled {expelled} item(s) from vacpack");
+        Logger.Info($"[AP] VacpackSpewTrap: spewing {total} item(s), {VacExpelPerFrame} per frame");
         SlimeRancher2AP.UI.StatusHUD.Instance?.ShowNotification("Trap: Vacpack Spew!");
         return true;
+    }
+
+    // Per-frame: throws the next few items of a Vacpack Spew, round-robin across slots.
+    private static void TickPendingExpels(bool sceneReady)
+    {
+        if (_pendingExpels.Count == 0) return;
+
+        var playerState = sceneReady ? SceneContext.Instance?.PlayerState : null;
+        var vac  = playerState?.VacuumItem;
+        var ammo = playerState?.Ammo;
+        if (vac == null || ammo == null)
+        {
+            // Nothing has left the pack that wasn't thrown, so stopping loses nothing.
+            Logger.Info("[AP] VacpackSpewTrap: interrupted by a scene change — the rest stays in the vacpack");
+            _pendingExpels.Clear();
+            return;
+        }
+
+        var slots  = ammo.Slots;
+        int budget = VacExpelPerFrame;
+        int p      = 0;
+        while (budget > 0 && _pendingExpels.Count > 0)
+        {
+            if (p >= _pendingExpels.Count) p = 0;
+            var (i, remaining) = _pendingExpels[p];
+            var slot = i < slots.Count ? slots[i] : null;
+
+            // Slot emptied by other means (player fired it, deposited it): done with it.
+            if (slot == null || slot.Id == null || slot.Count <= 0 || remaining <= 0)
+            {
+                _pendingExpels.RemoveAt(p);
+                continue;
+            }
+
+            int before = slot.Count;
+            try { vac.Expel(slot.Metadata, false, 0f, false); }
+            catch (System.Exception ex)
+            {
+                // Stop without touching the slot: the item that failed is still in the pack.
+                Logger.Warning($"[AP] VacpackSpewTrap: expel failed, stopping (rest stays in the vacpack): {ex.Message}");
+                _pendingExpels.Clear();
+                return;
+            }
+
+            // Take the thrown item out of the slot, unless Expel already did.
+            if (slot.Count == before)
+            {
+                if (before <= 1) ammo.Clear(i);
+                else             slot.Count = before - 1;
+            }
+            else if (slot.Count <= 0)
+            {
+                ammo.Clear(i);
+            }
+
+            budget--;
+            remaining--;
+            if (remaining <= 0 || slot.Count <= 0) _pendingExpels.RemoveAt(p);
+            else { _pendingExpels[p] = (i, remaining); p++; }
+        }
+
+        if (_pendingExpels.Count == 0)
+            Logger.Info("[AP] VacpackSpewTrap: vacpack emptied");
     }
 
     // -------------------------------------------------------------------------

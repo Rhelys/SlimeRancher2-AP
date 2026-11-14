@@ -133,6 +133,9 @@ public class ApUpdateBehaviour : MonoBehaviour
 #if DEBUG
         SlimeRancher2AP.Utils.DebugTrace.Once("Update.4 — after ProcessDeathQueue");
 #endif
+        // Before the polls: their object scans are scheduled off scene loads.
+        SlimeRancher2AP.Utils.SceneSetWatcher.Tick();
+
         // Each Tick is timed separately, so a regression points at its poll.
         Prof.BeginFrame();
         Prof.Time("TrapHandler",          _tTrap);

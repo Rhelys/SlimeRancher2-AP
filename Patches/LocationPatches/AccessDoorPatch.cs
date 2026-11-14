@@ -189,20 +189,27 @@ internal static class AccessDoorPurchasePatch
         {
             Logger.Info($"[AP] Expansion already checked, blocking re-purchase: {locInfo.Name}");
             // Already sent, still shut — say so, or the terminal reads as broken on re-press.
-            UI.ApPopup.ShowThrottled($"expansion-{doorId}", "Expansion Access required",
-                                     "Archipelago", "Expansion locked");
+            ExpansionLockedPopup.Show(doorId);
             return false;
         }
 
         Plugin.Instance.ApClient.SendCheck(locInfo.Id);
         Logger.Info($"[AP] Conservatory expansion check sent: {locInfo.Name} (door='{doorId}')");
-        // Its item may already be waiting.
-        Archipelago.ItemHandler.TriggerPendingDoorUnlock(doorId);
+        // Its item may already be waiting — then the door opens and there's nothing to explain.
+        // Otherwise, explain why the door stays shut.
+        if (!Archipelago.ItemHandler.TriggerPendingDoorUnlock(doorId))
+            ExpansionLockedPopup.Show(doorId);
 
-        // Explain why the door stays shut.
-        UI.ApPopup.ShowThrottled($"expansion-{doorId}", "Expansion Access required",
-                                 "Archipelago", "Expansion locked");
+        return false; // block original — no Newbucks spent; the door opens when its AP item is held
+    }
+}
 
-        return false; // block original — no Newbucks spent, door stays locked until AP item received
+file static class ExpansionLockedPopup
+{
+    internal static void Show(string doorId)
+    {
+        var itemName = ItemTable.GetExpansionItemName(doorId) ?? "its Expansion Access item";
+        UI.ApPopup.ShowThrottled($"expansion-{doorId}", "Expansion is locked",
+                                 "Archipelago", $"Requires: {itemName}");
     }
 }

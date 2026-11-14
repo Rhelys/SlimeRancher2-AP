@@ -1014,19 +1014,42 @@ public static class LocationDumper
 
                 // Always List<IIngredient>; wrap by pointer for Count/indexer
                 var ingredients = new Il2CppSystem.Collections.Generic.List<IIngredient>(rawIngredients.Pointer);
+                var recipe = new System.Collections.Generic.List<string>();
                 for (int i = 0; i < ingredients.Count; i++)
                 {
                     var ing = ingredients[i];
                     if (ing == null) continue;
 
                     var upgradeIng = ing.TryCast<RecipeFactory.UpgradeIngredient>();
-                    if (upgradeIng == null) continue; // skip CurrencyIngredient / craft materials
+                    if (upgradeIng != null)
+                    {
+                        var comp = upgradeIng._upgrade;
+                        var compName = comp?.name ?? "<null>";
+                        log.LogInfo($"[AP-Dump]   {def.name}[lvl{lvl}] → component='{compName}' ×{ing.CountRequired}");
+                        if (comp != null) seen.Add(compName);
+                        recipe.Add($"{ing.CountRequired}x {compName} (component)");
+                        continue;
+                    }
 
-                    var comp = upgradeIng._upgrade;
-                    var compName = comp?.name ?? "<null>";
-                    log.LogInfo($"[AP-Dump]   {def.name}[lvl{lvl}] → component='{compName}' ×{ing.CountRequired}");
-                    if (comp != null) seen.Add(compName);
+                    var identIng = ing.TryCast<RecipeFactory.IdentIngredient>();
+                    if (identIng != null)
+                    {
+                        recipe.Add($"{ing.CountRequired}x {identIng._ident?.name ?? "<null>"}");
+                        continue;
+                    }
+
+                    var currencyIng = ing.TryCast<RecipeFactory.CurrencyIngredient>();
+                    if (currencyIng != null)
+                    {
+                        recipe.Add($"{ing.CountRequired}x {currencyIng._currency?.name ?? "<currency>"}");
+                        continue;
+                    }
+
+                    recipe.Add($"{ing.CountRequired}x <unknown ingredient>");
                 }
+
+                // Full recipe, for checking the apworld's fabricator zone/jetpack rules.
+                log.LogInfo($"[AP-Dump]   RECIPE {def.name}[lvl{lvl}]: {string.Join(", ", recipe)}");
             }
         }
 
@@ -1284,6 +1307,77 @@ public static class LocationDumper
             log.LogInfo($"[AP-Dump] Not loaded (visit their zones and dump again): {string.Join(", ", missing)}");
 
         log.LogInfo("[AP-Dump] ===== END RESEARCH DRONE ARCHIVES =====");
+    }
+
+    /// <summary>
+    /// Logs each loaded drone's live state, its saved <c>ResearchDroneModel.read</c> flag, and
+    /// the AP side (checked, key held). Used to see whether a refused interaction marks a drone
+    /// read. Only drones in loaded zones appear.
+    /// </summary>
+    public static void DumpResearchDroneState()
+    {
+        var log = Plugin.Instance.Log;
+        log.LogInfo("[AP-Dump] ===== RESEARCH DRONE STATE =====");
+
+        var controllers = Resources.FindObjectsOfTypeAll<ResearchDroneController>()
+            .Where(c => c != null && c.gameObject.scene.IsValid())
+            .OrderBy(c => c.gameObject.scene.name)
+            .ToList();
+        log.LogInfo($"[AP-Dump] Loaded drones: {controllers.Count}");
+
+        foreach (var ctrl in controllers)
+        {
+            var entryName = ctrl._researchDroneEntry?.name ?? "<null>";
+            string read;
+            try { read = ctrl._model == null ? "<no model>" : ctrl._model.read.ToString(); }
+            catch (Exception ex) { read = $"<{ex.GetType().Name}>"; }
+
+            string ap = "not in table";
+            if (LocationTable.TryGetByEntryName(entryName, out var info) && info != null)
+            {
+                var key = Archipelago.LocationKeys.RequiredKey(info);
+                ap = $"'{info.Name}' checked={Plugin.Instance.SaveManager.IsChecked(info.Id)} " +
+                     $"key={(key is long k ? (Archipelago.LocationKeys.HasKey(k) ? "held" : "MISSING") : "none")}";
+            }
+
+            log.LogInfo(
+                $"[AP-Dump] Drone '{entryName}'  scene='{ctrl.gameObject.scene.name}'  " +
+                $"state={ctrl._state}  read={read}  {ap}");
+        }
+
+        // Recorded game events mentioning drones — what story conditions query.
+        try
+        {
+            var director = Resources.FindObjectsOfTypeAll<Il2CppMonomiPark.SlimeRancher.Event.EventDirector>()
+                .FirstOrDefault(d => d != null && d._model != null);
+            if (director == null)
+            {
+                log.LogInfo("[AP-Dump] Event records: no EventDirector with a model loaded");
+            }
+            else
+            {
+                int shown = 0;
+                foreach (var byEvent in director._model.table)
+                {
+                    foreach (var byData in byEvent.Value)
+                    {
+                        var e = byData.Value;
+                        if (e == null) continue;
+                        var text = $"{e.eventKey} {e.dataKey}";
+                        if (text.IndexOf("drone", StringComparison.OrdinalIgnoreCase) < 0) continue;
+                        log.LogInfo($"[AP-Dump] Event record  event='{e.eventKey}'  data='{e.dataKey}'  count={e.count}");
+                        shown++;
+                    }
+                }
+                log.LogInfo($"[AP-Dump] Event records mentioning drones: {shown}");
+            }
+        }
+        catch (Exception ex)
+        {
+            log.LogWarning($"[AP-Dump] Event records: {ex.GetType().Name}: {ex.Message}");
+        }
+
+        log.LogInfo("[AP-Dump] ===== END RESEARCH DRONE STATE =====");
     }
 
     private static void DumpSwitches(BepInEx.Logging.ManualLogSource log)

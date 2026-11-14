@@ -17,11 +17,14 @@ internal static class UpgradeModelPushPatch
         try
         {
             ItemHandler.OnUpgradesRestored();
-            Logger.Info("[AP] Upgrade model restored from save — scheduling watermark reconciliation.");
 
-            // Even if validation already ran — it saw the pre-restore model.
+            // Even if validation already ran — it saw the pre-restore model. Only with a live
+            // session: a vanilla save (or an offline AP one) gets no reconciliation.
             if (Plugin.Instance.ApClient?.IsConnected == true)
+            {
+                Logger.Info("[AP] Upgrade model restored from save — scheduling watermark reconciliation.");
                 Plugin.Instance.ApClient.ScheduleUpgradeValidation();
+            }
         }
         catch (System.Exception ex)
         {

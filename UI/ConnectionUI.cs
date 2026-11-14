@@ -28,6 +28,8 @@ public class ConnectionUI : MonoBehaviour
         Plugin.Instance.ApClient.OnConnected        += () => SetStatus("Connected!", new Color(0.2f, 0.9f, 0.3f));
         Plugin.Instance.ApClient.OnConnectionFailed += msg => SetStatus($"Failed: {msg}", new Color(0.9f, 0.3f, 0.2f));
         Plugin.Instance.ApClient.OnDisconnected     += () => SetStatus("Disconnected", new Color(0.9f, 0.75f, 0.1f));
+        Plugin.Instance.ApClient.OnReconnecting     += (attempt, delay) =>
+            SetStatus($"Connection lost - retry {attempt} in {delay:F0}s", new Color(0.9f, 0.75f, 0.1f));
     }
 
     public bool IsVisible => _panel != null && _panel.activeSelf;

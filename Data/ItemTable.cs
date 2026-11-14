@@ -1,6 +1,6 @@
 ﻿namespace SlimeRancher2AP.Data;
 
-public enum ItemType { RegionAccess, Upgrade, Gadget, Filler, Useful, UpgradeComponent, Trap, ConservatoryExpansion, RanchPlot, PrismaShard, ShopCatalog, Palette, Harmonizer }
+public enum ItemType { RegionAccess, Upgrade, Gadget, Filler, Useful, UpgradeComponent, Trap, ConservatoryExpansion, RanchPlot, PrismaShard, ShopCatalog, Palette, Harmonizer, LocationKey }
 
 /// <summary>Describes a single Archipelago item this game can send or receive.</summary>
 public record ItemInfo(long Id, string Name, ItemType Type);
@@ -41,7 +41,7 @@ public static class ItemTable
     public const long ProgressiveEnergyTank        = 819516; // EnergyCapacity   × 5
     public const long ProgressiveExtraTank         = 819517; // AmmoSlots        × 2
     public const long ProgressiveJetpack           = 819518; // Jetpack          × 2
-    public const long ProgressiveWaterTank         = 819519; // LiquidSlot       × 1
+    public const long WaterTank                    = 819519; // LiquidSlot       × 1
     public const long ProgressiveDashBoots         = 819520; // RunEfficiency    × 2
     public const long ProgressiveTankBooster       = 819521; // AmmoCapacity     × 8
     public const long ProgressivePowerInjector     = 819522; // EnergyDelay      × 2
@@ -107,6 +107,18 @@ public static class ItemTable
     // Nullifier — the gadget asset named "Harmonizer". An AP item whenever the Labyrinth is in
     // scope; its vanilla source, Gigi's kiosk, becomes a check.
     public const long Nullifier = 819570;
+
+    // Treasure Pod Keys: 819571–819575 (treasure_pod_keys). Global mode pools the first; zones
+    // mode the other four, the Conservatory's pods sharing the Rainbow Fields key.
+    public const long TreasurePodKey                 = 819571;
+    public const long TreasurePodKeyRainbowFields    = 819572;
+    public const long TreasurePodKeyEmberValley      = 819573;
+    public const long TreasurePodKeyStarlightStrand  = 819574;
+    public const long TreasurePodKeyPowderfallBluffs = 819575;
+
+    // Drone Access Key: 819576 (drone_access_key). Always global — one key opens every
+    // Research Drone, archive pages included.
+    public const long DroneAccessKey = 819576;
 
     // Filler — Newbucks: 819580–819582
     public const long Newbucks250  = 819580;
@@ -262,7 +274,7 @@ public static class ItemTable
         new(ProgressiveEnergyTank,     "Progressive Energy Tank",     ItemType.Upgrade),
         new(ProgressiveExtraTank,      "Progressive Extra Tank",      ItemType.Upgrade),
         new(ProgressiveJetpack,        "Progressive Jetpack",         ItemType.Upgrade),
-        new(ProgressiveWaterTank,      "Progressive Water Tank",      ItemType.Upgrade),
+        new(WaterTank,                 "Water Tank",                  ItemType.Upgrade),
         new(ProgressiveDashBoots,      "Progressive Dash Boots",      ItemType.Upgrade),
         new(ProgressiveTankBooster,    "Progressive Tank Booster",    ItemType.Upgrade),
         new(ProgressivePowerInjector,  "Progressive Power Injector",  ItemType.Upgrade),
@@ -322,6 +334,16 @@ public static class ItemTable
         new(HarmonizerDreamland,  "Harmonizer - Dreamland",   ItemType.Harmonizer),
         new(HarmonizerTerrarium,  "Harmonizer - Terrarium",   ItemType.Harmonizer),
         new(HarmonizerCorePath,   "Harmonizer - Core Path",   ItemType.Harmonizer),
+
+        // Treasure Pod Keys
+        new(TreasurePodKey,                 "Treasure Pod Key",                    ItemType.LocationKey),
+        new(TreasurePodKeyRainbowFields,    "Treasure Pod Key - Rainbow Fields",   ItemType.LocationKey),
+        new(TreasurePodKeyEmberValley,      "Treasure Pod Key - Ember Valley",     ItemType.LocationKey),
+        new(TreasurePodKeyStarlightStrand,  "Treasure Pod Key - Starlight Strand", ItemType.LocationKey),
+        new(TreasurePodKeyPowderfallBluffs, "Treasure Pod Key - Powderfall Bluffs", ItemType.LocationKey),
+
+        // Drone Access Key
+        new(DroneAccessKey,                 "Drone Access Key",                    ItemType.LocationKey),
 
         // Conservatory Expansions
         new(ExpansionGully,     "The Gully Access",     ItemType.ConservatoryExpansion),
@@ -447,4 +469,9 @@ public static class ItemTable
     /// <summary>The expansion item's <c>AccessDoor._id</c>, or null.</summary>
     public static string? GetExpansionDoorId(long itemId)
         => _expansionDoorIds.TryGetValue(itemId, out var id) ? id : null;
+
+    /// <summary>The name of the expansion item that opens an <c>AccessDoor._id</c>, or null.</summary>
+    public static string? GetExpansionItemName(string doorId)
+        => _expansionDoorIds.FirstOrDefault(kv => kv.Value == doorId) is { Value: not null } kv
+            ? Get(kv.Key)?.Name : null;
 }

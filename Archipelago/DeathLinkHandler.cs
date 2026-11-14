@@ -42,8 +42,23 @@ public class DeathLinkHandler
         _service.OnDeathLinkReceived += OnDeathReceived;
     }
 
-    public void Enable()  => _service.EnableDeathLink();
-    public void Disable() => _service.DisableDeathLink();
+    /// <summary>
+    /// Adds the DeathLink tag. Off-thread and not awaited: it sends a ConnectUpdate
+    /// synchronously, which blocks forever if the socket has just died — the caller is the login
+    /// thread, and a hang there would end that connection attempt silently. A lost tag only means
+    /// no deaths until the next connect.
+    /// </summary>
+    public void Enable()
+    {
+        Task.Run(() => _service.EnableDeathLink())
+            .ContinueWith(t => Logger.Warning(
+                    $"[AP] DeathLink enable failed: {t.Exception?.GetBaseException().Message}"),
+                TaskContinuationOptions.OnlyOnFaulted);
+    }
+
+    // No Disable(): a session is only dropped when it is being closed or is already dead, and
+    // DisableDeathLink's synchronous send on a dead socket never returns (it hung a reconnect).
+    // Drop the handler instead.
 
     /// <summary>On a local death; skipped for one we applied.</summary>
     public void SendDeath(string? cause = null)

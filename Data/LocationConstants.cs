@@ -142,7 +142,7 @@ public static class LocationConstants
     // SHADOW PLORT DOORS: 819200–819249 (Grey Labyrinth) — keyed by posKey
     // =========================================================================
     public const long ShadowPlortDoor_01 = 819200;  // zoneLabStrandEntrance_918_56_-1238
-    public const long ShadowPlortDoor_02 = 819201;  // zoneLabStrandEntrance_1160_51_-1357
+    public const long ShadowPlortDoor_02 = 819201;  // zoneLabStrandEntrance_1160_48_-1357 (y=51 at unlock — aliased in LocationTable)
     public const long ShadowPlortDoor_03 = 819202;  // zoneLabStrandEntranceMain_B_1195_38_-1410
     public const long ShadowPlortDoor_04 = 819203;  // zoneLabStrandEntranceMain_B_1309_81_-1444
     public const long ShadowPlortDoor_05 = 819204;  // zoneLabValleyEntrance_1755_89_-1154

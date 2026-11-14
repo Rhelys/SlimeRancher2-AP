@@ -215,7 +215,6 @@ public static class GoalHandler
 
         var slotData = Plugin.Instance.ApClient.SlotData;
 
-        bool needSlimes    = slotData?.RandomizeSlimepedia          ?? false;
         bool needResources = slotData?.RandomizeSlimepediaResources  ?? false;
         bool needRadiant   = slotData?.RandomizeSlimepediaRadiant    ?? false;
 
@@ -253,8 +252,9 @@ public static class GoalHandler
             radiantExcluded.Add("RadiantDervish");
         }
 
-        // Disabled categories start complete.
-        bool slimesUnlocked    = !needSlimes;
+        // Slimes is always in scope for this goal (the apworld forces randomize_slimepedia_slimes
+        // on with it); disabled categories start complete.
+        bool slimesUnlocked    = false;
         bool resourcesUnlocked = !needResources;
         bool radiantUnlocked   = !needRadiant;
 
@@ -263,9 +263,9 @@ public static class GoalHandler
             var cat = categories[i];
             var catName = cat?._category?.name;
 
-            if (needSlimes    && catName == SlimesCategoryName)
+            if (catName == SlimesCategoryName)
                 slimesUnlocked    = IsCategoryUnlockedForAp(
-                    pedia, cat!, Data.LocationType.SlimepediaEntry, slimesExcluded);
+                    pedia, cat!, Data.LocationType.SlimepediaSlimeEntry, slimesExcluded);
             else if (needResources && catName == ResourcesCategoryName)
                 resourcesUnlocked = IsCategoryUnlockedForAp(
                     pedia, cat!, Data.LocationType.SlimepediaResourceEntry, resourcesExcluded);
@@ -277,7 +277,7 @@ public static class GoalHandler
         }
 #if DEBUG
         SlimeRancher2AP.Utils.DebugTrace.Once(
-            $"CheckSlimepediaGoal — slimes={slimesUnlocked}(need={needSlimes}) " +
+            $"CheckSlimepediaGoal — slimes={slimesUnlocked} " +
             $"resources={resourcesUnlocked}(need={needResources}) " +
             $"radiant={radiantUnlocked}(need={needRadiant})");
 #endif
@@ -386,7 +386,7 @@ public static class GoalHandler
             var cat     = categories[i];
             var catName = cat?._category?.name;
             Data.LocationType type;
-            if      (catName == SlimesCategoryName)    type = Data.LocationType.SlimepediaEntry;
+            if      (catName == SlimesCategoryName)    type = Data.LocationType.SlimepediaSlimeEntry;
             else if (catName == ResourcesCategoryName) type = Data.LocationType.SlimepediaResourceEntry;
             else if (catName == RadiantCategoryName)   type = Data.LocationType.SlimepediaRadiantEntry;
             else continue;

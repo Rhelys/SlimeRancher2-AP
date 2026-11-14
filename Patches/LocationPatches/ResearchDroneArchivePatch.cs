@@ -9,7 +9,9 @@ namespace SlimeRancher2AP.Patches.LocationPatches;
 /// Opening a drone's archive page (needs the Drone Archive Key) sends its check, keyed by
 /// <c>mainEntry.archivedEntry.name</c>. Hooks <c>ToggleArchive</c> and checks
 /// <c>isInArchive</c> after — <c>ShowArchiveEntry</c> is only called natively. Any toggle also
-/// sends the drone's own check, keyed by <c>mainEntry.name</c>.
+/// sends the drone's own check, keyed by <c>mainEntry.name</c>. Both hold back while the
+/// Drone Access Key is missing (<c>drone_access_key</c>) — a backstop, since a locked drone's
+/// page does not open.
 /// </summary>
 [HarmonyPatch(typeof(ResearchDroneUI), "ToggleArchive")]
 internal static class ResearchDroneArchivePatch
@@ -37,7 +39,8 @@ internal static class ResearchDroneArchivePatch
         // switch to the archive was reported to slip past.
         if (mainEntry != null
             && LocationTable.TryGetByEntryName(mainName, out var mainInfo) && mainInfo is not null
-            && !Plugin.Instance.SaveManager.IsChecked(mainInfo.Id))
+            && !Plugin.Instance.SaveManager.IsChecked(mainInfo.Id)
+            && Archipelago.LocationKeys.MissingKey(mainInfo) == null)
         {
             Logger.Info($"[AP] Research Drone check via archive toggle: '{mainInfo.Name}' (id={mainInfo.Id})");
             Plugin.Instance.ApClient?.SendCheck(mainInfo.Id);
@@ -65,6 +68,12 @@ internal static class ResearchDroneArchivePatch
 
         if (alreadyChecked)
             return;
+
+        if (Archipelago.LocationKeys.MissingKey(info) != null)
+        {
+            Logger.Info($"[AP] Research Drone Archive held: '{info.Name}' — Drone Access Key not yet received");
+            return;
+        }
 
         Logger.Info(
             $"[AP] Research Drone Archive check: '{info.Name}' " +

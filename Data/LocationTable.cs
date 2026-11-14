@@ -5,7 +5,7 @@ public enum LocationType
     TreasurePod,
     Gordo,
     MapNode,
-    SlimepediaEntry,
+    SlimepediaSlimeEntry,
     SlimepediaResourceEntry,
     FabricatorCraft,
     ResearchDrone,
@@ -334,36 +334,36 @@ public static class LocationTable
         // SLIMEPEDIA ENTRIES (IDs 819350–819379) — EntryName = PediaEntry.name
         // All 30 'Slimes' entries, including Largo, FeralSlime, Gordo and the RadiantSlime concept.
         // -------------------------------------------------------------------------
-        new(LocationConstants.Slimepedia_Pink,     "Slimepedia: Pink Slime",     LocationType.SlimepediaEntry, "", "", "Pink"),
-        new(LocationConstants.Slimepedia_Cotton,   "Slimepedia: Cotton Slime",   LocationType.SlimepediaEntry, "", "", "Cotton"),
-        new(LocationConstants.Slimepedia_Tabby,    "Slimepedia: Tabby Slime",    LocationType.SlimepediaEntry, "", "", "Tabby"),
-        new(LocationConstants.Slimepedia_Phosphor, "Slimepedia: Phosphor Slime", LocationType.SlimepediaEntry, "", "", "Phosphor"),
-        new(LocationConstants.Slimepedia_Angler,   "Slimepedia: Angler Slime",   LocationType.SlimepediaEntry, "", "", "Angler"),
-        new(LocationConstants.Slimepedia_Rock,     "Slimepedia: Rock Slime",     LocationType.SlimepediaEntry, "", "", "Rock"),
-        new(LocationConstants.Slimepedia_Batty,    "Slimepedia: Batty Slime",    LocationType.SlimepediaEntry, "", "", "Batty"),
-        new(LocationConstants.Slimepedia_Flutter,  "Slimepedia: Flutter Slime",  LocationType.SlimepediaEntry, "", "", "Flutter"),
-        new(LocationConstants.Slimepedia_Ringtail, "Slimepedia: Ringtail Slime", LocationType.SlimepediaEntry, "", "", "Ringtail"),
-        new(LocationConstants.Slimepedia_Boom,     "Slimepedia: Boom Slime",     LocationType.SlimepediaEntry, "", "", "Boom"),
-        new(LocationConstants.Slimepedia_Honey,    "Slimepedia: Honey Slime",    LocationType.SlimepediaEntry, "", "", "Honey"),
-        new(LocationConstants.Slimepedia_Puddle,   "Slimepedia: Puddle Slime",   LocationType.SlimepediaEntry, "", "", "Puddle"),
-        new(LocationConstants.Slimepedia_Crystal,  "Slimepedia: Crystal Slime",  LocationType.SlimepediaEntry, "", "", "Crystal"),
-        new(LocationConstants.Slimepedia_Hunter,   "Slimepedia: Hunter Slime",   LocationType.SlimepediaEntry, "", "", "Hunter"),
-        new(LocationConstants.Slimepedia_Fire,     "Slimepedia: Fire Slime",     LocationType.SlimepediaEntry, "", "", "Fire"),
-        new(LocationConstants.Slimepedia_Lucky,    "Slimepedia: Lucky Slime",    LocationType.SlimepediaEntry, "", "", "Lucky"),
-        new(LocationConstants.Slimepedia_Gold,     "Slimepedia: Gold Slime",     LocationType.SlimepediaEntry, "", "", "Gold"),
-        new(LocationConstants.Slimepedia_Saber,    "Slimepedia: Saber Slime",    LocationType.SlimepediaEntry, "", "", "Saber"),
-        new(LocationConstants.Slimepedia_Tangle,   "Slimepedia: Tangle Slime",   LocationType.SlimepediaEntry, "", "", "Tangle"),
-        new(LocationConstants.Slimepedia_Dervish,  "Slimepedia: Dervish Slime",  LocationType.SlimepediaEntry, "", "", "Dervish"),
-        new(LocationConstants.Slimepedia_Yolky,    "Slimepedia: Yolky Slime",    LocationType.SlimepediaEntry, "", "", "Yolky"),
-        new(LocationConstants.Slimepedia_Sloomber, "Slimepedia: Sloomber Slime", LocationType.SlimepediaEntry, "", "", "Sloomber"),
-        new(LocationConstants.Slimepedia_Twin,     "Slimepedia: Twin Slime",     LocationType.SlimepediaEntry, "", "", "Twin"),
-        new(LocationConstants.Slimepedia_Hyper,    "Slimepedia: Hyper Slime",    LocationType.SlimepediaEntry, "", "", "Hyper"),
-        new(LocationConstants.Slimepedia_Shadow,   "Slimepedia: Shadow Slime",   LocationType.SlimepediaEntry, "", "", "Shadow"),
-        new(LocationConstants.Slimepedia_Tarr,       "Slimepedia: Tarr",        LocationType.SlimepediaEntry, "", "", "Tarr"),
-        new(LocationConstants.Slimepedia_Largo,      "Slimepedia: Largo",       LocationType.SlimepediaEntry, "", "", "Largo"),
-        new(LocationConstants.Slimepedia_FeralSlime, "Slimepedia: Feral Slime", LocationType.SlimepediaEntry, "", "", "FeralSlime"),
-        new(LocationConstants.Slimepedia_Gordo,      "Slimepedia: Gordo",       LocationType.SlimepediaEntry, "", "", "Gordo"),
-        new(LocationConstants.Slimepedia_RadiantSlime, "Slimepedia: Radiant Slimes", LocationType.SlimepediaEntry, "", "", "RadiantSlime"),
+        new(LocationConstants.Slimepedia_Pink,     "Slimepedia: Pink Slime",     LocationType.SlimepediaSlimeEntry, "", "", "Pink"),
+        new(LocationConstants.Slimepedia_Cotton,   "Slimepedia: Cotton Slime",   LocationType.SlimepediaSlimeEntry, "", "", "Cotton"),
+        new(LocationConstants.Slimepedia_Tabby,    "Slimepedia: Tabby Slime",    LocationType.SlimepediaSlimeEntry, "", "", "Tabby"),
+        new(LocationConstants.Slimepedia_Phosphor, "Slimepedia: Phosphor Slime", LocationType.SlimepediaSlimeEntry, "", "", "Phosphor"),
+        new(LocationConstants.Slimepedia_Angler,   "Slimepedia: Angler Slime",   LocationType.SlimepediaSlimeEntry, "", "", "Angler"),
+        new(LocationConstants.Slimepedia_Rock,     "Slimepedia: Rock Slime",     LocationType.SlimepediaSlimeEntry, "", "", "Rock"),
+        new(LocationConstants.Slimepedia_Batty,    "Slimepedia: Batty Slime",    LocationType.SlimepediaSlimeEntry, "", "", "Batty"),
+        new(LocationConstants.Slimepedia_Flutter,  "Slimepedia: Flutter Slime",  LocationType.SlimepediaSlimeEntry, "", "", "Flutter"),
+        new(LocationConstants.Slimepedia_Ringtail, "Slimepedia: Ringtail Slime", LocationType.SlimepediaSlimeEntry, "", "", "Ringtail"),
+        new(LocationConstants.Slimepedia_Boom,     "Slimepedia: Boom Slime",     LocationType.SlimepediaSlimeEntry, "", "", "Boom"),
+        new(LocationConstants.Slimepedia_Honey,    "Slimepedia: Honey Slime",    LocationType.SlimepediaSlimeEntry, "", "", "Honey"),
+        new(LocationConstants.Slimepedia_Puddle,   "Slimepedia: Puddle Slime",   LocationType.SlimepediaSlimeEntry, "", "", "Puddle"),
+        new(LocationConstants.Slimepedia_Crystal,  "Slimepedia: Crystal Slime",  LocationType.SlimepediaSlimeEntry, "", "", "Crystal"),
+        new(LocationConstants.Slimepedia_Hunter,   "Slimepedia: Hunter Slime",   LocationType.SlimepediaSlimeEntry, "", "", "Hunter"),
+        new(LocationConstants.Slimepedia_Fire,     "Slimepedia: Fire Slime",     LocationType.SlimepediaSlimeEntry, "", "", "Fire"),
+        new(LocationConstants.Slimepedia_Lucky,    "Slimepedia: Lucky Slime",    LocationType.SlimepediaSlimeEntry, "", "", "Lucky"),
+        new(LocationConstants.Slimepedia_Gold,     "Slimepedia: Gold Slime",     LocationType.SlimepediaSlimeEntry, "", "", "Gold"),
+        new(LocationConstants.Slimepedia_Saber,    "Slimepedia: Saber Slime",    LocationType.SlimepediaSlimeEntry, "", "", "Saber"),
+        new(LocationConstants.Slimepedia_Tangle,   "Slimepedia: Tangle Slime",   LocationType.SlimepediaSlimeEntry, "", "", "Tangle"),
+        new(LocationConstants.Slimepedia_Dervish,  "Slimepedia: Dervish Slime",  LocationType.SlimepediaSlimeEntry, "", "", "Dervish"),
+        new(LocationConstants.Slimepedia_Yolky,    "Slimepedia: Yolky Slime",    LocationType.SlimepediaSlimeEntry, "", "", "Yolky"),
+        new(LocationConstants.Slimepedia_Sloomber, "Slimepedia: Sloomber Slime", LocationType.SlimepediaSlimeEntry, "", "", "Sloomber"),
+        new(LocationConstants.Slimepedia_Twin,     "Slimepedia: Twin Slime",     LocationType.SlimepediaSlimeEntry, "", "", "Twin"),
+        new(LocationConstants.Slimepedia_Hyper,    "Slimepedia: Hyper Slime",    LocationType.SlimepediaSlimeEntry, "", "", "Hyper"),
+        new(LocationConstants.Slimepedia_Shadow,   "Slimepedia: Shadow Slime",   LocationType.SlimepediaSlimeEntry, "", "", "Shadow"),
+        new(LocationConstants.Slimepedia_Tarr,       "Slimepedia: Tarr",        LocationType.SlimepediaSlimeEntry, "", "", "Tarr"),
+        new(LocationConstants.Slimepedia_Largo,      "Slimepedia: Largo",       LocationType.SlimepediaSlimeEntry, "", "", "Largo"),
+        new(LocationConstants.Slimepedia_FeralSlime, "Slimepedia: Feral Slime", LocationType.SlimepediaSlimeEntry, "", "", "FeralSlime"),
+        new(LocationConstants.Slimepedia_Gordo,      "Slimepedia: Gordo",       LocationType.SlimepediaSlimeEntry, "", "", "Gordo"),
+        new(LocationConstants.Slimepedia_RadiantSlime, "Slimepedia: Radiant Slimes", LocationType.SlimepediaSlimeEntry, "", "", "RadiantSlime"),
 
         // -------------------------------------------------------------------------
         // SLIMEPEDIA RESOURCES ENTRIES (IDs 819630–819684) — EntryName = PediaEntry.name
@@ -1060,7 +1060,7 @@ public static class LocationTable
     private static readonly Dictionary<string, LocationInfo> _byGameObjectName
         = All.Where(l => l.Type != LocationType.ResearchDrone
                       && l.Type != LocationType.ResearchDroneArchive
-                      && l.Type != LocationType.SlimepediaEntry
+                      && l.Type != LocationType.SlimepediaSlimeEntry
                       && l.Type != LocationType.SlimepediaResourceEntry
                       && l.Type != LocationType.SlimepediaRadiantEntry   // keyed by EntryName, GameObjectName is ""
                       && l.Type != LocationType.FabricatorCraft
@@ -1100,7 +1100,7 @@ public static class LocationTable
     private static readonly Dictionary<string, LocationInfo> _byEntryName
         = All.Where(l => (l.Type == LocationType.ResearchDrone
                        || l.Type == LocationType.ResearchDroneArchive
-                       || l.Type == LocationType.SlimepediaEntry
+                       || l.Type == LocationType.SlimepediaSlimeEntry
                        || l.Type == LocationType.SlimepediaResourceEntry
                        || l.Type == LocationType.SlimepediaRadiantEntry)   // EntryName = RadiantXxx asset name
                       && l.EntryName != null)
@@ -1124,9 +1124,24 @@ public static class LocationTable
     // Lookup methods
     // -------------------------------------------------------------------------
 
-    /// <summary>Look up by <c>GameObjectName</c> / posKey.</summary>
+    /// <summary>
+    /// Extra posKeys for objects that move, so the key read when a hook fires differs from the
+    /// table's (asset-dump) position. Alias → table key.
+    /// </summary>
+    private static readonly Dictionary<string, string> _posKeyAliases = new()
+    {
+        // Shadow Plort Door 2 (Waterworks glass-button puzzle): its TriggerActivate is at y=48
+        // in the 1.3 dump but y=51 when ActivateOnUnlock fires.
+        ["zoneLabStrandEntrance_1160_51_-1357"] = "zoneLabStrandEntrance_1160_48_-1357",
+    };
+
+    /// <summary>Look up by <c>GameObjectName</c> / posKey (including <see cref="_posKeyAliases"/>).</summary>
     public static bool TryGetByObjectName(string name, out LocationInfo? info)
-        => _byGameObjectName.TryGetValue(name, out info);
+    {
+        if (_byGameObjectName.TryGetValue(name, out info)) return true;
+        return _posKeyAliases.TryGetValue(name, out var canonical)
+            && _byGameObjectName.TryGetValue(canonical, out info);
+    }
 
     /// <summary>Look up by <c>EntryName</c>.</summary>
     public static bool TryGetByEntryName(string entryName, out LocationInfo? info)

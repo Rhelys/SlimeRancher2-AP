@@ -20,13 +20,16 @@ public class SlotData
 
     public bool   RandomizeGordos        { get; init; } = true;
     public bool   RandomizePods          { get; init; } = true;
+    /// <summary>"vanilla", "global" or "zones" — the apworld sends "vanilla" when pods are not checks.</summary>
+    public string TreasurePodKeys        { get; init; } = "vanilla";
     public bool   RandomizeMapNodes      { get; init; } = true;
     /// <summary>
     /// Diagnostics only — never gate on it. Crafts are checks in both modes; the option only
     /// decides whether they hold shuffled items or their vanilla upgrade.
     /// </summary>
     public bool   RandomizeFabricator    { get; init; } = true;
-    public bool   RandomizeSlimepedia          { get; init; } = false;
+    /// <summary>Slimes category entries, except the Radiant Slimes overview (radiant option). Forced on by the slimepedia goal.</summary>
+    public bool   RandomizeSlimepediaSlimes    { get; init; } = true;
     public bool   RandomizeSlimepediaResources { get; init; } = false;
 
     public bool   RandomizeSlimepediaRadiant   { get; init; } = false;
@@ -40,6 +43,8 @@ public class SlotData
     public int    GoldLuckySpawnRateMultiplier { get; init; } = 1;
 
     public bool   RandomizeResearchDrones  { get; init; } = false;
+    /// <summary>One key for every Research Drone and archive page. False when drones are not checks.</summary>
+    public bool   DroneAccessKey           { get; init; } = false;
     public bool   RandomizeGhostlyDrones   { get; init; } = false;
 
     /// <summary><c>"vanilla"</c> or <c>"locations"</c> (the 28 plort doors are checks).</summary>
@@ -136,7 +141,7 @@ public class SlotData
     /// <c>"none"</c>, <c>"progression"</c>, <c>"progression_useful"</c> or <c>"all"</c> — see
     /// <see cref="UI.ItemNotifier"/>.
     /// </summary>
-    public string ItemNotifications { get; init; } = "progression_useful";
+    public string ItemNotifications { get; init; } = "progression";
 
     /// <summary>Shards needed to unlock the Prismacore fight (<c>prisma_shard_hunt</c>).</summary>
     public int PrismaShardsRequired { get; init; } = 0;
@@ -168,15 +173,17 @@ public class SlotData
             PlortGoalAmount    = (int)GetLong(raw, "plort_goal_amount", 25),
             RandomizeGordos          = GetBool(raw, "randomize_gordos",        defaultVal: true),
             RandomizePods            = GetBool(raw, "randomize_pods",          defaultVal: true),
+            TreasurePodKeys          = GetString(raw, "treasure_pod_keys", "vanilla"),
             RandomizeMapNodes        = GetBool(raw, "randomize_map_nodes",     defaultVal: true),
             RandomizeFabricator      = GetBool(raw, "randomize_fabricator",    defaultVal: true),
-            RandomizeSlimepedia          = GetBool(raw, "randomize_slimepedia",           defaultVal: false),
+            RandomizeSlimepediaSlimes    = GetBool(raw, "randomize_slimepedia_slimes",    defaultVal: true),
             RandomizeSlimepediaResources = GetBool(raw, "randomize_slimepedia_resources", defaultVal: false),
             RandomizeSlimepediaRadiant   = GetBool(raw, "randomize_slimepedia_radiant",   defaultVal: false),
             AllRadiantSlimes             = GetBool(raw, "all_radiant_slimes",             defaultVal: false),
             RadiantSpawnRateMultiplier   = (int)GetLong(raw, "radiant_spawn_rate_multiplier", 1),
             GoldLuckySpawnRateMultiplier = (int)Math.Clamp(GetLong(raw, "gold_lucky_spawn_rate_multiplier", 1), 1, 35),
             RandomizeResearchDrones  = GetBool(raw, "randomize_research_drones", defaultVal: false),
+            DroneAccessKey           = GetBool(raw, "drone_access_key",          defaultVal: false),
             RandomizeGhostlyDrones   = GetBool(raw, "randomize_ghostly_drones",  defaultVal: false),
             RandomizePlortDoors      = GetString(raw, "randomize_plort_doors", "vanilla"),
             RandomizeShadowDoors     = GetString(raw, "randomize_shadow_doors", "disabled"),
@@ -204,7 +211,7 @@ public class SlotData
             RandomizeHarmonizers           = GetBool(raw, "randomize_harmonizers", defaultVal: false),
             RandomizeConservatoryExpansions = GetBool(raw, "randomize_conservatory_expansions", defaultVal: false),
             PlortMarketMode                 = GetString(raw, "plort_market_mode", "disabled"),
-            ItemNotifications               = GetString(raw, "item_notifications", "progression_useful"),
+            ItemNotifications               = GetString(raw, "item_notifications", "progression"),
             PrismaShardsRequired            = (int)GetLong(raw, "prisma_shards_required", 0),
             ShopCatalogItems                = (int)GetLong(raw, "shop_catalog_items", 0),
             ShopCatalogWaves                = GetIntMap(raw, "shop_catalog_waves"),

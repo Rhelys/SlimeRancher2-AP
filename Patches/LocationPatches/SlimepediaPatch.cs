@@ -30,9 +30,6 @@ internal static class SlimepediaPatch
 
         var slotData = Plugin.Instance.ApClient?.SlotData;
         if (slotData == null) return;
-        if (!slotData.RandomizeSlimepedia && !slotData.RandomizeSlimepediaResources
-            && !slotData.RandomizeSlimepediaRadiant) return;
-
         SlimepediaPatchHelper.SendCheckForEntry(entry.name, slotData);
     }
 
@@ -74,9 +71,6 @@ internal static class SlimepediaIdentTypePatch
 
         var slotData = Plugin.Instance.ApClient?.SlotData;
         if (slotData == null) return;
-        if (!slotData.RandomizeSlimepedia && !slotData.RandomizeSlimepediaResources
-            && !slotData.RandomizeSlimepediaRadiant) return;
-
         var entry = __instance.GetEntry(identifiableType);
         if (entry == null)
         {
@@ -103,19 +97,21 @@ file static class SlimepediaPatchHelper
             return;
         }
 
-        bool enabled = loc.Type switch
-        {
-            LocationType.SlimepediaEntry         => slotData.RandomizeSlimepedia,
-            LocationType.SlimepediaResourceEntry => slotData.RandomizeSlimepediaResources,
-            LocationType.SlimepediaRadiantEntry  => slotData.RandomizeSlimepediaRadiant,
-            _                                    => false,
-        };
+        // RadiantSlime sits in the Slimes table but follows the radiant option instead — gated
+        // by it alone, so Slimes off with Radiant on still sends it.
+        bool enabled = entryName == "RadiantSlime"
+            ? slotData.RandomizeSlimepediaRadiant
+            : loc.Type switch
+            {
+                LocationType.SlimepediaSlimeEntry    => slotData.RandomizeSlimepediaSlimes,
+                LocationType.SlimepediaResourceEntry => slotData.RandomizeSlimepediaResources,
+                LocationType.SlimepediaRadiantEntry  => slotData.RandomizeSlimepediaRadiant,
+                _                                    => false,
+            };
         if (!enabled) return;
 
-        // Entries the apworld may have left out of the pool. RadiantSlime follows the radiant
-        // toggle, not the Slimes one.
-        if (entryName == "RadiantSlime" && !slotData.RandomizeSlimepediaRadiant) return;
-        if (entryName == "Sprinkles"    && !slotData.RandomizeSanctuary) return;
+        // Post-game; the apworld adds it only with randomize_sanctuary.
+        if (entryName == "Sprinkles" && !slotData.RandomizeSanctuary) return;
 
         Logger.Info(
             $"[AP-Pedia] Check: '{loc.Name}' (id={loc.Id}  entry='{entryName}')");

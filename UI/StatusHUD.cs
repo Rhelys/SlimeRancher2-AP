@@ -29,6 +29,7 @@ public class StatusHUD : MonoBehaviour
         Plugin.Instance.ApClient.OnConnected        += UpdateStatus;
         Plugin.Instance.ApClient.OnDisconnected     += UpdateStatus;
         Plugin.Instance.ApClient.OnConnectionFailed += _ => UpdateStatus();
+        Plugin.Instance.ApClient.OnReconnecting     += (_, _) => UpdateStatus();
         UpdateStatus();
     }
 
@@ -63,6 +64,11 @@ public class StatusHUD : MonoBehaviour
             var slot = Plugin.Instance.ApClient.Session?.ConnectionInfo.Slot ?? -1;
             _statusText  = $"AP: Connected (slot {slot})";
             _statusColor = Color.green;
+        }
+        else if (Plugin.Instance.ApClient.IsReconnecting)
+        {
+            _statusText  = "AP: Reconnecting...";
+            _statusColor = new Color(0.9f, 0.75f, 0.1f);
         }
         else
         {

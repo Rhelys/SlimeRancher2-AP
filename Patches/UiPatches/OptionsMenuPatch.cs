@@ -46,13 +46,20 @@ internal static class OptionsMenuInjectionPatch
     private static void Prefix(OptionsUIRoot __instance, OptionsConfiguration __0)
     {
         if (!Plugin.Instance.ModEnabled) return;
-        if (ApCategory != null) return;   // already injected
 
-        // Its empty _title renders as ""; the Postfix writes the label.
-        var cat = ScriptableObject.CreateInstance<OptionsItemCategory>();
-        ApCategory = cat;
+        // Checked on every bind, not once: the in-game Options binds a config that does not hold
+        // the category injected at the main menu, and a once-only inject left the Postfix
+        // relabelling whatever tab sat at the old index (About).
+        OurCategoryIndex = -1;
+        if (ApCategory == null)
+        {
+            // Its empty _title renders as ""; the Postfix writes the label. Pinned so the
+            // scene-change unload sweep cannot destroy it.
+            ApCategory = ScriptableObject.CreateInstance<OptionsItemCategory>();
+            ApCategory.hideFlags |= HideFlags.DontUnloadUnusedAsset;
+        }
 
-        TryInjectIntoConfig(__0, cat);
+        TryInjectIntoConfig(__0, ApCategory);
     }
 
     private static void Postfix(OptionsUIRoot __instance, OptionsConfiguration __0)
@@ -60,7 +67,25 @@ internal static class OptionsMenuInjectionPatch
         if (!Plugin.Instance.ModEnabled) return;
         if (ApCategory == null || OurCategoryIndex < 0) return;
 
-        // Tab holders are created 1:1 and in order with the categories (About uses another type).
+        // The tabs (and SwapCategory's index) follow __instance.categories — the config's list
+        // after the game's filter, plus About — so take our index from there when it is found.
+        try
+        {
+            var bound = __instance.categories;
+            if (bound != null)
+                for (int i = 0; i < bound.Count; i++)
+                    if (bound[i] != null && bound[i].Pointer == ApCategory.Pointer)
+                    {
+                        OurCategoryIndex = i;
+                        break;
+                    }
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"[AP] OptionsMenuPatch: could not read bound categories ({ex.Message}) — using config index {OurCategoryIndex}");
+        }
+
+        // Tab holders are created 1:1 and in order with the bound categories.
         var holders = __instance.GetComponentsInChildren<CategoryTabViewHolder>(includeInactive: true);
         if (holders == null || OurCategoryIndex >= holders.Length)
         {
@@ -93,8 +118,9 @@ internal static class OptionsMenuInjectionPatch
     }
 
     /// <summary>
-    /// Appends <paramref name="cat"/> to the config's list, a field on the generic
-    /// ListAsset&lt;T&gt; base, reached by raw IL2CPP field access.
+    /// Sets <see cref="OurCategoryIndex"/> to <paramref name="cat"/>'s position in the config's
+    /// list, appending it if absent. The list is a field on the generic ListAsset&lt;T&gt; base,
+    /// reached by raw IL2CPP field access.
     /// </summary>
     private static void TryInjectIntoConfig(OptionsConfiguration config, OptionsItemCategory cat)
     {
@@ -125,6 +151,15 @@ internal static class OptionsMenuInjectionPatch
             }
 
             var list = new Il2CppSystem.Collections.Generic.List<OptionsItemCategory>(listNativePtr);
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (list[i]?.Pointer == cat.Pointer)
+                {
+                    OurCategoryIndex = i;   // already in this config
+                    return;
+                }
+            }
+
             list.Add(cat);
             OurCategoryIndex = list.Count - 1;
 

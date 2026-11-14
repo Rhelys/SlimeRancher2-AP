@@ -100,6 +100,10 @@ internal static class LoadGamePatch
                 Plugin.Instance.ApClient.Disconnect();
                 StatusHUD.Instance?.ShowNotification("Vanilla save loaded — Archipelago disconnected");
             }
+            else
+            {
+                Logger.Info($"[AP] LoadGamePatch: slot {slotIndex} ({__0.GameName}) has no AP binding — vanilla save, AP inactive.");
+            }
             SaveGuard.SetExpectedSeed(null);
             return true;
         }
@@ -215,7 +219,8 @@ internal static class SessionEndedPatch
     private static void Postfix()
     {
         if (!Plugin.Instance.ModEnabled) return;
-        if (!Plugin.Instance.ApClient.IsConnected) return;
+        // Also while reconnecting: a retry left running would install a session at the menu.
+        if (!Plugin.Instance.ApClient.IsConnected && !Plugin.Instance.ApClient.IsReconnecting) return;
 
         Logger.Info("[AP] SessionEndedPatch: Save and Quit detected — disconnecting from AP server.");
         Plugin.Instance.ApClient.Disconnect();

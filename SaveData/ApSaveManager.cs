@@ -516,10 +516,22 @@ public class ApSaveManager
         MarkDirty();
     }
 
+    /// <summary>Debug grants only — an AP item uses <see cref="RaiseShopCatalogsHeld"/>.</summary>
     public void AccumulateShopCatalog()
     {
         if (_saveFile == null) return;
         _shopCatalogsHeldVal += 1;
+        MarkDirty();
+    }
+
+    /// <summary>
+    /// Raises the held count to <paramref name="count"/>, never lowers it. Idempotent, so an item
+    /// replayed after a watermark reset (or onto a new save of the slot) is not counted twice.
+    /// </summary>
+    public void RaiseShopCatalogsHeld(int count)
+    {
+        if (_saveFile == null || count <= _shopCatalogsHeldVal) return;
+        _shopCatalogsHeldVal = count;
         MarkDirty();
     }
 

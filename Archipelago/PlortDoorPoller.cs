@@ -21,17 +21,18 @@ public static class PlortDoorPoller
     // Fully processed doors, never re-tracked.
     private static readonly HashSet<string> _done = new();
 
-    private static float _nextScan = 0f;
+    // The FindObjectsOfTypeAll scan costs ~20 ms, so it runs after zones stream in rather than
+    // on a fixed interval; the 1 s poll only touches the tracked doors.
+    private static readonly SceneScanSchedule _scan = new(safetySeconds: 30f);
     private static float _nextPoll = 0f;
 
-    private const float ScanInterval = 5f;
     private const float PollInterval = 1f;
 
     public static void Reset()
     {
         _tracked.Clear();
         _done.Clear();
-        _nextScan = 0f;
+        _scan.Restart();
         _nextPoll = 0f;
     }
 
@@ -40,11 +41,7 @@ public static class PlortDoorPoller
         if (!Plugin.Instance.ModEnabled) return;
         float now = Time.time;
 
-        if (now >= _nextScan)
-        {
-            _nextScan = now + ScanInterval;
-            Scan();
-        }
+        if (_scan.Due()) Scan();
 
         if (!Plugin.Instance.ApClient.IsConnected) return;
         if (now < _nextPoll) return;
@@ -107,6 +104,8 @@ public static class PlortDoorPoller
                 completed.Add(posKey);
                 continue;
             }
+
+            if (door.Psl == null) { stale.Add(posKey); continue; } // unloaded with its zone
 
             bool shouldUnlock;
             try { shouldUnlock = door.Psl.ShouldUnlock(); }

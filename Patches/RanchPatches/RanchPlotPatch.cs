@@ -3,6 +3,7 @@ using Il2CppMonomiPark.SlimeRancher.Economy;
 using Il2CppMonomiPark.SlimeRancher.UI;
 using Il2CppMonomiPark.SlimeRancher.UI.Plot;
 using SlimeRancher2AP.Archipelago;
+using SlimeRancher2AP.Data;
 using SlimeRancher2AP.UI;
 using UnityEngine;
 
@@ -31,10 +32,10 @@ internal static class RanchPlotInteractPatch
         if (plot == null) return true;
         if (plot.TypeId != LandPlot.Id.EMPTY) return true;
 
-        if (RanchPlotHandler.CanBuildOnPlot(plot, out var blockMessage)) return true;
+        if (RanchPlotHandler.CanBuildOnPlot(plot, out var blockMessage, out var popup)) return true;
 
         Logger.Info($"[AP] Plot interaction blocked — {blockMessage}");
-        ApPopup.ShowThrottled("plot-locked", blockMessage, "Archipelago", "Plot locked");
+        ApPopup.ShowThrottled("plot-locked", popup.Title, "Archipelago", popup.Intro);
         return false; // do not open the plot purchase UI
     }
 }
@@ -58,8 +59,9 @@ internal static class RanchPlotReplacePatch
                 Logger.Warning(
                     $"[AP] Blocked plot build: {newType} — its Plans item has not been received " +
                     "(menu filter was bypassed)");
-                ApPopup.ShowThrottled("plot-plans", $"{newType} Plans not received",
-                                      "Archipelago", "Building locked");
+                var plansName = ItemTable.Get(buildingItem.Value)?.Name ?? $"{newType} Plans";
+                ApPopup.ShowThrottled("plot-plans", "Building is locked",
+                                      "Archipelago", $"Requires: {plansName}");
                 // The game already charged the purchase before Replace — give it back.
                 RanchPlotHandler.RefundNewbucks(
                     RanchPlotHandler.VanillaBuildCost(newType), $"blocked locked {newType} build");
@@ -71,10 +73,10 @@ internal static class RanchPlotReplacePatch
         // Tier 1 — a free slot in the area
         if (RanchPlotHandler.PlotsEnabled
             && oldLandPlot != null && oldLandPlot.TypeId == LandPlot.Id.EMPTY
-            && !RanchPlotHandler.CanBuildOnPlot(oldLandPlot, out var blockMessage))
+            && !RanchPlotHandler.CanBuildOnPlot(oldLandPlot, out var blockMessage, out var popup))
         {
             Logger.Warning($"[AP] Blocked plot build at Replace — {blockMessage}");
-            ApPopup.ShowThrottled("plot-slot", blockMessage, "Archipelago", "Plot locked");
+            ApPopup.ShowThrottled("plot-slot", popup.Title, "Archipelago", popup.Intro);
             RanchPlotHandler.RefundNewbucks(
                 RanchPlotHandler.VanillaBuildCost(newType), "blocked build (no free plot slot)");
             __result = null;
@@ -100,8 +102,9 @@ internal static class RanchPlotUpgradePatch
         if (upgradeItem == null || RanchPlotHandler.HasItem(upgradeItem.Value)) return true;
 
         Logger.Info($"[AP] Blocked plot upgrade: {upgrade} on {building} — item not received yet");
-        ApPopup.ShowThrottled("plot-upgrade", "Upgrade not received yet",
-                              "Archipelago", "Upgrade locked");
+        var upgradeName = ItemTable.Get(upgradeItem.Value)?.Name ?? "its upgrade item";
+        ApPopup.ShowThrottled("plot-upgrade", "Upgrade is locked",
+                              "Archipelago", $"Requires: {upgradeName}");
         __result = false;
         return false;
     }

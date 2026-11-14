@@ -20,13 +20,18 @@ public static class PauseMenuGoalDisplay
     private const float  PollSeconds = 0.25f;
     private static float _nextPoll;
 
-    /// <summary>Seconds between root re-scans while no root has been cached yet.</summary>
-    private const float  RescanSeconds = 2f;
+    /// <summary>
+    /// Seconds between root re-scans while paused with no root cached, doubling per miss up to
+    /// <see cref="MaxRescanSeconds"/>; reset on unpause.
+    /// </summary>
+    private const float  RescanSeconds    = 0.5f;
+    private const float  MaxRescanSeconds = 8f;
+    private static float _scanBackoff     = RescanSeconds;
     private static float _nextScan;
 
     /// <summary>
-    /// The scene's pause root, which exists whether or not the menu is open — so the costly
-    /// FindObjectsOfTypeAll scan runs once per scene, not every poll.
+    /// The pause root, cached so the costly FindObjectsOfTypeAll scan runs only while paused
+    /// and only until a live root is found.
     /// </summary>
     private static PauseMenuRoot? _cachedRoot;
 
@@ -50,10 +55,18 @@ public static class PauseMenuGoalDisplay
                     ? _cachedRoot
                     : null;
             }
-            else if (now >= _nextScan || Time.timeScale == 0f)
+            else if (!IsGamePaused())
             {
-                // Until cached: scan rarely, but at once while paused.
-                _nextScan = now + RescanSeconds;
+                // Unpaused: no in-scene root exists to find (the profiler showed this scan
+                // failing every 2 s, ~20 ms each), and nothing would be shown anyway.
+                _scanBackoff = RescanSeconds;
+            }
+            else if (now >= _nextScan)
+            {
+                // Paused with no live root: scan once, then back off — other paused screens
+                // have no root, and each miss costs ~20 ms.
+                _nextScan    = now + _scanBackoff;
+                _scanBackoff = System.Math.Min(_scanBackoff * 2f, MaxRescanSeconds);
                 var roots = Resources.FindObjectsOfTypeAll<PauseMenuRoot>();
                 PauseMenuRoot? sceneRoot = null;
                 for (int i = 0; i < roots.Length; i++)
@@ -109,6 +122,14 @@ public static class PauseMenuGoalDisplay
         {
             Logger.Warning($"[AP] PauseMenuGoalDisplay tick failed: {ex.Message}");
         }
+    }
+
+    /// <summary>Time stopped, or the pause director says so — either is enough to look for the root.</summary>
+    private static bool IsGamePaused()
+    {
+        if (Time.timeScale == 0f) return true;
+        try { return SceneContext.Instance?.PauseMenuDirector?.IsPaused() == true; }
+        catch { return false; }
     }
 
     /// <summary>Creates or updates one label; null <paramref name="text"/> hides it.</summary>
@@ -184,13 +205,10 @@ public static class PauseMenuGoalDisplay
             case "slimepedia":
             {
                 // List the categories this seed counts.
-                var categories = new System.Collections.Generic.List<string>(3);
-                if (slotData.RandomizeSlimepedia)          categories.Add("SLIMES");
+                var categories = new System.Collections.Generic.List<string>(3) { "SLIMES" };
                 if (slotData.RandomizeSlimepediaResources) categories.Add("RESOURCES");
                 if (slotData.RandomizeSlimepediaRadiant)   categories.Add("RADIANT");
-                body = categories.Count > 0
-                    ? $"COMPLETE THE SLIMEPEDIA ({string.Join(", ", categories)})"
-                    : "COMPLETE THE SLIMEPEDIA";
+                body = $"COMPLETE THE SLIMEPEDIA ({string.Join(", ", categories)})";
                 break;
             }
             default:

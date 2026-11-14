@@ -1,5 +1,6 @@
 ﻿using HarmonyLib;
 using Il2CppMonomiPark.SlimeRancher;
+using Il2CppMonomiPark.SlimeRancher.World;
 using SlimeRancher2AP.Data;
 using SlimeRancher2AP.Utils;
 
@@ -51,26 +52,74 @@ internal static class PuzzleSlotLockableActivatePatch
     }
 
     /// <summary>
-    /// Nulls the door's <c>_rewardOnUnlock</c> rewarder fields, as for treasure pods; the door
-    /// still opens.
+    /// Nulls the reward fields of every rewarder the door can fire, as for treasure pods; the
+    /// door still opens. Runs before ActivateOnUnlock, so before any of it is switched on.
+    /// Two sources:
+    /// <list type="bullet">
+    /// <item><c>_rewardOnUnlock</c> — the door's own rewarder.</item>
+    /// <item>A <c>TreasurePodRewarder</c> under an <c>_activateOnUnlock</c> object — it pays out
+    /// from its own OnEnable when the door activates it. Shadow Plort Door 2 (Waterworks
+    /// glass-button puzzle) gives its Storage Cell this way, with <c>_rewardOnUnlock</c> null.</item>
+    /// </list>
+    /// A rewarder belonging to a treasure pod is left alone: that pod is its own location.
     /// </summary>
     private static void SuppressVanillaReward(PuzzleSlotLockable door)
     {
+        int suppressed = 0;
         try
         {
-            var rewarder = door._rewardOnUnlock;
-            if (rewarder == null) return;
-            rewarder.Blueprint                          = null;
-            rewarder.UpgradeComponent                   = null;
-            rewarder.SpawnObjs                          = null;
-            rewarder.UnlockedSlimeAppearance            = null;
-            rewarder.UnlockedSlimeAppearanceDefinition  = null;
-            Logger.Info("[AP] Shadow Plort Door vanilla reward suppressed");
+            if (door._rewardOnUnlock != null)
+            {
+                Clear(door._rewardOnUnlock);
+                suppressed++;
+                Logger.Info("[AP] Shadow Plort Door vanilla reward suppressed (_rewardOnUnlock)");
+            }
+
+            var activated = door._activateOnUnlock;
+            if (activated != null)
+            {
+                for (int i = 0; i < activated.Length; i++)
+                {
+                    var go = activated[i];
+                    if (go == null) continue;
+                    var rewarders = go.GetComponentsInChildren<TreasurePodRewarder>(true);
+                    for (int j = 0; j < rewarders.Length; j++)
+                    {
+                        var r = rewarders[j];
+                        if (r == null || r.GetComponentInParent<TreasurePod>(true) != null) continue;
+                        Clear(r);
+                        suppressed++;
+                        Logger.Info(
+                            $"[AP] Shadow Plort Door vanilla reward suppressed (activated object '{go.name}' → '{r.gameObject.name}')");
+                    }
+                }
+            }
+
+            if (suppressed == 0)
+            {
+                // Something still pays out the reward; name the objects to look at next.
+                var names = new System.Collections.Generic.List<string>();
+                if (activated != null)
+                    for (int i = 0; i < activated.Length; i++)
+                        names.Add(activated[i] != null ? activated[i].name : "<null>");
+                Logger.Warning(
+                    "[AP] Shadow Plort Door: no rewarder found to suppress. _activateOnUnlock=["
+                    + string.Join(", ", names) + "]");
+            }
         }
         catch (System.Exception ex)
         {
             Logger.Warning($"[AP] Shadow Plort Door reward suppression failed: {ex.Message}");
         }
+    }
+
+    private static void Clear(TreasurePodRewarder rewarder)
+    {
+        rewarder.Blueprint                          = null;
+        rewarder.UpgradeComponent                   = null;
+        rewarder.SpawnObjs                          = null;
+        rewarder.UnlockedSlimeAppearance            = null;
+        rewarder.UnlockedSlimeAppearanceDefinition  = null;
     }
 }
 
