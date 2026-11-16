@@ -61,6 +61,12 @@ This is **BepInEx 6 IL2CPP**. Many patterns from BepInEx 5 (Mono) tutorials do n
 - **`System.Random` vs `UnityEngine.Random` ambiguity** — qualify as `System.Random` explicitly when both are in scope.
 - **`using` directives needed for interop types** — game types live in namespaces like `Il2CppMonomiPark.SlimeRancher.Economy`; always check the `apis/` decompiled file for the correct namespace.
 - **Removing an entry from a ScriptableObject's serialized list can DESTROY the asset** — if that list was the asset's last native reference, the game's `Resources.UnloadUnusedAssets` sweep (runs a few seconds after scene load) destroys it; it then reads as Unity-null and cannot be re-added. Caching an interop wrapper does NOT protect it (wrappers hold weak handles). Pin with `asset.hideFlags |= HideFlags.DontUnloadUnusedAsset` BEFORE detaching (see `RanchPlotHandler.SnapshotCategories`).
+- **A fatal `Unhandled exception. System.NullReferenceException` with no stack trace** (in
+  `BepInEx/ErrorLog.log`) means a fault inside an Il2CppInterop-generated trampoline — those
+  frames are omitted from traces, and an exception inside a mod patch or `Update` would instead
+  be caught and logged. Suspect a Harmony patch on a tiny native method (see "Never hook
+  `BaseUIInteractable.OnInteractInput`"). To bisect, set `InstantFlushing = true` in
+  `BepInEx.cfg` first — otherwise the log loses its last lines on a crash.
 - **Reassigning a UI model's `IsAvailable`/`IsHidden` delegate while its menu is open corrupts the pooled list views** (entries render another item's title/cost), and the game re-installs fresh closures on every menu bind anyway — gate menu content by filtering the data-source list, not by wrapping delegates.
 
 ---
@@ -490,15 +496,25 @@ prologues changed → trampoline crashes), so some detection is done by **pollin
   `SendCheck` idempotency is the dedup.
 - **Identity**: `_researchDroneEntry.name` (stable asset name) → `LocationTable`
 - **Location IDs**: 819450–819472
-- **Drone Access Key** (`drone_access_key`): `ResearchDroneInputPatch` refuses a locked drone
-  with a Prefix on `BaseUIInteractable.OnInteractInput`, **before** the drone's own
-  `OnInteract` runs. Blocking any later is too late: confirmed in game, the drone's
-  `OnInteract` sets `ResearchDroneModel.read = true` and `_state = ACTIVATED` before it calls
-  the base `UIActivator.OnInteract`. `ResearchDroneInteractPatch` (on that base method) sends a
+- **Drone Access Key** (`drone_access_key`): the drone poll disables a locked drone's
+  interaction colliders — those on a layer in the player's `UIDetector.interactionLayerMask` —
+  (`ResearchDroneLock.ApplyLocks`) and re-enables them when the key arrives, so the detector
+  never finds it and the drone's own `OnInteract` never runs. Disabling the
+  `ResearchDroneActivator` component does **not** work: confirmed in game, the detector still
+  opened a disabled one. Blocking inside the interaction is too
+  late: confirmed in game, the drone's `OnInteract` sets `ResearchDroneModel.read = true` and
+  `_state = ACTIVATED` before it calls the base `UIActivator.OnInteract`. The poll also shows the
+  "locked" popup once per approach. `ResearchDroneInteractPatch` (on that base method) sends a
   keyed drone's check when it is opened with the key — with the option on, the poll skips every
-  drone, since `ACTIVATED` proves nothing — and warns if it ever has to act as the lock. The
-  archive patch holds its checks without the key. F9 → Dumps → "Dump Research Drone State"
+  drone's state, since `ACTIVATED` proves nothing — and warns if it ever has to act as the lock.
+  The archive patch holds its checks without the key. F9 → Dumps → "Dump Research Drone State"
   shows each drone's state, `read` flag and drone event records.
+- **Never hook `BaseUIInteractable.OnInteractInput`.** 0.17.0 locked drones with a Prefix there.
+  Merely having the patch installed crashed the game a few frames after pressing a comm station
+  — fatal `Unhandled exception. System.NullReferenceException` in `BepInEx/ErrorLog.log`, no
+  stack trace, prefix never entered for the crashing call. Bisected in game: identical repro,
+  no crash with the hook not installed. Likely a native body shared with unrelated methods
+  (as with `ShouldShowCallout`).
 
 ### Research Drone Archives (19 of 23 drones) ✅ — set is COMPLETE
 - **File**: `ResearchDroneArchivePatch.cs` — Postfix on `ResearchDroneUI.ToggleArchive`;

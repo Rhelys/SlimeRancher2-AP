@@ -815,6 +815,16 @@ public static class LocationDumper
             return $"{composite._operation}({string.Join(" , ", parts)})";
         }
 
+        // A reference to a shared Query asset (e.g. 'DreamlandUnlockQuery') — expand its root, or
+        // the dump names the asset without saying what it checks.
+        var assetQuery = comp.TryCast<Il2CppMonomiPark.SlimeRancher.Event.Query.AssetQueryComponent>();
+        if (assetQuery != null)
+        {
+            var asset = assetQuery._queryAsset;
+            if (asset == null) return "AssetQuery[<null asset>]";
+            return $"AssetQuery['{asset.name}' => {DescribeQuery(asset._root, depth + 1)}]";
+        }
+
         // Event-backed queries: identity lives on GetEvent(), not the fields — reflecting the
         // fields only yields a pointer rendered as an int.
         var eventQuery = comp.TryCast<GameEventQueryComponent>();

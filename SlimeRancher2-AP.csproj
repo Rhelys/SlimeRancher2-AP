@@ -74,6 +74,11 @@
       <HintPath>$(LibsDir)UnityEngine.CoreModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <!-- Physics — Collider (the Drone Access Key lock disables a drone's interaction colliders) -->
+    <Reference Include="UnityEngine.PhysicsModule">
+      <HintPath>$(LibsDir)UnityEngine.PhysicsModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <!-- IMGUI — GUI, GUILayout, GUIStyle (used by ConnectionUI and StatusHUD) -->
     <Reference Include="UnityEngine.IMGUIModule">
       <HintPath>$(LibsDir)UnityEngine.IMGUIModule.dll</HintPath>
